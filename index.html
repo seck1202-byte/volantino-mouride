@@ -442,12 +442,25 @@ input[type="range"] {
 .scarica-menu button:active,.scarica-menu button:hover{background:rgba(212,175,55,.2)}
 .editor-sheet{display:none;position:absolute;left:0;right:0;bottom:0;z-index:310;background:#0a2418;border-top:2px solid #d4af37;padding:14px 14px max(16px,env(safe-area-inset-bottom));flex-direction:column;gap:8px;max-height:45vh;overflow-y:auto}
 .editor-sheet.show{display:flex}
+.editor-sheet{touch-action:pan-y}
 .editor-sheet .btn{min-height:46px;font-size:.85rem}
 .editor-stage{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;min-height:0;position:relative}
 .editor-hint{display:none}
 #editorSelLabel{color:var(--gold-light);font-size:.8rem;flex:1;min-width:120px}
-.editor-stage{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:12px;-webkit-overflow-scrolling:touch}
-#editorCanvas{width:min(100%,420px);height:auto;background:#111;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.5);touch-action:none}
+.editor-stage{flex:1;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:8px;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#editorCanvas{display:block;width:300px;height:auto;background:#111;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,.5);touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.editor-bottom{display:flex;align-items:center;gap:6px;padding:6px 8px;padding-bottom:max(6px,env(safe-area-inset-bottom));background:linear-gradient(0deg,#0d5c2e,#063d1c);position:relative;z-index:5;touch-action:manipulation}
+.editor-bottom .ebtn{flex:0 0 auto;width:40px;height:40px;border:none;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;font-size:1.35rem;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0;touch-action:manipulation}
+.editor-bottom .ebtn.small{width:36px;font-size:1.05rem}
+.editor-bottom .ebtn:active{background:rgba(255,255,255,.3)}
+.editor-bottom input[type=range]{flex:1 1 auto;min-width:60px;accent-color:#d4af37;height:32px;margin:0}
+.editor-bottom #editorSizeVal{flex:0 0 44px;color:#f0d060;font-size:.75rem;font-weight:800;text-align:center}
+.editor-bottom.disabled .ebtn,.editor-bottom.disabled input,.editor-bottom.disabled #editorSizeVal{opacity:.4}
+html{touch-action:manipulation}
+.pimg-wrap{position:relative;display:block;cursor:pointer;touch-action:manipulation}
+.pedit-badge{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);background:rgba(6,20,12,.82);color:#f0d060;border:1px solid rgba(212,175,55,.7);border-radius:999px;padding:6px 12px;font-size:.72rem;font-weight:800;white-space:nowrap;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+.preview-edit-hint{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);background:rgba(6,20,12,.82);color:#f0d060;border:1px solid rgba(212,175,55,.7);border-radius:999px;padding:6px 12px;font-size:.7rem;font-weight:800;white-space:nowrap;pointer-events:none;display:none}
+.preview-wrap.hint-on .preview-edit-hint{display:block}
 .editor-hint{text-align:center;color:var(--muted);font-size:.72rem;padding:6px 12px 14px}
 .esempi-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:10px}
 .esempi-card{background:rgba(0,0,0,.3);border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
@@ -469,11 +482,13 @@ input[type="range"] {
   <aside class="preview-panel">
     <div class="preview-wrap" id="previewWrap">
       <canvas id="preview" width="540" height="960"></canvas>
+      <span class="preview-edit-hint" id="previewEditHint">✋ Tocca per spostare / zoom</span>
     </div>
     <div class="preview-toolbar">
       <button class="btn btn-secondary" type="button" id="btnRatioStory" onclick="setExportRatio('story')">📖 Storia 9:16</button>
       <button class="btn btn-secondary" type="button" id="btnRatioPost" onclick="setExportRatio('post')">📱 Post 4:5</button>
     </div>
+    <button class="btn btn-primary" type="button" id="btnPreviewEdit" onclick="openEditor(state.template)" style="width:min(100%,320px);margin:8px auto 0;display:flex">✋ Sposta e zoom elementi</button>
   </aside>
 
   <main class="form-panel">
@@ -510,8 +525,8 @@ input[type="range"] {
           <input type="range" id="fotoX" min="0" max="100" value="50">
           <label>Posizione verticale: <span id="fotoYVal">35</span>%</label>
           <input type="range" id="fotoY" min="0" max="100" value="35">
-          <label>Zoom: <span id="fotoZoomVal">110</span>%</label>
-          <input type="range" id="fotoZoom" min="50" max="250" value="110">
+          <label>Zoom: <span id="fotoZoomVal">100</span>%</label>
+          <input type="range" id="fotoZoom" min="20" max="400" value="100">
         </div>
       </section>
 
@@ -1287,20 +1302,14 @@ function _guessTextLayer(text, d) {
   return { id: _uniqueLayerId('text'), label: t.slice(0, 22), z: LAYER_Z.text };
 }
 
-function drawDominantCutout(ctx, img, zoneX, zoneY, zoneW, zoneH, opts = {}) {
-  if (!img) return;
-  if (state._layerOmit) return;
-  if (state._layerCap) {
-    const isGroup = img === state.fotoGruppo;
-    const id = _uniqueLayerId(opts.layerId || (isGroup ? 'fotoGruppo' : 'fotoPrincipale'));
-    const z = isGroup ? LAYER_Z.group : LAYER_Z.mainPhoto;
-    state._layerCap.push({
-      id, label: isGroup ? 'Foto gruppo' : 'Foto principale', type: 'photo',
-      x: zoneX, y: zoneY, w: zoneW, h: zoneH, z,
-      draw(c) { withLayerRaw(() => drawDominantCutout(c, img, zoneX, zoneY, zoneW, zoneH, opts)); }
-    });
-    return;
-  }
+/** Main-photo user adjustments from Step 1 (zoom 20–400 %, position sliders). */
+function fotoUserXf() {
+  const g = id => { const el = document.getElementById(id); return el ? +el.value : NaN; };
+  const z = g('fotoZoom'), x = g('fotoX'), y = g('fotoY');
+  return { zoom: isNaN(z) ? 1 : Math.max(0.2, Math.min(4, z / 100)), offX: isNaN(x) ? 0 : (x - 50) / 100, offY: isNaN(y) ? 0 : (y - 35) / 100 };
+}
+/** Geometry of a dominant cut-out inside its zone (template fit + Step-1 user zoom/offset for the main photo). */
+function cutoutGeom(img, zoneX, zoneY, zoneW, zoneH, opts = {}) {
   const {
     zoom = 1,
     focusX = 0.5, // kept for API compat; cutouts use full subject
@@ -1313,7 +1322,7 @@ function drawDominantCutout(ctx, img, zoneX, zoneY, zoneW, zoneH, opts = {}) {
 
   const iw = img.naturalWidth || img.width;
   const ih = img.naturalHeight || img.height;
-  if (!iw || !ih) return;
+  if (!iw || !ih) return null;
 
   // Prefer filling ~full zone height (subject dominant). If too wide, crop sides (cover).
   const maxW = zoneW * maxWidthFrac;
@@ -1342,6 +1351,38 @@ function drawDominantCutout(ctx, img, zoneX, zoneY, zoneW, zoneH, opts = {}) {
     dy = headBelowY;
   }
 
+  if (img === state.fotoPrincipale) {
+    const u = fotoUserXf();
+    if (Math.abs(u.zoom - 1) > 0.001 || u.offX || u.offY) {
+      const cx = dx + dw / 2, cy = dy + dh / 2;
+      dw *= u.zoom; dh *= u.zoom;
+      dx = cx - dw / 2 + u.offX * zoneW;
+      dy = cy - dh / 2 + u.offY * zoneH;
+    }
+  }
+  return { sx, sy, sw, sh, dx, dy, dw, dh };
+}
+
+function drawDominantCutout(ctx, img, zoneX, zoneY, zoneW, zoneH, opts = {}) {
+  if (!img) return;
+  if (state._layerOmit) return;
+  if (state._layerCap) {
+    const isGroup = img === state.fotoGruppo;
+    const id = _uniqueLayerId(opts.layerId || (isGroup ? 'fotoGruppo' : 'fotoPrincipale'));
+    const z = isGroup ? LAYER_Z.group : LAYER_Z.mainPhoto;
+    const gm = cutoutGeom(img, zoneX, zoneY, zoneW, zoneH, opts);
+    const bx = gm ? gm.dx : zoneX, by = gm ? gm.dy : zoneY, bw = gm ? gm.dw : zoneW, bh = gm ? gm.dh : zoneH;
+    state._layerCap.push({
+      id, label: isGroup ? 'Foto gruppo' : 'Foto principale', type: 'photo',
+      x: bx, y: by, w: bw, h: bh, z,
+      draw(c) { withLayerRaw(() => drawDominantCutout(c, img, zoneX, zoneY, zoneW, zoneH, opts)); }
+    });
+    return;
+  }
+  const g0 = cutoutGeom(img, zoneX, zoneY, zoneW, zoneH, opts);
+  if (!g0) return;
+  const { sx, sy, sw, sh, dx, dy, dw, dh } = g0;
+  const { bottomFade = 0.18, glow = false, glowColor = 'rgba(255,240,180,0.55)' } = opts;
   ctx.save();
   if (glow) {
     // Soft halo behind subject
@@ -1357,8 +1398,9 @@ function drawDominantCutout(ctx, img, zoneX, zoneY, zoneW, zoneH, opts = {}) {
 
   // Draw to offscreen with bottom-only fade (face stays fully opaque)
   const off = document.createElement('canvas');
-  off.width = Math.max(1, Math.round(dw));
-  off.height = Math.max(1, Math.round(dh));
+  const res = Math.min(1, Math.sqrt(6e6 / Math.max(1, dw * dh)));
+  off.width = Math.max(1, Math.round(dw * res));
+  off.height = Math.max(1, Math.round(dh * res));
   const octx = off.getContext('2d');
   octx.drawImage(img, sx, sy, sw, sh, 0, 0, off.width, off.height);
   if (glow) {
@@ -1387,7 +1429,7 @@ function drawDominantCutout(ctx, img, zoneX, zoneY, zoneW, zoneH, opts = {}) {
     octx.drawImage(mask, 0, 0);
   }
 
-  ctx.drawImage(off, dx, dy);
+  if (res < 1) ctx.drawImage(off, dx, dy, dw, dh); else ctx.drawImage(off, dx, dy);
   ctx.restore();
 }
 
@@ -1657,7 +1699,7 @@ function getFormData() {
     mostraAnni: document.getElementById('mostraAnni').checked,
     fotoX: +document.getElementById('fotoX').value / 100,
     fotoY: +document.getElementById('fotoY').value / 100,
-    fotoZoom: +document.getElementById('fotoZoom').value / 100,
+    fotoZoom: 1.1, // template base fit; Step-1 zoom/position applied via fotoUserXf()
     gruppoZoom: +document.getElementById('gruppoZoom').value / 100,
     annoHijri: document.getElementById('annoHijri').value.trim(),
     badgeTesto: document.getElementById('badgeTesto').value.trim(),
@@ -2090,8 +2132,10 @@ function openEditor(tplId) {
   ov.classList.add('show');
   document.body.style.overflow = 'hidden';
   setupEditorGestures();
+  fitEditorCanvas();
   renderEditor();
-  toast('Modifica: trascina · pinch per zoom · due dita per ruotare');
+  requestAnimationFrame(() => { fitEditorCanvas(); renderEditor(); });
+  toast('Tocca un elemento · trascina per spostare · 2 dita, ◯ angoli o − / + per zoom');
 }
 
 function toggleScaricaMenu(ev) {
@@ -2252,42 +2296,102 @@ function editorDelete() {
   renderEditor();
 }
 
-function renderEditor() {
+/* ---------- Editor rendering + gestures (touch / pointer / iOS gesture events) ---------- */
+const ED_MIN_SCALE = 0.2, ED_MAX_SCALE = 4;
+function edClampScale(s) { return Math.max(ED_MIN_SCALE, Math.min(ED_MAX_SCALE, s)); }
+function editorK() {
+  const c = document.getElementById('editorCanvas');
+  const r = c.getBoundingClientRect();
+  return r.width ? c.width / r.width : 1;
+}
+function fitEditorCanvas() {
+  const c = document.getElementById('editorCanvas');
+  const st = c && c.parentElement;
+  if (!c || !st) return;
+  const W = state._edit.W || 1080, H = state._edit.H || 1920;
+  const aw = Math.max(80, st.clientWidth - 16), ah = Math.max(80, st.clientHeight - 16);
+  const sc = Math.min(aw / W, ah / H);
+  c.style.width = Math.floor(W * sc) + 'px';
+  c.style.height = Math.floor(H * sc) + 'px';
+}
+window.addEventListener('resize', () => { if (state._edit && state._edit.open) { fitEditorCanvas(); renderEditor(); } });
+
+let _edRaf = 0, _edRafFast = true;
+function requestEditorRender(fast) {
+  _edRafFast = _edRafFast && !!fast;
+  if (_edRaf) return;
+  _edRaf = requestAnimationFrame(() => { const f = _edRafFast; _edRaf = 0; _edRafFast = true; renderEditor(f); });
+}
+
+function renderEditor(fast) {
   const canvas = document.getElementById('editorCanvas');
   const W = state._edit.W, H = state._edit.H;
-  canvas.width = W; canvas.height = H;
+  if (canvas.width !== W) canvas.width = W;
+  if (canvas.height !== H) canvas.height = H;
   const ctx = canvas.getContext('2d');
-  const data = getFormData();
-  state._edit.layers = buildFlyerLayers(state.template, W, H, data);
-  drawFlyerSmart(ctx, W, H, data);
+  const tpl = state.template;
+  if (fast && state._edit.layers && state._edit.layers.length) {
+    // During a gesture only transforms change: redraw cached layers (fast, smooth)
+    ctx.clearRect(0, 0, W, H);
+    state._textHalo = layoutHasEdits(tpl);
+    try { drawLayerStack(ctx, state._edit.layers, tpl); } finally { state._textHalo = false; }
+  } else {
+    const data = getFormData();
+    state._edit.layers = buildFlyerLayers(tpl, W, H, data);
+    drawFlyerSmart(ctx, W, H, data);
+  }
+  drawEditorOverlay(ctx);
+  updateEditorControls();
+}
 
+function drawEditorOverlay(ctx) {
   const sel = state._edit.selected;
+  const k = editorK();
   state._edit.layers.forEach(layer => {
-    if (layer.type === 'bg' || layer.id === 'bg') return; // no outline on full-canvas bg
+    if (layer.type === 'bg' || layer.id === 'bg') return;
     const xf = getXform(state.template, layer.id);
     if (xf.hidden) return;
-    const box = transformedBox(layer, xf);
-    ctx.save();
+    const q = layerQuad(layer, xf);
     const active = layer.id === sel;
-    ctx.strokeStyle = active ? '#f0d060' : 'rgba(255,255,255,0.28)';
-    ctx.lineWidth = active ? 4 : 1.5;
-    ctx.setLineDash(active ? [] : [8, 6]);
-    ctx.strokeRect(box.x, box.y, box.w, box.h);
+    ctx.save();
+    ctx.beginPath();
+    q.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+    ctx.closePath();
+    ctx.strokeStyle = active ? '#f0d060' : 'rgba(255,255,255,0.32)';
+    ctx.lineWidth = active ? 2.5 * k : 1 * k;
+    ctx.setLineDash(active ? [] : [5 * k, 4 * k]);
+    ctx.stroke();
     if (active) {
-      const hs = 16;
-      [[box.x, box.y], [box.x + box.w, box.y], [box.x, box.y + box.h], [box.x + box.w, box.y + box.h]].forEach(([hx, hy]) => {
-        ctx.fillStyle = '#f0d060';
-        ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
+      ctx.setLineDash([]);
+      handlePoints(layer, xf).forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 9 * k, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.lineWidth = 3 * k;
+        ctx.strokeStyle = '#d4af37';
+        ctx.stroke();
       });
     }
     ctx.restore();
   });
+}
 
+function updateEditorControls() {
+  const sel = state._edit.selected;
+  const L = state._edit.layers.find(l => l.id === sel);
   const lab = document.getElementById('editorSelLabel');
-  if (lab) {
-    const L = state._edit.layers.find(l => l.id === sel);
-    lab.textContent = L ? L.label : 'Tocca';
+  if (lab) lab.textContent = L ? L.label : 'Tocca un elemento';
+  const xf = L ? getXform(state.template, sel) : null;
+  const sl = document.getElementById('editorSize');
+  const val = document.getElementById('editorSizeVal');
+  const bar = document.getElementById('editorBottom');
+  if (bar) bar.classList.toggle('disabled', !L);
+  if (sl) {
+    sl.disabled = !L;
+    if (L && document.activeElement !== sl) sl.value = Math.round((xf.scale || 1) * 100);
   }
+  if (val) val.textContent = L ? Math.round((xf.scale || 1) * 100) + '%' : '—';
 }
 
 function transformedBox(layer, xf) {
@@ -2297,23 +2401,63 @@ function transformedBox(layer, xf) {
   const w = layer.w * s, h = layer.h * s;
   return { x: cx - w / 2, y: cy - h / 2, w, h, cx, cy };
 }
-
-function hitTestEditor(mx, my) {
-  // Topmost first by visual z
+function layerQuad(layer, xf) {
+  const b = transformedBox(layer, xf);
+  const r = xf.rot || 0, c = Math.cos(r), s = Math.sin(r);
+  const hw = b.w / 2, hh = b.h / 2;
+  return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([x, y]) => ({ x: b.cx + x * c - y * s, y: b.cy + x * s + y * c }));
+}
+/** Corner handles, kept inside the visible canvas so they stay reachable on big elements. */
+function handlePoints(layer, xf) {
+  const k = editorK(), m = 12 * k;
+  const W = state._edit.W || 1080, H = state._edit.H || 1920;
+  return layerQuad(layer, xf).map(p => ({ x: Math.max(m, Math.min(W - m, p.x)), y: Math.max(m, Math.min(H - m, p.y)) }));
+}
+function pointInLayer(layer, xf, mx, my, pad) {
+  const b = transformedBox(layer, xf);
+  const r = -(xf.rot || 0);
+  const dx = mx - b.cx, dy = my - b.cy;
+  const lx = dx * Math.cos(r) - dy * Math.sin(r), ly = dx * Math.sin(r) + dy * Math.cos(r);
+  const p = pad || 0;
+  return Math.abs(lx) <= b.w / 2 + p && Math.abs(ly) <= b.h / 2 + p;
+}
+function editorLayersTopFirst() {
   const tpl = state.template;
-  const layers = state._edit.layers.slice().sort((a, b) => {
-    const za = (getXform(tpl, a.id).z != null ? getXform(tpl, a.id).z : a.z || 0);
-    const zb = (getXform(tpl, b.id).z != null ? getXform(tpl, b.id).z : b.z || 0);
-    return zb - za;
-  });
-  for (const layer of layers) {
-    if (layer.type === 'bg' || layer.id === 'bg') continue;
-    const xf = getXform(tpl, layer.id);
-    if (xf.hidden) continue;
-    const b = transformedBox(layer, xf);
-    if (mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) return layer.id;
-  }
+  const zOf = l => { const x = getXform(tpl, l.id); return x.z != null ? x.z : (l.z || 0); };
+  return state._edit.layers
+    .filter(l => !(l.type === 'bg' || l.id === 'bg') && !getXform(tpl, l.id).hidden)
+    .map((l, i) => ({ l, i, z: zOf(l) }))
+    .sort((a, b) => (b.z - a.z) || (b.i - a.i))
+    .map(o => o.l);
+}
+function hitTestEditor(mx, my, padCss) {
+  const tpl = state.template;
+  const pad = (padCss == null ? 6 : padCss) * editorK();
+  const layers = editorLayersTopFirst();
+  for (const layer of layers) if (pointInLayer(layer, getXform(tpl, layer.id), mx, my, 0)) return layer.id;
+  // forgiving second pass for thin text lines
+  for (const layer of layers) if (pointInLayer(layer, getXform(tpl, layer.id), mx, my, pad)) return layer.id;
   return null;
+}
+function nearestLayer(mx, my) {
+  let best = null, bd = Infinity;
+  editorLayersTopFirst().forEach(l => {
+    const b = transformedBox(l, getXform(state.template, l.id));
+    const d = Math.hypot(b.cx - mx, b.cy - my);
+    if (d < bd) { bd = d; best = l.id; }
+  });
+  return best;
+}
+function hitHandle(mx, my) {
+  const id = state._edit.selected;
+  const L = id && state._edit.layers.find(l => l.id === id);
+  if (!L) return -1;
+  const xf = getXform(state.template, id);
+  if (xf.hidden) return -1;
+  const r = 24 * editorK();
+  const q = handlePoints(L, xf);
+  for (let i = 0; i < 4; i++) if (Math.hypot(q[i].x - mx, q[i].y - my) <= r) return i;
+  return -1;
 }
 
 function canvasCoords(ev, canvas) {
@@ -2324,125 +2468,301 @@ function canvasCoords(ev, canvas) {
   return { x, y };
 }
 
+/* --- Visible controls: − / slider / + / rotate --- */
+function editorSelId() {
+  const id = state._edit.selected;
+  if (!id || id === 'bg' || !state._edit.layers.some(l => l.id === id)) return null;
+  return id;
+}
+function editorZoomStep(f) {
+  const id = editorSelId();
+  if (!id) { toast('Tocca prima un elemento sul volantino'); return; }
+  pushUndo();
+  const xf = getXform(state.template, id);
+  xf.scale = edClampScale((xf.scale || 1) * f);
+  renderEditor(true);
+}
+let _edSizePushed = false;
+function editorSizeInput(v) {
+  const id = editorSelId();
+  if (!id) return;
+  if (!_edSizePushed) { pushUndo(); _edSizePushed = true; }
+  getXform(state.template, id).scale = edClampScale(+v / 100);
+  const val = document.getElementById('editorSizeVal');
+  if (val) val.textContent = Math.round(+v) + '%';
+  requestEditorRender(true);
+}
+function editorSizeCommit() { _edSizePushed = false; renderEditor(); }
+function editorRotateStep(deg) {
+  const id = editorSelId();
+  if (!id) { toast('Tocca prima un elemento sul volantino'); return; }
+  pushUndo();
+  const xf = getXform(state.template, id);
+  let r = (xf.rot || 0) + deg * Math.PI / 180;
+  if (Math.abs(r) < 0.01) r = 0;
+  xf.rot = r;
+  renderEditor(true);
+}
+// press-and-hold repeat on − / +
+function wireRepeatButton(btn, fn) {
+  if (!btn || btn._rep) return;
+  btn._rep = true;
+  let t1 = 0, t2 = 0, fired = false;
+  const stop = () => { clearTimeout(t1); clearInterval(t2); t1 = t2 = 0; };
+  btn.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); fired = true; fn();
+    t1 = setTimeout(() => { t2 = setInterval(fn, 70); }, 380);
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => btn.addEventListener(ev, stop));
+  btn.addEventListener('click', (e) => { if (fired) { fired = false; e.preventDefault(); return; } fn(); });
+}
+
 function setupEditorGestures() {
   const canvas = document.getElementById('editorCanvas');
+  const stage = canvas && canvas.parentElement;
   if (!canvas || canvas._gesturesWired) return;
   canvas._gesturesWired = true;
-  let mode = null; // drag | pinch
-  let start = null;
-  let lastDist = 0, lastAngle = 0;
-  let pushed = false;
+  wireRepeatButton(document.getElementById('ezMinus'), () => editorZoomStep(1 / 1.08));
+  wireRepeatButton(document.getElementById('ezPlus'), () => editorZoomStep(1.08));
 
-  function pointers(ev) {
-    if (ev.touches && ev.touches.length) {
-      return [...ev.touches].map(t => {
-        const r = canvas.getBoundingClientRect();
-        return {
-          x: ((t.clientX - r.left) / r.width) * canvas.width,
-          y: ((t.clientY - r.top) / r.height) * canvas.height
-        };
-      });
+  const hasTouch = 'ontouchstart' in window;
+  const ROT_DEAD = 0.14; // ~8° before rotation kicks in, so pinch-zoom stays straight
+  let G = null;          // current gesture
+  let lastTapT = 0, lastTapId = null;
+
+  function toCanvas(clientX, clientY) {
+    const r = canvas.getBoundingClientRect();
+    return { x: ((clientX - r.left) / r.width) * canvas.width, y: ((clientY - r.top) / r.height) * canvas.height };
+  }
+  function ignoreTarget(t) { return t && t.closest && (t.closest('.editor-sheet') || t.closest('.editor-bottom')); }
+  function markChanged() { if (!G.pushed) { pushUndo(); G.pushed = true; } G.moved = true; }
+
+  function pickPinchTarget(pts) {
+    const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+    const sel = editorSelId();
+    const tpl = state.template;
+    if (sel) {
+      const L = state._edit.layers.find(l => l.id === sel);
+      const xf = getXform(tpl, sel);
+      const b = transformedBox(L, xf);
+      const pad = Math.max(b.w, b.h) * 0.35 + 30 * editorK();
+      if (pointInLayer(L, xf, mid.x, mid.y, pad) || pointInLayer(L, xf, pts[0].x, pts[0].y, 0) || pointInLayer(L, xf, pts[1].x, pts[1].y, 0)) return sel;
     }
-    const c = canvasCoords(ev, canvas);
-    return [c];
+    return hitTestEditor(mid.x, mid.y, 14) || hitTestEditor(pts[0].x, pts[0].y) || hitTestEditor(pts[1].x, pts[1].y) || sel || nearestLayer(mid.x, mid.y);
   }
 
-  canvas.addEventListener('mousedown', onDown);
-  window.addEventListener('mousemove', onMove);
-  window.addEventListener('mouseup', onUp);
-  canvas.addEventListener('touchstart', onDown, { passive: false });
-  canvas.addEventListener('touchmove', onMove, { passive: false });
-  canvas.addEventListener('touchend', onUp);
-  canvas.addEventListener('touchcancel', onUp);
-  canvas.addEventListener('wheel', (ev) => {
-    if (!state._edit.open) return;
+  // (Re)baseline whenever the number of fingers changes
+  function begin(pts, fresh) {
+    const prev = G;
+    if (!pts.length) { end(); return; }
+    G = { mode: null, pts0: pts, t0: prev && !fresh ? prev.t0 : Date.now(), moved: prev && !fresh ? prev.moved : false,
+          pushed: prev && !fresh ? prev.pushed : false, maxN: Math.max(pts.length, prev && !fresh ? prev.maxN : 0), id: null };
+    const tpl = state.template;
+    if (pts.length >= 2) {
+      const id = pickPinchTarget(pts);
+      if (!id) { G.mode = 'none'; return; }
+      state._edit.selected = id;
+      const xf = getXform(tpl, id);
+      const dx = pts[1].x - pts[0].x, dy = pts[1].y - pts[0].y;
+      Object.assign(G, { mode: 'pinch', id, d0: Math.max(1, Math.hypot(dx, dy)), a0: Math.atan2(dy, dx),
+        mx0: (pts[0].x + pts[1].x) / 2, my0: (pts[0].y + pts[1].y) / 2,
+        s0: xf.scale || 1, r0: xf.rot || 0, tx0: xf.tx || 0, ty0: xf.ty || 0 });
+      requestEditorRender(true);
+      return;
+    }
+    const p = pts[0];
+    // one finger: corner handle → resize; element → drag (continue same element after a pinch)
+    const hIdx = (!prev || fresh) ? hitHandle(p.x, p.y) : -1;
+    let id;
+    if (!prev || fresh) { G.tapHit = hitTestEditor(p.x, p.y); G.prevSel = state._edit.selected; G.p0 = p; }
+    if (hIdx >= 0) {
+      id = state._edit.selected;
+      const L = state._edit.layers.find(l => l.id === id);
+      const xf = getXform(tpl, id);
+      const b = transformedBox(L, xf);
+      Object.assign(G, { mode: 'resize', id, cx: b.cx, cy: b.cy, dist0: Math.max(4, Math.hypot(p.x - b.cx, p.y - b.cy)), s0: xf.scale || 1 });
+      return;
+    }
+    id = (prev && !fresh && prev.id) ? prev.id : G.tapHit;
+    state._edit.selected = id;
+    if (id) {
+      const xf = getXform(tpl, id);
+      Object.assign(G, { mode: 'drag', id, x0: p.x, y0: p.y, tx0: xf.tx || 0, ty0: xf.ty || 0 });
+    }
+    requestEditorRender(true);
+  }
+
+  function move(pts) {
+    if (!G || !G.mode || G.mode === 'none') return;
+    if (pts.length !== G.pts0.length) { begin(pts, false); return; }
+    const xf = getXform(state.template, G.id);
+    const k = editorK();
+    if (G.mode === 'drag') {
+      const dx = pts[0].x - G.x0, dy = pts[0].y - G.y0;
+      if (!G.moved && Math.hypot(dx, dy) < 6 * k) return;
+      markChanged();
+      xf.tx = G.tx0 + dx; xf.ty = G.ty0 + dy;
+    } else if (G.mode === 'resize') {
+      const d = Math.hypot(pts[0].x - G.cx, pts[0].y - G.cy);
+      if (!G.moved && Math.abs(d - G.dist0) < 4 * k) return;
+      markChanged();
+      xf.scale = edClampScale(G.s0 * d / G.dist0);
+    } else if (G.mode === 'pinch') {
+      if (G.viaGesture) return;
+      const dx = pts[1].x - pts[0].x, dy = pts[1].y - pts[0].y;
+      const d = Math.max(1, Math.hypot(dx, dy));
+      let da = Math.atan2(dy, dx) - G.a0;
+      while (da > Math.PI) da -= 2 * Math.PI;
+      while (da < -Math.PI) da += 2 * Math.PI;
+      da = Math.abs(da) < ROT_DEAD ? 0 : da - Math.sign(da) * ROT_DEAD;
+      const mx = (pts[0].x + pts[1].x) / 2, my = (pts[0].y + pts[1].y) / 2;
+      markChanged();
+      xf.scale = edClampScale(G.s0 * d / G.d0);
+      let r = G.r0 + da;
+      if (Math.abs(r) < 0.05) r = 0; // snap straight
+      xf.rot = r;
+      xf.tx = G.tx0 + (mx - G.mx0);
+      xf.ty = G.ty0 + (my - G.my0);
+    }
+    requestEditorRender(true);
+  }
+
+  function end() {
+    const g = G;
+    G = null;
+    if (!g) return;
+    if (!g.moved && g.maxN === 1 && Date.now() - g.t0 < 350) {
+      const id = g.tapHit;
+      if (g.mode === 'resize') state._edit.selected = id || g.prevSel; // untouched handle = plain tap
+      const now = Date.now();
+      if (id && id === lastTapId && now - lastTapT < 350) {
+        lastTapT = 0; lastTapId = null;
+        setTimeout(() => editorDoubleTap(id), 0);
+      } else if (id && g.prevSel === id && g.p0) {
+        // re-tap on the selected element → select the next element underneath (reach covered items)
+        const tpl = state.template;
+        const under = editorLayersTopFirst().filter(l => pointInLayer(l, getXform(tpl, l.id), g.p0.x, g.p0.y, 0)).map(l => l.id);
+        if (under.length > 1) {
+          const nx = under[(under.indexOf(id) + 1) % under.length];
+          state._edit.selected = nx;
+          lastTapT = 0; lastTapId = null;
+        } else { lastTapT = now; lastTapId = id; }
+      } else { lastTapT = now; lastTapId = id; }
+    }
+    renderEditor(); // full rebuild once the gesture ends
+  }
+
+  // ---- Touch events (iOS Safari primary path; all fingers from ev.touches) ----
+  const touchPts = ev => [...ev.touches].filter(t => !ignoreTarget(t.target)).map(t => toCanvas(t.clientX, t.clientY));
+  function onTouchStart(ev) {
+    if (!state._edit.open || ignoreTarget(ev.target)) return;
     ev.preventDefault();
-    const id = state._edit.selected;
-    if (!id) return;
-    if (!pushed) { pushUndo(); pushed = true; }
+    begin(touchPts(ev), !G);
+  }
+  function onTouchMove(ev) {
+    if (!state._edit.open || !G) return;
+    ev.preventDefault();
+    move(touchPts(ev));
+  }
+  function onTouchEnd(ev) {
+    if (!state._edit.open || !G) return;
+    ev.preventDefault();
+    const pts = touchPts(ev);
+    if (pts.length) begin(pts, false); else end();
+  }
+  stage.addEventListener('touchstart', onTouchStart, { passive: false });
+  stage.addEventListener('touchmove', onTouchMove, { passive: false });
+  stage.addEventListener('touchend', onTouchEnd, { passive: false });
+  stage.addEventListener('touchcancel', onTouchEnd, { passive: false });
+
+  // ---- Pointer events (mouse, pen, and touch on browsers without TouchEvent); tracks every pointerId ----
+  const ptrs = new Map();
+  const ptrList = () => [...ptrs.values()];
+  stage.addEventListener('pointerdown', (ev) => {
+    if (!state._edit.open || ignoreTarget(ev.target)) return;
+    if (ev.pointerType === 'touch' && hasTouch) return;
+    ev.preventDefault();
+    try { stage.setPointerCapture(ev.pointerId); } catch (e) {}
+    ptrs.set(ev.pointerId, toCanvas(ev.clientX, ev.clientY));
+    begin(ptrList(), ptrs.size === 1);
+  });
+  stage.addEventListener('pointermove', (ev) => {
+    if (!ptrs.has(ev.pointerId)) return;
+    ev.preventDefault();
+    ptrs.set(ev.pointerId, toCanvas(ev.clientX, ev.clientY));
+    move(ptrList());
+  });
+  const ptrUp = (ev) => {
+    if (!ptrs.has(ev.pointerId)) return;
+    ptrs.delete(ev.pointerId);
+    if (ptrs.size) begin(ptrList(), false); else end();
+  };
+  stage.addEventListener('pointerup', ptrUp);
+  stage.addEventListener('pointercancel', ptrUp);
+
+  // ---- iOS Safari gesture events: block page zoom; fallback scale/rotate if touches lack a 2nd finger ----
+  let gBase = null;
+  const inEditor = (e) => state._edit.open;
+  document.addEventListener('gesturestart', (e) => {
+    if (!inEditor(e)) return;
+    e.preventDefault();
+    if (G && G.mode === 'pinch') { gBase = null; return; }
+    const p = toCanvas(e.clientX || 0, e.clientY || 0);
+    const id = editorSelId() || hitTestEditor(p.x, p.y, 14) || nearestLayer(p.x, p.y);
+    if (!id) { gBase = null; return; }
+    state._edit.selected = id;
     const xf = getXform(state.template, id);
-    const factor = ev.deltaY > 0 ? 0.96 : 1.04;
-    xf.scale = Math.max(0.15, Math.min(6, (xf.scale || 1) * factor));
-    renderEditor();
+    gBase = { id, s0: xf.scale || 1, r0: xf.rot || 0, pushed: false };
+  }, { passive: false });
+  document.addEventListener('gesturechange', (e) => {
+    if (!inEditor(e)) return;
+    e.preventDefault();
+    if (!gBase || (G && G.mode === 'pinch' && !G.viaGesture)) return; // touch path already handles it
+    if (!gBase.pushed) { pushUndo(); gBase.pushed = true; }
+    const xf = getXform(state.template, gBase.id);
+    xf.scale = edClampScale(gBase.s0 * (e.scale || 1));
+    let da = (e.rotation || 0) * Math.PI / 180;
+    da = Math.abs(da) < ROT_DEAD ? 0 : da - Math.sign(da) * ROT_DEAD;
+    xf.rot = Math.abs(gBase.r0 + da) < 0.05 ? 0 : gBase.r0 + da;
+    requestEditorRender(true);
+  }, { passive: false });
+  document.addEventListener('gestureend', (e) => {
+    if (!inEditor(e)) return;
+    e.preventDefault();
+    if (gBase && gBase.pushed) renderEditor();
+    gBase = null;
   }, { passive: false });
 
-  let lastTap = 0;
-  function onDown(ev) {
+  // ---- Mouse wheel / trackpad zoom (desktop) ----
+  let wheelT = 0;
+  stage.addEventListener('wheel', (ev) => {
     if (!state._edit.open) return;
     ev.preventDefault();
-    const pts = pointers(ev);
-    pushed = false;
-    if (pts.length >= 2) {
-      mode = 'pinch';
-      const dx = pts[1].x - pts[0].x, dy = pts[1].y - pts[0].y;
-      lastDist = Math.hypot(dx, dy);
-      lastAngle = Math.atan2(dy, dx);
-      start = { xf: { ...getXform(state.template, state._edit.selected || 'scene') } };
-      if (!state._edit.selected) {
-        const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
-        state._edit.selected = hitTestEditor(mid.x, mid.y);
-      }
-      return;
-    }
-    const { x, y } = pts[0];
-    const now = Date.now();
-    const hit = hitTestEditor(x, y);
-    if (now - lastTap < 300 && hit && hit === state._edit.selected) {
-      // double tap text edit
-      const layer = state._edit.layers.find(l => l.id === hit);
-      if (layer && layer.type === 'text' && layer.textKey) {
-        const cur = getFormData()[layer.textKey] || '';
-        const nv = prompt('Modifica testo:', cur);
-        if (nv != null) {
-          window.__volantino.setField(layer.textKey === 'org' ? 'organizzazione' :
-            layer.textKey === 'sotto' ? 'sottotitolo' :
-              layer.textKey === 'badgeTesto' ? 'badgeTesto' : layer.textKey, nv);
-          renderEditor();
-        }
-      } else if (layer && (layer.replaceable || (layer.id || '').startsWith('decor'))) {
-        editorReplaceWithPhoto();
-      }
-      lastTap = 0;
-      return;
-    }
-    lastTap = now;
-    state._edit.selected = hit;
-    mode = hit ? 'drag' : null;
-    if (hit) {
-      const xf = getXform(state.template, hit);
-      start = { x, y, tx: xf.tx || 0, ty: xf.ty || 0 };
-    }
-    renderEditor();
-  }
-  function onMove(ev) {
-    if (!state._edit.open || !mode) return;
-    ev.preventDefault();
-    const pts = pointers(ev);
-    const id = state._edit.selected;
+    const p = toCanvas(ev.clientX, ev.clientY);
+    const id = editorSelId() || hitTestEditor(p.x, p.y);
     if (!id) return;
-    if (!pushed) { pushUndo(); pushed = true; }
+    state._edit.selected = id;
+    if (Date.now() - wheelT > 600) pushUndo();
+    wheelT = Date.now();
     const xf = getXform(state.template, id);
-    if (mode === 'drag' && pts.length === 1) {
-      xf.tx = start.tx + (pts[0].x - start.x);
-      xf.ty = start.ty + (pts[0].y - start.y);
-      renderEditor();
-    } else if (pts.length >= 2) {
-      mode = 'pinch';
-      const dx = pts[1].x - pts[0].x, dy = pts[1].y - pts[0].y;
-      const dist = Math.hypot(dx, dy);
-      const ang = Math.atan2(dy, dx);
-      if (lastDist > 0) {
-        xf.scale = Math.max(0.15, Math.min(6, (xf.scale || 1) * (dist / lastDist)));
-        xf.rot = (xf.rot || 0) + (ang - lastAngle);
-      }
-      lastDist = dist;
-      lastAngle = ang;
-      // also pan mid-point delta lightly
+    xf.scale = edClampScale((xf.scale || 1) * Math.exp(-ev.deltaY * (ev.ctrlKey ? 0.01 : 0.0015)));
+    requestEditorRender(true);
+  }, { passive: false });
+}
+
+function editorDoubleTap(hit) {
+  const layer = state._edit.layers.find(l => l.id === hit);
+  if (layer && layer.type === 'text' && layer.textKey) {
+    const cur = getFormData()[layer.textKey] || '';
+    const nv = prompt('Modifica testo:', cur);
+    if (nv != null) {
+      window.__volantino.setField(layer.textKey === 'org' ? 'organizzazione' :
+        layer.textKey === 'sotto' ? 'sottotitolo' :
+          layer.textKey === 'badgeTesto' ? 'badgeTesto' : layer.textKey, nv);
       renderEditor();
     }
-  }
-  function onUp() {
-    mode = null; start = null; lastDist = 0; pushed = false;
+  } else if (layer && (layer.replaceable || (layer.id || '').startsWith('decor'))) {
+    editorReplaceWithPhoto();
   }
 }
 
@@ -5029,6 +5349,7 @@ function doPreview() {
   preview.height = H;
   const wrap = document.getElementById('previewWrap');
   wrap.classList.toggle('post-ratio', isPost);
+  if (typeof updatePreviewHint === 'function') updatePreviewHint();
   renderFlyer(pctx, W, H, data);
 }
 
@@ -5606,12 +5927,15 @@ function renderProposalsUI() {
     const card = document.createElement('div');
     card.className = 'proposal-card' + (state.template === p.id ? ' selected' : '');
     card.innerHTML = `
-      <img class="proposal-img" src="${p.dataUrl}" alt="${p.name}">
+      <div class="pimg-wrap" role="button" aria-label="Sposta e zoom">
+        <img class="proposal-img" src="${p.dataUrl}" alt="${p.name}" draggable="false">
+        <span class="pedit-badge">✋ Tocca per spostare / zoom</span>
+      </div>
       <div class="pname">${idx+1}. ${p.name}</div>
       <div class="pbtns">
         <button class="btn btn-green" type="button">⬇️ Storia 1080×1920</button>
         <button class="btn btn-primary" type="button">⬇️ Post 1080×1350</button>
-        <button class="btn btn-secondary" type="button">✨ Modifica</button>
+        <button class="btn btn-secondary" type="button">✋ Sposta e zoom (Modifica)</button>
         <button class="btn btn-secondary" type="button">Usa nell'anteprima</button>
       </div>`;
     const [bStory, bPost, bEdit, bUse] = card.querySelectorAll('button');
@@ -5628,7 +5952,13 @@ function renderProposalsUI() {
       scheduleRender();
       toast('Modello: ' + p.name);
     };
-    card.querySelector('img').onclick = () => bUse.onclick();
+    // Tap or pinch directly on the proposal → open the editor for it
+    const pw = card.querySelector('.pimg-wrap');
+    pw.onclick = () => openEditor(p.id);
+    pw.addEventListener('touchstart', (e) => {
+      if (e.touches.length >= 2) { e.preventDefault(); openEditor(p.id); }
+    }, { passive: false });
+    pw.addEventListener('gesturestart', (e) => { e.preventDefault(); }, { passive: false });
     row.appendChild(card);
   });
 }
@@ -5655,76 +5985,121 @@ function goStep(n) {
     t.classList.toggle('done', s < n || (s === 1 && state.fotoPrincipale));
   });
   if (n === 1) window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (typeof updatePreviewHint === 'function') updatePreviewHint();
   // Auto-genera la prima volta che entri nello step 3 con una foto
   if (n === 3 && state.fotoPrincipale && currentProposals.length === 0) {
     setTimeout(() => generaProposte(false), 80);
   }
 }
 
-/* Drag / pinch on preview to move & zoom main photo */
+/* Preview gestures.
+   Step 1 (photo loaded): one finger drags the main photo, two-finger pinch zooms it (20–400 %).
+   Steps 2–3: tap or pinch on the preview opens the full editor (move/zoom every element). */
 (function setupPreviewGestures() {
   const wrap = document.getElementById('previewWrap');
   const canvas = document.getElementById('preview');
-  let dragging = false;
-  let lastX = 0, lastY = 0;
-  let pinchStartDist = 0;
-  let pinchStartZoom = 100;
-
-  function clientToFocusDelta(dx, dy) {
-    const rect = canvas.getBoundingClientRect();
-    // moving finger right → photo focus moves left (natural drag)
-    const fx = document.getElementById('fotoX');
-    const fy = document.getElementById('fotoY');
-    let nx = +fx.value - (dx / rect.width) * 80;
-    let ny = +fy.value - (dy / rect.height) * 80;
-    nx = Math.max(0, Math.min(100, nx));
-    ny = Math.max(0, Math.min(100, ny));
-    fx.value = nx; fy.value = ny;
-    document.getElementById('fotoXVal').textContent = Math.round(nx);
-    document.getElementById('fotoYVal').textContent = Math.round(ny);
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const photoMode = () => currentStep === 1 && !!state.fotoPrincipale;
+  function setVal(id, v) { const el = $(id); el.value = v; $(id + 'Val').textContent = Math.round(+el.value); }
+  let base = null, touchPinch = false, tapInfo = null;
+  function baseline(pts) {
+    base = { n: pts.length, fx: +$('fotoX').value, fy: +$('fotoY').value, zoom: +$('fotoZoom').value };
+    if (pts.length >= 2) {
+      base.dist = Math.max(1, Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y));
+      base.mx = (pts[0].x + pts[1].x) / 2; base.my = (pts[0].y + pts[1].y) / 2;
+    } else { base.mx = pts[0].x; base.my = pts[0].y; }
+  }
+  function update(pts) {
+    if (!base || pts.length !== base.n) { baseline(pts); return; }
+    const r = canvas.getBoundingClientRect();
+    let mx = pts[0].x, my = pts[0].y;
+    if (pts.length >= 2) {
+      mx = (pts[0].x + pts[1].x) / 2; my = (pts[0].y + pts[1].y) / 2;
+      const d = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+      setVal('fotoZoom', clamp(base.zoom * d / base.dist, 20, 400));
+    }
+    setVal('fotoX', clamp(base.fx + (mx - base.mx) / r.width * 100, 0, 100));
+    setVal('fotoY', clamp(base.fy + (my - base.my) / r.height * 100, 0, 100));
     scheduleRender();
   }
-
-  wrap.addEventListener('pointerdown', (e) => {
-    if (!state.fotoPrincipale) return;
-    dragging = true;
-    lastX = e.clientX; lastY = e.clientY;
-    wrap.classList.add('dragging');
-    wrap.setPointerCapture(e.pointerId);
-  });
-  wrap.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-    const dx = e.clientX - lastX;
-    const dy = e.clientY - lastY;
-    lastX = e.clientX; lastY = e.clientY;
-    clientToFocusDelta(dx, dy);
-  });
-  wrap.addEventListener('pointerup', () => { dragging = false; wrap.classList.remove('dragging'); });
-  wrap.addEventListener('pointercancel', () => { dragging = false; wrap.classList.remove('dragging'); });
-
+  const ptsOf = ev => [...ev.touches].map(t => ({ x: t.clientX, y: t.clientY }));
   wrap.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 2 && state.fotoPrincipale) {
-      const [a,b] = e.touches;
-      pinchStartDist = Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
-      pinchStartZoom = +document.getElementById('fotoZoom').value;
-      dragging = false;
-    }
-  }, { passive: true });
-  wrap.addEventListener('touchmove', (e) => {
-    if (e.touches.length === 2 && pinchStartDist) {
+    if (photoMode()) {
       e.preventDefault();
-      const [a,b] = e.touches;
-      const dist = Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
-      let z = pinchStartZoom * (dist / pinchStartDist);
-      z = Math.max(50, Math.min(250, z));
-      const fz = document.getElementById('fotoZoom');
-      fz.value = z;
-      document.getElementById('fotoZoomVal').textContent = Math.round(z);
-      scheduleRender();
+      touchPinch = e.touches.length >= 2;
+      baseline(ptsOf(e));
+      wrap.classList.add('dragging');
+      return;
     }
+    // steps 2–3: pinch → editor; single tap → editor (scrolling stays native)
+    if (e.touches.length >= 2) { e.preventDefault(); tapInfo = null; openEditor(state.template); return; }
+    const t = e.touches[0];
+    tapInfo = { x: t.clientX, y: t.clientY, t: Date.now() };
   }, { passive: false });
-  wrap.addEventListener('touchend', () => { pinchStartDist = 0; });
+  wrap.addEventListener('touchmove', (e) => {
+    if (base) { e.preventDefault(); update(ptsOf(e)); return; }
+    if (tapInfo) { const t = e.touches[0]; if (Math.hypot(t.clientX - tapInfo.x, t.clientY - tapInfo.y) > 10) tapInfo = null; }
+  }, { passive: false });
+  const tEnd = (e) => {
+    if (base) {
+      e.preventDefault();
+      if (e.touches.length) baseline(ptsOf(e)); else { base = null; touchPinch = false; wrap.classList.remove('dragging'); }
+      return;
+    }
+    if (tapInfo && e.type === 'touchend' && !e.touches.length && Date.now() - tapInfo.t < 400 && !photoMode()) {
+      e.preventDefault();
+      openEditor(state.template);
+    }
+    tapInfo = null;
+  };
+  wrap.addEventListener('touchend', tEnd, { passive: false });
+  wrap.addEventListener('touchcancel', tEnd, { passive: false });
+
+  // Mouse / pen (desktop)
+  let mdrag = null;
+  wrap.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch' && 'ontouchstart' in window) return;
+    if (!photoMode()) return;
+    mdrag = { x: e.clientX, y: e.clientY };
+    baseline([mdrag]);
+    wrap.classList.add('dragging');
+    try { wrap.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  wrap.addEventListener('pointermove', (e) => { if (mdrag) update([{ x: e.clientX, y: e.clientY }]); });
+  const mUp = () => { if (mdrag) { mdrag = null; base = null; wrap.classList.remove('dragging'); } };
+  wrap.addEventListener('pointerup', mUp);
+  wrap.addEventListener('pointercancel', mUp);
+  wrap.addEventListener('click', (e) => { if (!photoMode() && !('ontouchstart' in window)) openEditor(state.template); });
+  wrap.addEventListener('wheel', (e) => {
+    if (!photoMode()) return;
+    e.preventDefault();
+    setVal('fotoZoom', clamp(+$('fotoZoom').value * Math.exp(-e.deltaY * 0.0015), 20, 400));
+    scheduleRender();
+  }, { passive: false });
+
+  // iOS Safari: stop page zoom; gesture-event fallback if touches don't report the 2nd finger
+  let gBase = null;
+  wrap.addEventListener('gesturestart', (e) => { e.preventDefault(); gBase = photoMode() ? +$('fotoZoom').value : null; }, { passive: false });
+  wrap.addEventListener('gesturechange', (e) => {
+    e.preventDefault();
+    if (gBase == null || (base && base.n >= 2)) return;
+    setVal('fotoZoom', clamp(gBase * (e.scale || 1), 20, 400));
+    scheduleRender();
+  }, { passive: false });
+  wrap.addEventListener('gestureend', (e) => { e.preventDefault(); gBase = null; }, { passive: false });
 })();
+function updatePreviewHint() {
+  const w = document.getElementById('previewWrap'), h = document.getElementById('previewEditHint');
+  if (!w || !h) return;
+  if (currentStep === 1) {
+    h.textContent = state.fotoPrincipale ? '☝️ Trascina la foto · 🤏 pinch per zoom' : '';
+    w.classList.toggle('hint-on', !!state.fotoPrincipale);
+  } else {
+    h.textContent = '✋ Tocca per spostare / zoom tutto';
+    w.classList.add('hint-on');
+  }
+}
 
 
 function initTemplates() {
@@ -6162,6 +6537,14 @@ if ('serviceWorker' in navigator) {
       </label>
       <button class="btn btn-primary" type="button" onclick="toggleEditorMore()">Chiudi</button>
     </div>
+  </div>
+  <div class="editor-bottom disabled" id="editorBottom" onclick="event.stopPropagation()">
+    <button class="ebtn" type="button" id="ezMinus" aria-label="Riduci">−</button>
+    <input type="range" id="editorSize" min="20" max="400" value="100" aria-label="Dimensione elemento" oninput="editorSizeInput(this.value)" onchange="editorSizeCommit()">
+    <span id="editorSizeVal">—</span>
+    <button class="ebtn" type="button" id="ezPlus" aria-label="Ingrandisci">+</button>
+    <button class="ebtn small" type="button" aria-label="Ruota a sinistra" onclick="editorRotateStep(-15)">⟲</button>
+    <button class="ebtn small" type="button" aria-label="Ruota a destra" onclick="editorRotateStep(15)">⟳</button>
   </div>
 </div>
 

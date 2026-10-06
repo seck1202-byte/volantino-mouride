@@ -1,4 +1,4 @@
-const CACHE = 'volantino-mouride-v2';
+const CACHE = 'volantino-mouride-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -24,6 +24,16 @@ self.addEventListener('fetch', (e) => {
   // Network-first for CDN models / fonts; cache-first for app shell
   if (url.origin !== location.origin) {
     e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+    return;
+  }
+  // Network-first for the page itself so updates show up immediately (cache = offline fallback)
+  if (e.request.mode === 'navigate' || url.pathname.endsWith('/') || url.pathname.endsWith('.html')) {
+    e.respondWith(
+      fetch(e.request).then((res) => {
+        if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
+        return res;
+      }).catch(() => caches.match(e.request).then((m) => m || caches.match('./index.html')))
+    );
     return;
   }
   e.respondWith(
