@@ -767,14 +767,17 @@ textarea.sv-in{height:auto;padding:8px 10px;min-height:70px}
   .sv-rail button i{height:26px;width:40px;font-size:19px}
   .sv-rail button.on{color:var(--p)}
   .sv-rail button.on i{background:#efe7fd}
-  .sv-ctx{position:absolute;left:0;right:0;bottom:0;z-index:4;height:calc(60px + var(--sb));padding:4px 6px var(--sb);border-top:1px solid var(--line);border-bottom:0;box-shadow:0 -4px 12px rgba(0,0,0,.06)}
+  .sv-ctx{position:absolute;left:0;right:0;bottom:calc(58px + var(--sb));z-index:4;height:54px;padding:2px 6px 2px 0;border-top:1px solid var(--line);border-bottom:0;box-shadow:0 -4px 12px rgba(0,0,0,.06)}
   .sv-ctx:empty{display:none}
   .sv-tb{flex-direction:column;gap:1px;height:50px;min-width:52px;font-size:10.5px;padding:0 6px}
   .sv-tb .ic{font-size:18px;line-height:1.1}
   .sv-tb.font{min-width:96px;max-width:120px;flex-direction:row;height:38px;font-size:12.5px}
   .sv-ctx .sep{height:30px}
   .sv-stage{position:absolute;inset:0 0 calc(58px + var(--sb)) 0}
-  .sv-editor.has-sel .sv-stage{bottom:calc(60px + var(--sb))}
+  .sv-editor.has-sel .sv-stage{bottom:calc(112px + var(--sb))}
+  .sv-ctx .sv-ctx-x{position:sticky;left:0;z-index:2;flex:0 0 44px;height:50px;border:0;background:#fff;box-shadow:6px 0 8px -6px rgba(0,0,0,.25);font-size:18px;color:#4b5058;margin-right:2px}
+  .sv-tb{height:46px;min-width:50px}
+  .sv-ctx.edge:after{content:'';position:sticky;right:-6px;flex:0 0 22px;height:50px;background:linear-gradient(90deg,rgba(255,255,255,0),#fff)}
   .sv-panel{position:absolute;left:0;right:0;bottom:0;z-index:6;flex:none;width:auto;max-width:none;height:var(--sheetH,52%);border-radius:16px 16px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.18);border:0;padding-bottom:var(--sb)}
   .sv-grab{display:block;width:44px;height:5px;border-radius:3px;background:#d0d3d8;margin:8px auto 0;flex:0 0 auto}
   .sv-grab:before{content:"";display:block;height:26px;margin-top:-12px}
@@ -793,6 +796,61 @@ textarea.sv-in{height:auto;padding:8px 10px;min-height:70px}
 }
 /* old app: studio entry */
 .sv-entry{position:fixed;right:12px;top:calc(10px + env(safe-area-inset-top,0px));z-index:900;border:0;background:var(--gold,#d4af37);color:#1d1400;font-weight:800;border-radius:999px;padding:8px 14px;box-shadow:0 4px 14px rgba(0,0,0,.3);font-size:13px}
+#svErase{position:fixed;inset:0;z-index:60;background:#1d1f23;color:#fff;display:none;flex-direction:column;font-family:inherit;user-select:none;-webkit-user-select:none}
+#svErase .er-top{display:flex;align-items:center;justify-content:space-between;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;background:#18191b}
+#svErase .er-top b{font-size:16px}
+#svErase .er-b{border:0;border-radius:10px;padding:9px 14px;font-weight:700;font-size:14px;background:#33363c;color:#fff}
+#svErase .er-b.gold{background:#d4af37;color:#1d1f23}
+#svErase .er-stage{flex:1;position:relative;overflow:hidden;touch-action:none}
+#svErase canvas{position:absolute;left:0;top:0;touch-action:none}
+#svErase .er-float{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:8px}
+#svErase .er-ic{width:42px;height:42px;border-radius:12px;border:0;background:rgba(24,25,27,.85);color:#fff;font-size:19px}
+#svErase .er-ic.on{background:#d4af37;color:#1d1f23}
+#svErase .er-hint{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:rgba(0,0,0,.7);padding:6px 12px;border-radius:20px;font-size:12.5px;opacity:0;transition:opacity .3s;pointer-events:none}
+#svErase .er-hint.show{opacity:1}
+#svErase .er-bot{background:#18191b;padding:10px 14px calc(10px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px}
+#svErase .er-modes{display:flex;gap:8px}
+#svErase .er-modes button{flex:1;border:0;border-radius:12px;padding:8px 4px;background:#2b2d31;color:#cfd2d6;font-size:18px;display:flex;flex-direction:column;align-items:center;gap:2px}
+#svErase .er-modes button span{font-size:12px;font-weight:700}
+#svErase .er-modes button.on{background:#7d2ae8;color:#fff}
+#svErase .er-sl{display:flex;align-items:center;gap:10px;font-size:13px;color:#cfd2d6}
+#svErase .er-sl input{flex:1;accent-color:#d4af37}
+#svErase .er-sl output{width:30px;text-align:right}
+#svErase .er-row{display:flex;gap:8px}
+#svErase .er-b2{flex:1;border:1px solid #3a3d43;background:transparent;color:#cfd2d6;border-radius:10px;padding:7px;font-size:12.5px}
+@media (min-width:900px){#svErase .er-bot{flex-direction:row;align-items:center;gap:18px;padding:12px 20px}#svErase .er-modes{flex:0 0 330px}#svErase .er-sl{flex:1}#svErase .er-row{flex:0 0 280px}}
+
+.sv-ctx-x{display:none}
+@media (max-width:899px){.sv-ctx-x{display:block}}
+.sv-mytools{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.sv-mytools .sv-chip{font-size:12.5px}
+.sv-tcard.mine{position:relative}
+#svModal select.sv-inp,#svModal input.sv-inp{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:16px;background:#fff}
+#svAnalyze{position:fixed;inset:0;z-index:60;background:#1d1f23;color:#e8eaed;display:none;flex-direction:column}
+#svAnalyze .an-top{display:flex;align-items:center;justify-content:space-between;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;background:#18191b}
+#svAnalyze .er-b{border:0;border-radius:10px;padding:9px 14px;font-weight:700;font-size:14px;background:#33363c;color:#fff}
+#svAnalyze .er-b.gold{background:#d4af37;color:#1d1f23}
+#svAnalyze .an-body{flex:1;display:flex;min-height:0}
+#svAnalyze .an-prev{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-width:0;padding:8px}
+#svAnalyze .an-prev canvas{box-shadow:0 4px 20px rgba(0,0,0,.5);background:#fff}
+#svAnalyze .an-seg{display:flex;background:#2b2d31;border-radius:10px;padding:3px}
+#svAnalyze .an-seg button{border:0;background:none;color:#cfd2d6;padding:7px 10px;border-radius:8px;font-size:12.5px;font-weight:700}
+#svAnalyze .an-seg button.on{background:#7d2ae8;color:#fff}
+#svAnalyze .an-side{flex:0 0 380px;overflow-y:auto;background:#232529;padding:10px 14px 30px}
+#svAnalyze .an-h{font-weight:800;font-size:13.5px;margin:12px 0 6px}
+#svAnalyze .an-list{display:flex;flex-direction:column;gap:5px}
+#svAnalyze .an-it{display:flex;align-items:center;gap:6px;background:#2b2d31;border-radius:8px;padding:4px 6px}
+#svAnalyze .an-it.off{opacity:.45}
+#svAnalyze .an-it .n{font-size:11px;background:#7d2ae8;border-radius:4px;padding:1px 5px;font-weight:800}
+#svAnalyze .an-it .sw{width:14px;height:14px;border-radius:4px;border:1px solid #555;flex:0 0 auto}
+#svAnalyze .an-it .tx{flex:1;min-width:0;background:transparent;border:0;color:#fff;font-size:14px;padding:5px 2px}
+#svAnalyze .an-it button{border:0;background:none;color:#aaa;font-size:14px}
+#svAnalyze .an-pal{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+#svAnalyze .an-pal span{width:28px;height:28px;border-radius:8px;border:1px solid #555}
+#svAnalyze .an-warn{background:#4a3b12;border-radius:8px;padding:8px;font-size:12.5px}
+#svAnalyze .sv-inp{width:100%;box-sizing:border-box;border:1px solid #3a3d43;border-radius:10px;padding:9px 10px;font-size:16px;background:#2b2d31;color:#fff}
+#svAnalyze .sv-check{color:#e8eaed}
+@media (max-width:899px){#svAnalyze .an-body{flex-direction:column}#svAnalyze .an-prev{flex:0 0 46%}#svAnalyze .an-side{flex:1}}
 
 </style>
 </head>
@@ -10979,7 +11037,23 @@ const EXTRA_FONTS = [
   ['Noto Naskh Arabic', 'wght@400;700', 'Arabo'], ['Markazi Text', 'wght@400;700', 'Arabo'], ['Mada', 'wght@400;700;900', 'Arabo'],
   ['Inter', 'wght@400;700;900', 'Sans'], ['Archivo Black', '', 'Display'], ['Teko', 'wght@400;700', 'Display'], ['Cookie', '', 'Script'],
   ['Parisienne', '', 'Script'], ['Tangerine', 'wght@400;700', 'Script'], ['Bodoni Moda', 'wght@400;700;900', 'Serif'], ['Libre Baskerville', 'wght@400;700', 'Serif'],
+  ['Aref Ruqaa', 'wght@400;700', 'Arabo'], ['El Messiri', 'wght@400;700', 'Arabo'], ['Cairo', 'wght@400;700;900', 'Arabo'], ['Tajawal', 'wght@400;700;900', 'Arabo'],
+  ['Harmattan', 'wght@400;700', 'Arabo'], ['Readex Pro', 'wght@400;700', 'Arabo'], ['Rakkas', '', 'Arabo'], ['Katibeh', '', 'Arabo'], ['Lalezar', '', 'Arabo'], ['Mirza', 'wght@400;700', 'Arabo'],
+  ['Cormorant Garamond', 'wght@400;700', 'Serif'], ['Abril Fatface', '', 'Display'], ['Righteous', '', 'Display'], ['Bungee', '', 'Display'], ['Josefin Sans', 'wght@400;700', 'Sans'],
+  ['Rubik', 'wght@400;700;900', 'Sans'], ['Lobster', '', 'Script'], ['Satisfy', '', 'Script'], ['Yellowtail', '', 'Script'], ['Marcellus', '', 'Serif'], ['Philosopher', 'wght@400;700', 'Sans'],
 ];
+try { TEXT_PRESETS.push(
+  { n: 'Ruqaa dorato', s: 'مرحبا', st: { font: 'Aref Ruqaa', size: 140, bold: true, grad: 'gold', shadow: { b: 14, x: 2, y: 5, c: 'rgba(0,0,0,0.5)' } } },
+  { n: 'Kufi bianco', s: 'طوبى', st: { font: 'Lalezar', size: 140, color: '#ffffff', stroke: { w: 3, c: '#0d5c2e' } } },
+  { n: 'Titolo verde', s: 'GRAND MAGAL', st: { font: 'Montserrat', size: 130, bold: true, weight: 900, color: '#0d5c2e', ls: 2 } },
+  { n: 'Data in etichetta', s: 'SAMEDI 24', st: { font: 'Montserrat', size: 70, bold: true, color: '#ffffff', hl: { c: '#d4af37', pad: 0.4, r: 0.5 } } },
+  { n: 'Lusso', s: 'Thiant', st: { font: 'Marcellus', size: 130, grad: 'gold', ls: 4, shadow: { b: 20, x: 0, y: 8, c: 'rgba(0,0,0,0.5)' } } },
+  { n: 'Retrò', s: 'SOIRÉE', st: { font: 'Abril Fatface', size: 130, color: '#f5e6c8', extrude: { d: 25, c: '#7a1f2b' } } },
+  { n: 'Neon oro', s: 'Kazu Rajab', st: { font: 'Satisfy', size: 120, color: '#fff3b0', glow: { b: 40, c: '#f0d060' } } },
+  { n: 'Bungee', s: 'LIVE', st: { font: 'Bungee', size: 130, color: '#ffffff', shadow: { b: 0, x: 8, y: 8, c: '#c0392b' } } },
+  { n: 'Contorno oro', s: 'XASSIDA', st: { font: 'Anton', size: 140, color: 'transparent', stroke: { w: 4, c: '#d4af37' }, ls: 6 } },
+  { n: 'Sottotitolo fine', s: 'Dahira des Mourides', st: { font: 'Josefin Sans', size: 64, color: '#ffffff', ls: 10, upper: true } }
+); } catch (e) {}
 try { EXTRA_FONTS.forEach(f => { if (!FONT_LIST.some(x => x[0] === f[0])) FONT_LIST.push(f); }); } catch (e) {}
 SV.fontReady = {};
 SV.needFont = function (fam, sample) {
@@ -11299,12 +11373,22 @@ function drawElement(c, el, opt) {
         } else if (!el.asset && opt.placeholders) {
           c.shadowColor = 'transparent';
           SV.maskPath(c, el.mask || 'none', -w / 2, -h / 2, w, h, el.radius);
-          c.fillStyle = 'rgba(160,170,165,0.45)'; c.fill();
-          c.lineWidth = Math.max(2, Math.min(w, h) * 0.008); c.setLineDash([12, 10]); c.strokeStyle = 'rgba(255,255,255,0.85)'; c.stroke(); c.setLineDash([]);
-          const s = Math.min(w, h) * 0.22;
-          c.fillStyle = 'rgba(255,255,255,0.92)'; c.textAlign = 'center'; c.textBaseline = 'middle';
-          c.font = `${Math.round(s)}px sans-serif`; c.fillText('🖼️', 0, -s * 0.25);
-          c.font = `700 ${Math.max(14, Math.round(s * 0.24))}px Montserrat, sans-serif`; c.fillText(el.ph || 'Trascina qui una foto', 0, s * 0.6, w * 0.9);
+          const g = c.createLinearGradient(0, -h / 2, 0, h / 2); g.addColorStop(0, 'rgba(214,220,226,0.92)'); g.addColorStop(1, 'rgba(178,188,198,0.92)');
+          c.fillStyle = g; c.fill();
+          c.save(); c.clip();
+          c.strokeStyle = 'rgba(255,255,255,0.22)'; c.lineWidth = Math.max(1, Math.min(w, h) * 0.004);
+          const stp = Math.max(18, Math.min(w, h) / 9); for (let x = -w - h; x < w + h; x += stp) { c.beginPath(); c.moveTo(x, -h / 2); c.lineTo(x + h, h / 2); c.stroke(); }
+          c.restore();
+          SV.maskPath(c, el.mask || 'none', -w / 2, -h / 2, w, h, el.radius);
+          c.lineWidth = Math.max(2, Math.min(w, h) * 0.01); c.setLineDash([Math.min(w, h) * 0.04, Math.min(w, h) * 0.03]); c.strokeStyle = 'rgba(255,255,255,0.95)'; c.stroke(); c.setLineDash([]);
+          const s = Math.min(w, h) * 0.2, cy0 = -s * 0.35;
+          c.fillStyle = 'rgba(255,255,255,0.96)'; c.beginPath(); c.arc(0, cy0, s * 0.72, 0, 7); c.fill();
+          c.fillStyle = '#7d2ae8'; const bw = s * 0.62, bh = s * 0.44;
+          c.beginPath(); if (c.roundRect) c.roundRect(-bw / 2, cy0 - bh / 2 + s * 0.04, bw, bh, s * 0.07); else c.rect(-bw / 2, cy0 - bh / 2 + s * 0.04, bw, bh); c.fill();
+          c.fillRect(-bw * 0.18, cy0 - bh / 2 - s * 0.05, bw * 0.36, s * 0.1);
+          c.fillStyle = '#fff'; c.beginPath(); c.arc(0, cy0 + s * 0.04, bh * 0.3, 0, 7); c.fill(); c.fillStyle = '#7d2ae8'; c.beginPath(); c.arc(0, cy0 + s * 0.04, bh * 0.17, 0, 7); c.fill();
+          c.fillStyle = 'rgba(29,31,35,0.78)'; c.textAlign = 'center'; c.textBaseline = 'middle';
+          c.font = `700 ${Math.max(14, Math.round(s * 0.26))}px Montserrat, sans-serif`; c.fillText(el.ph || 'Trascina qui una foto', 0, s * 0.72, w * 0.9);
         } else if (el.asset) { /* loading */ }
         break;
       }
@@ -11730,9 +11814,9 @@ SV.toast = function (m, ms) { const t = $('svToast'); t.textContent = m; t.class
 SV.busy = function (on, txt) { $('svBusy').hidden = !on; if (txt) $('svBusyT').textContent = txt; };
 SV.modal = function (html) { $('svModalCard').innerHTML = html; $('svModal').hidden = false; };
 SV.closeModal = function () { $('svModal').hidden = true; $('svModalCard').innerHTML = ''; };
-SV.ask = function (title, msg, okLabel, danger) {
+SV.ask = function (title, msg, okLabel, danger, noLabel) {
   return new Promise(res => {
-    SV.modal(`<h3>${esc(title)}</h3><p>${esc(msg || '')}</p><div class="sv-row"><button class="sv-btn sec" id="svAskNo">Annulla</button><button class="sv-btn ${danger ? 'danger' : ''}" id="svAskOk">${esc(okLabel || 'OK')}</button></div>`);
+    SV.modal(`<h3>${esc(title)}</h3><p>${esc(msg || '')}</p><div class="sv-row"><button class="sv-btn sec" id="svAskNo">${esc(noLabel || 'Annulla')}</button><button class="sv-btn ${danger ? 'danger' : ''}" id="svAskOk">${esc(okLabel || 'OK')}</button></div>`);
     $('svAskNo').onclick = () => { SV.closeModal(); res(false); };
     $('svAskOk').onclick = () => { SV.closeModal(); res(true); };
   });
@@ -12260,7 +12344,7 @@ function stagePt(e) { const r = $('svStage').getBoundingClientRect(); return { s
 function onDown(e) {
   if (!U.proj || e.button > 1) return;
   if (U.mode === 'text') { if (e.target === $('svTextEdit')) return; SV.endTextEdit(); }
-  $('svStage').setPointerCapture && $('svStage').setPointerCapture(e.pointerId);
+  try { $('svStage').setPointerCapture(e.pointerId); } catch (err) {}
   const p = stagePt(e);
   ptrs.set(e.pointerId, p);
   const touch = e.pointerType === 'touch';
@@ -12620,7 +12704,7 @@ async function onFiles(files) {
     if (!U.proj) return;
     if (pur === 'frame' || pur === 'replace') { SV.fillSelected(recs[0]); return; }
     if (pur === 'bg') { SV.change(() => { page().bg = Object.assign({}, page().bg, { img: recs[0].id }); }); return; }
-    if (pur === 'uploads') { SV.refreshPanel(); SV.toast(recs.length + ' immagine/i caricate'); return; }
+    if (pur === 'uploads') { SV.refreshPanel(true); SV.toast(recs.length + ' immagine/i caricate'); return; }
     recs.forEach((r, i) => SV.addImage(r, i));
     SV.refreshPanel();
   } catch (e) { SV.busy(false); console.error(e); SV.toast('Errore caricamento'); }
@@ -12793,7 +12877,7 @@ function renderCtx() {
     if (mob) { if (c.innerHTML) c.innerHTML = ''; return; }
     const bg = page().bg || {};
     h = `<button class="sv-tb" data-a="panel" data-p="colore" data-arg="bg">${colorDot(bg.color || '#fff', bg.g)}<span class="lb">Colore di sfondo</span></button>` + sep +
-      tb('resize', '⤢', 'Ridimensiona') + tb('tab', '❐', 'Pagine', 'data-tab="pagine"') + tb('tab', '☰', 'Livelli', 'data-tab="livelli"') + sep + `<span class="hint">Trascina sullo spazio vuoto per selezionare più elementi · Shift+clic per aggiungere · doppio clic per modificare</span>`;
+      tb('resize', '⤢', 'Ridimensiona') + tb('tab', '❐', 'Pagine', 'data-tab="pagine"') + tb('tab', '☰', 'Livelli', 'data-tab="livelli"') + tb('saveTpl', '⭐', 'Salva come modello') + sep + `<span class="hint">Trascina sullo spazio vuoto per selezionare più elementi · Shift+clic per aggiungere · doppio clic per modificare</span>`;
   } else if (list.length > 1 && !(list.every(e => e.gid && e.gid === list[0].gid))) {
     h = `<span class="hint">${list.length} elementi</span>` + tb('group', '▣', 'Raggruppa') + tb('panel', '⊞', 'Allinea', 'data-p="posizione"', U.panel === 'posizione') + common(null);
   } else if (list.length > 1) {
@@ -12812,7 +12896,7 @@ function renderCtx() {
     } else if (el.type === 'image') {
       if (!el.asset) h = tb('pickFrame', '📷', 'Aggiungi foto', 'style="color:#7d2ae8"') + tb('panel', '⬭', 'Forma', 'data-p="foto" data-arg="forma"');
       else h = tb('panel', '🪄', 'Modifica foto', 'data-p="foto"', U.panel === 'foto') + tb('crop', '✂️', 'Ritaglia') + tb('panel', '🌗', 'Sfuma', 'data-p="foto" data-arg="sfuma"') +
-        tb('flipX', '⇋', 'Capovolgi') + tb('flipY', '⇅', 'Capovolgi V') + tb('replace', '🔁', 'Sostituisci') + tb('bgremove', '👤', 'Rimuovi sfondo') + tb('setBg', '🖼️', 'Imposta sfondo');
+        tb('flipX', '⇋', 'Capovolgi') + tb('flipY', '⇅', 'Capovolgi V') + tb('replace', '🔁', 'Sostituisci') + tb('bgremove', '👤', 'Rimuovi sfondo') + tb('eraser', '🧽', 'Gomma') + tb('setBg', '🖼️', 'Imposta sfondo');
       h += common(el);
     } else if (el.type === 'shape' || el.type === 'orn' || el.type === 'icon') {
       h = `<button class="sv-tb" data-a="panel" data-p="colore" data-arg="fill">${colorDot(el.fill || '#d4af37', el.g)}<span class="lb">Colore</span></button>` +
@@ -12823,7 +12907,7 @@ function renderCtx() {
       h = tb('panel', '▦', 'Contenuto QR', 'data-p="qr"', U.panel === 'qr') + `<button class="sv-tb" data-a="panel" data-p="colore" data-arg="qrfg">${colorDot(el.fg || '#000')}<span class="lb">Colore</span></button>` + common(el);
     } else h = tb('flipX', '⇋', 'Capovolgi') + common(el);
   }
-  if (mob && list.length) h = `<button class="sv-tb" data-a="deselect" title="Fine"><span class="ic">✕</span><span class="lb">Fine</span></button>` + sep + h;
+  if (mob && (list.length || U.mode === 'crop')) h = `<button class="sv-ctx-x" data-a="${U.mode === 'crop' ? 'endCrop' : 'deselect'}" title="Chiudi" aria-label="Chiudi barra">✕</button>` + h;
   if (c.innerHTML !== h) { const sl = c.scrollLeft; c.innerHTML = h; c.scrollLeft = sl; }
 }
 SV.renderCtx = renderCtx;
@@ -12856,7 +12940,24 @@ function metalRow(target, cur) {
 }
 
 /* ---------- element catalog (Elementi) ---------- */
-const STICKERS = ['🕌', '☪️', '🌙', '⭐', '✨', '🤲', '📿', '🕋', '📖', '🙏', '💚', '❤️', '🌹', '🌸', '🎉', '🎂', '🎈', '🎁', '🏆', '📅', '⏰', '📍', '📞', '📢', '🎤', '🔔', '✅', '👉', '‼️', '🔥', '💶', '🍽️', '☕', '🚌', '🇸🇳', '🇮🇹'];
+const STICKERS = ['🕌', '☪️', '🌙', '⭐', '✨', '🤲', '📿', '🕋', '📖', '🙏', '💚', '❤️', '🌹', '🌸', '🎉', '🎂', '🎈', '🎁', '🏆', '📅', '⏰', '📍', '📞', '📢', '🎤', '🔔', '✅', '👉', '‼️', '🔥', '💶', '🍽️', '☕', '🚌', '🇸🇳', '🇮🇹', '🌟', '💫', '🌿', '🍃', '🌺', '💐', '🕯️', '🪔', '🫖', '🍵', '🥘', '🍚', '🤝', '👏', '🙌', '🎶', '🥁', '🎙️', '📸', '🎓', '📚', '✍️', '🧕', '👳', '🚗', '✈️', '🏠', '📲', '💬', '🆕', '🔟', '🎊', '🥳', '🏁', '⚠️', '🕐', '🗓️', '💰', '🎟️', '🪷'];
+const COMPOS = [
+  ['Badge data', 'data giorno mese badge cerchio', (W, H) => { const s = Math.min(W, H) * 0.3, x = (W - s) / 2, y = (H - s) / 2, k = s / 300;
+    return [SV.newEl('shape', { shape: 'circle', fill: '#d4af37', x, y, w: s, h: s, name: 'Cerchio' }, W, H), Object.assign(SV.newText('SAMEDI', { size: 34 * k * 1080 / Math.min(W, H), bold: true, color: '#0d5c2e' }, W, H), {}), Object.assign(SV.newText('24', { size: 120 * k * 1080 / Math.min(W, H), bold: true, weight: 900, color: '#0d5c2e' }, W, H), {}), Object.assign(SV.newText('OCTOBRE', { size: 34 * k * 1080 / Math.min(W, H), bold: true, color: '#0d5c2e' }, W, H), {})]
+      .map((e, i) => { if (i) { e.x = (W - e.w) / 2; e.y = y + s * [0, 0.18, 0.34, 0.7][i]; } return e; }); }],
+  ['Barra contatti', 'telefono contatti info whatsapp', (W, H) => { const bw = W * 0.8, bh = Math.min(W, H) * 0.09, x = (W - bw) / 2, y = H * 0.85;
+    const t = SV.newText('Info: +39 333 000 0000', { size: 44, bold: true, color: '#ffffff' }, W, H); t.y = y + (bh - t.h) / 2; t.x = x + bh; t.w = bw - bh * 1.2; SV.fitTextH(t); t.y = y + (bh - t.h) / 2;
+    return [SV.newEl('shape', { shape: 'rounded', fill: '#0d5c2e', x, y, w: bw, h: bh, name: 'Barra' }, W, H), SV.newEl('icon', { icon: Object.keys(ICON_PATHS).find(k => /tel|phone/.test(k)) || Object.keys(ICON_PATHS)[0], fill: '#d4af37', x: x + bh * 0.2, y: y + bh * 0.15, w: bh * 0.7, h: bh * 0.7 }, W, H), t]; }],
+  ['Titolo con nastro', 'nastro banner titolo programme', (W, H) => { const bw = W * 0.7, bh = Math.min(W, H) * 0.12, x = (W - bw) / 2, y = (H - bh) / 2;
+    const t = SV.newText('PROGRAMME', { size: 70, bold: true, weight: 900, color: '#0d5c2e', ls: 4 }, W, H); t.y = y + (bh - t.h) / 2 - bh * 0.05;
+    return [SV.newEl('shape', { shape: 'ribbon', fill: '#d4af37', x, y, w: bw, h: bh, name: 'Nastro' }, W, H), t]; }],
+  ['Cornice + nome', 'foto nome guida serigne cornice', (W, H) => { const s = Math.min(W, H) * 0.42, x = (W - s) / 2, y = H * 0.3;
+    const t = SV.newText('SERIGNE …', { size: 52, bold: true, color: '#ffffff', hl: { c: '#0d5c2e', pad: 0.4, r: 0.4 } }, W, H); t.y = y + s * 1.04;
+    return [{ id: SV.uid(), type: 'image', name: 'Cornice foto', asset: null, x, y, w: s, h: s, rot: 0, op: 1, mask: 'circle', frame: true, ph: 'Tocca e aggiungi la foto', border: { w: Math.max(4, s * 0.025), c: '#d4af37' } }, t]; }],
+  ['Arco + titolo arabo', 'arco arabo bismillah titolo', (W, H) => { const s = Math.min(W, H) * 0.55, x = (W - s * 0.7) / 2, y = H * 0.2;
+    const t = SV.newText('بسم الله الرحمن الرحيم', { font: 'Amiri', size: 60, bold: true, grad: 'gold' }, W, H); t.y = y + s * 0.1;
+    return [SV.newEl('orn', { kind: 'arch', fill: '#d4af37', x, y, w: s * 0.7, h: s, name: 'Arco' }, W, H), t]; }],
+];
 const STICKER_KW = { '🕌': 'moschea mosque touba', '☪️': 'islam mezzaluna', '🌙': 'luna', '📿': 'tasbih chapelet', '🕋': 'kaaba mecca', '📖': 'corano libro xassida', '🤲': 'preghiera dua', '📅': 'data calendario', '⏰': 'ora orologio', '📍': 'luogo posizione', '📞': 'telefono', '🎤': 'microfono conferenza', '🇸🇳': 'senegal bandiera', '🇮🇹': 'italia bandiera', '💶': 'euro soldi sass', '🎂': 'compleanno torta anniversaire' };
 const GRIDS = [
   ['g2v', 'Due colonne', [[0, 0, .5, 1], [.5, 0, .5, 1]]], ['g2h', 'Due righe', [[0, 0, 1, .5], [0, .5, 1, .5]]],
@@ -12875,6 +12976,7 @@ SV.catalog = function () {
   SV.ORNAMENTS.forEach(([k, l, r]) => items.push({ cat: 'Ornamenti islamici', l, kw: 'ornamento islamico ' + k + ' ' + l, th: ornThumb(k, r), make: () => { const s = Math.min(W(), H()) * (k === 'pattern' ? 0.9 : 0.4); let w = s * Math.min(1, r), h = s / Math.max(1, r); if (k === 'border') { w = W(); h = H(); } if (k === 'divider' || k === 'dividerStar') { w = W() * 0.6; h = w / 8; } return SV.newEl('orn', { kind: k, fill: '#d4af37', name: l, w, h }, W(), H()); } }));
   STICKERS.forEach(ch => items.push({ cat: 'Adesivi', l: ch, kw: 'adesivo emoji sticker ' + (STICKER_KW[ch] || ''), emoji: ch, make: () => SV.newEl('sticker', { ch, name: 'Adesivo ' + ch }, W(), H(), Math.min(W(), H()) * 0.18) }));
   SV.GRADS.forEach((g, i) => items.push({ cat: 'Sfumature', l: 'Sfumatura ' + (i + 1), kw: 'sfumatura gradiente gradient', css: SV.gCss(g), make: () => SV.newEl('shape', { shape: 'rect', g: Object.assign({}, g), name: 'Sfumatura', w: W(), h: H() * 0.35 }, W(), H()) }));
+  COMPOS.forEach(([l, kw, fn]) => items.push({ cat: 'Composizioni', l, kw: 'composizione ' + kw, th: thumbCanvas('cp' + l, (c, w, h) => { const els = fn(w * 10, h * 10); c.scale(0.1, 0.1); els.forEach(e => SV.drawElement(c, e, {})); }), make: () => { const g = SV.uid('g'), els = fn(W(), H()); els.forEach(e => { e.gid = g; }); return els; } }));
   items.push({ cat: 'Codice QR', l: 'Codice QR', kw: 'qr codice whatsapp link', th: qrThumb(), make: () => SV.newEl('qr', { data: 'https://wa.me/39', qrType: 'wa', qrVal: '39', fg: '#000000', bg: '#ffffff', name: 'Codice QR' }, W(), H(), Math.min(W(), H()) * 0.3), qr: true });
   return items;
 };
@@ -12914,8 +13016,8 @@ P.modelli = function () {
   const post = U.proj.h / U.proj.w < 1.5;
   const list = TEMPLATES.filter(t => SV.tplMatches(t, cat, q));
   return `<div class="sv-psearch">🔍<input data-in="tplQ" value="${esc(q)}" placeholder="Cerca modelli"></div>
-  <div class="sv-chips">${[['all', 'Tutti']].concat(EVENT_TYPES.map(e => [e.id, e.icon + ' ' + e.label])).map(([id, l]) => `<button class="sv-chip ${cat === id ? 'on' : ''}" data-a="tplCat" data-id="${id}">${esc(l)}</button>`).join('')}</div>
-  <div class="sv-g2">${list.map(t => `<button class="sv-tcard ${post ? 'post' : ''}" data-a="applyTpl" data-id="${t.id}"><div class="th" data-th="${t.id}${post ? '-p' : ''}">${U.thumbs[t.id + (post ? '-p' : '')] ? `<img src="${U.thumbs[t.id + (post ? '-p' : '')]}">` : ''}</div><b>${esc(t.name)}</b></button>`).join('') || '<div class="sv-empty">Nessun modello</div>'}</div>`;
+  <div class="sv-chips">${[['all', 'Tutti'], ['mine', '⭐ Miei']].concat(EVENT_TYPES.map(e => [e.id, e.icon + ' ' + e.label])).map(([id, l]) => `<button class="sv-chip ${cat === id ? 'on' : ''}" data-a="tplCat" data-id="${id}">${esc(l)}</button>`).join('')}</div>
+  ${SV.myTplPanelHTML ? SV.myTplPanelHTML() : ''}<div class="sv-g2">${(cat === 'mine' ? [] : list).map(t => `<button class="sv-tcard ${post ? 'post' : ''}" data-a="applyTpl" data-id="${t.id}"><div class="th" data-th="${t.id}${post ? '-p' : ''}">${U.thumbs[t.id + (post ? '-p' : '')] ? `<img src="${U.thumbs[t.id + (post ? '-p' : '')]}">` : ''}</div><b>${esc(t.name)}</b></button>`).join('') || '<div class="sv-empty">Nessun modello</div>'}</div>`;
 };
 P.modelli_after = () => SV.fillThumbs();
 P.elementi = function () {
@@ -13136,7 +13238,7 @@ P.foto = function () {
     h += `<div class="sv-lbl">Bordo</div>` + slider('Spessore', 'borderW', Math.round(((el.border && el.border.w) || 0) / kk()), 0, 60) + `<button class="sv-btn sec" data-a="panel" data-p="colore" data-arg="border">Colore bordo</button>`;
     h += `<div class="sv-lbl">Ombra</div>${seg('imgShadow', el.shadow && el.shadow.c ? 1 : 0, [[0, 'Nessuna'], [1, 'Ombra morbida']])}`;
   }
-  if (tab === 'sfondo') h += `<p style="color:var(--mut);font-size:12px">Rimuovi lo sfondo dalla foto della persona (ritaglio automatico sul dispositivo, gratis). La prima volta scarica il modello: può richiedere fino a un minuto.</p><button class="sv-btn" data-a="bgremove">✂︎ Rimuovi sfondo</button>${el.origAsset ? `<button class="sv-btn sec" data-a="bgrestore" style="margin-top:8px">↺ Ripristina foto originale</button>` : ''}`;
+  if (tab === 'sfondo') h += `<p style="color:var(--mut);font-size:12px">Rimuovi lo sfondo dalla foto della persona (ritaglio automatico sul dispositivo, gratis). La prima volta scarica il modello: può richiedere fino a un minuto.</p><button class="sv-btn" data-a="bgremove">✂︎ Rimuovi sfondo</button><button class="sv-btn sec" data-a="eraser" style="margin-top:8px">🧽 Gomma: cancella / ripristina</button>${el.origAsset ? `<button class="sv-btn sec" data-a="bgrestore" style="margin-top:8px">↺ Ripristina foto originale</button>` : ''}`;
   return h;
 };
 function frameThumbSmall(k) { return thumbCanvas('fm' + k, (c, w, h) => { SV.maskPath(c, k, 12, 10, w - 24, h - 20, 14); c.fillStyle = '#9aa3ad'; c.fill(); }, 64, 64); }
@@ -13304,16 +13406,30 @@ function applyColor(t, c, live) {
 /* ---------- photo ops ---------- */
 async function bgRemove() {
   const el = one(); if (!el || el.type !== 'image' || !el.asset) return;
-  SV.busy(true, 'Rimuovo lo sfondo… (la prima volta può volerci un minuto)');
+  SV.busy(true, 'Rimuovo lo sfondo… (la prima volta scarica il modello, ~1 min)');
   try {
-    const im = await SV.loadAsset(el.asset);
-    const cut = await removeBackgroundFromImage(im);
-    const rec = await SV.addAsset(cut, 'cut', 'Ritaglio');
-    SV.change(() => { el.origAsset = el.origAsset || el.asset; el.asset = rec.id; const k = Math.min(el.w / rec.w, el.h / rec.h); const cx = el.x + el.w / 2, by = el.y + el.h; el.w = rec.w * k; el.h = rec.h * k; el.x = cx - el.w / 2; el.y = by - el.h; el.crop = null; });
-    SV.busy(false); SV.toast('Sfondo rimosso ✓');
-  } catch (e) { console.error(e); SV.busy(false); SV.toast('Rimozione non riuscita: controlla la connessione'); }
-  try { showBgProgress(false); } catch (e) {}
+    const srcId = el.origAsset || el.asset;
+    const im = await SV.loadAsset(srcId);
+    const blob = await SV.runBgRemoval(im);
+    const cut = await SV.blobToImg(blob);
+    const w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
+    const m = document.createElement('canvas'); m.width = Math.min(w, 1800); m.height = Math.round(h * m.width / w);
+    const mc = m.getContext('2d'); mc.drawImage(cut, 0, 0, m.width, m.height); mc.globalCompositeOperation = 'source-in'; mc.fillStyle = '#fff'; mc.fillRect(0, 0, m.width, m.height);
+    const mrec = await SV.addAsset(m, 'mask', 'Maschera');
+    const crec = await SV.addAsset(cut, 'cut', 'Ritaglio');
+    SV.change(() => { el.origAsset = srcId; el.cutMask = mrec.id; el.asset = crec.id; });
+    SV.busy(false); SV.toast('Sfondo rimosso ✓ — rifinisci con la gomma');
+    try { showBgProgress(false); } catch (e) {}
+    if (!SV._noAutoEraser) SV.openEraser(el);
+  } catch (e) { console.error(e); SV.busy(false); SV.toast('Rimozione non riuscita: controlla la connessione'); try { showBgProgress(false); } catch (e2) {} }
 }
+SV.bgRemove = bgRemove;
+SV.runBgRemoval = async function (im) {
+  const removeBackground = await loadImgly();
+  const srcBlob = await imageToPngBlob(im);
+  return await removeBackground(srcBlob, { publicPath: IMGLY_PUBLIC_PATH, model: 'small', proxyToWorker: true, device: 'cpu', output: { format: 'image/png', quality: 0.92 },
+    progress: (key, cur, tot) => { const b = document.querySelector('#svBusy .t, #svBusy span'); if (b && tot) b.textContent = (String(key).includes('fetch') ? 'Scarico il modello… ' : 'Elaboro… ') + Math.round(100 * cur / tot) + '%'; } });
+};
 
 /* ---------- pages ---------- */
 function clonePage(p) { const n = SV.clone(p); n.id = SV.uid('p'); const gmap = {}; n.els.forEach(e => { e.id = SV.uid(); if (e.gid) e.gid = gmap[e.gid] || (gmap[e.gid] = SV.uid('g')); }); return n; }
@@ -13353,7 +13469,7 @@ SV.act = async function (a, d, b, ev) {
     case 'resize': return resizeDialog();
     case 'export': return exportDialog();
     case 'deselect': U.multi = false; if (U.mode === 'crop') SV.endCrop(); SV.select([]); break;
-    case 'addCat': { const it = (U._catalog || SV.catalog())[+d.i]; if (!it) return; if (it.grid) return SV.addGrid(it.grid); const e = it.make(); SV.addEls([e], { keepPanel: !!it.qr }); if (it.qr) SV.openPanel('qr'); break; }
+    case 'addCat': { const it = (U._catalog || SV.catalog())[+d.i]; if (!it) return; if (it.grid) return SV.addGrid(it.grid); const e = it.make(); SV.addEls(Array.isArray(e) ? e : [e], { keepPanel: !!it.qr }); if (it.qr) SV.openPanel('qr'); break; }
     case 'elMore': U.elOpen = U.elOpen === d.c ? null : d.c; SV.refreshPanel(true); break;
     case 'tplCat': U.tplCat = d.id; SV.refreshPanel(true); break;
     case 'applyTpl': return applyTemplate(d.id);
@@ -13414,7 +13530,8 @@ SV.act = async function (a, d, b, ev) {
     case 'replace': SV.pickImages('replace'); break;
     case 'pickFrame': SV.pickImages('frame'); break;
     case 'bgremove': bgRemove(); break;
-    case 'bgrestore': SV.change(() => { if (el && el.origAsset) { el.asset = el.origAsset; el.origAsset = null; } }); break;
+    case 'bgrestore': SV.change(() => { if (el && el.origAsset) { el.asset = el.origAsset; el.origAsset = null; el.cutMask = null; } }); break;
+    case 'eraser': SV.openEraser(el); break;
     case 'setBg': if (el && el.asset) { const t = el; SV.change(() => { page().bg = Object.assign({}, page().bg, { img: t.asset }); page().els = els().filter(e => e !== t); }); U.sel = []; SV.refresh(); SV.toast('Impostata come sfondo'); } break;
     case 'pickBg': SV.pickImages('bg'); break;
     case 'bgImgRemove': SV.change(() => { const bg = page().bg = Object.assign({}, page().bg); delete bg.img; }); break;
@@ -13665,6 +13782,11 @@ SV.buildExport = async function (opt) {
   return { files };
 };
 async function doExport(share) {
+  const pgs = (U.exp && U.exp.pages === 'cur') ? [page()] : U.proj.pages;
+  const empty = pgs.reduce((n, p) => n + p.els.filter(e => e.type === 'image' && !e.asset && !e.hidden).length, 0);
+  if (empty && !(await SV.ask('⚠️ Cornice vuota', `${empty} cornice/i senza foto non ${empty > 1 ? 'verranno' : 'verrà'} incluse nel file. Vuoi esportare lo stesso?`, 'Esporta comunque', false, 'Aggiungi foto'))) {
+    SV.closeModal(); const fe = pgs.flatMap(p => p.els).find(e => e.type === 'image' && !e.asset); const pi = U.proj.pages.findIndex(p => p.els.includes(fe)); if (pi >= 0 && pi !== U.pi) SV.goPage(pi); SV.select(fe.id); return;
+  }
   SV.busy(true, 'Preparo il file…');
   try {
     const { files } = await SV.buildExport();
@@ -13683,6 +13805,689 @@ async function doExport(share) {
     SV.closeModal();
   } catch (e) { SV.busy(false); console.error(e); SV.toast('Errore esportazione: ' + e.message); }
 }
+})();
+
+/* Gomma: erase/restore refine panel (non-destructive alpha mask) */
+(function () {
+const SV = window.SV, U = SV.U, $ = id => document.getElementById(id);
+let E = null;
+const MAXW = 1800;
+function mk(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+
+SV.openEraser = async function (el) {
+  el = el || SV.selEls()[0];
+  if (!el || el.type !== 'image' || !el.asset) return SV.toast('Seleziona una foto');
+  SV.busy(true, 'Apro la gomma…');
+  try {
+    const srcId = el.origAsset || el.asset;
+    const orig = await SV.loadAsset(srcId);
+    const cur = await SV.loadAsset(el.asset);
+    const iw = orig.naturalWidth || orig.width, ih = orig.naturalHeight || orig.height;
+    const k = Math.min(1, MAXW / Math.max(iw, ih));
+    const w = Math.round(iw * k), h = Math.round(ih * k);
+    const O = mk(w, h); O.getContext('2d').drawImage(orig, 0, 0, w, h);
+    const M = mk(w, h); const mc = M.getContext('2d');
+    if (el.cutMask) { const mi = await SV.loadAsset(el.cutMask); if (mi) mc.drawImage(mi, 0, 0, w, h); }
+    else if (el.origAsset && cur) mc.drawImage(cur, 0, 0, w, h); // legacy cut: use its alpha (same frame)
+    else { mc.fillStyle = '#fff'; mc.fillRect(0, 0, w, h); }
+    // normalise mask to white + alpha
+    mc.globalCompositeOperation = 'source-in'; mc.fillStyle = '#fff'; mc.fillRect(0, 0, w, h); mc.globalCompositeOperation = 'source-over';
+    E = { el, srcId, O, M, C: mk(w, h), w, h, iw, ih, mode: 'erase', size: 40, hard: 60, before: false,
+      undo: [], redo: [], view: { s: 1, tx: 0, ty: 0 }, ptrs: new Map(), stroke: null, pinch: null, cursor: null, dirty: false };
+    build(); composite(); fitView(); draw();
+  } catch (e) { console.error(e); SV.toast('Impossibile aprire la gomma'); }
+  SV.busy(false);
+};
+
+function build() {
+  let r = $('svErase');
+  if (!r) { r = document.createElement('div'); r.id = 'svErase'; $('sv').appendChild(r); }
+  r.innerHTML = `
+  <div class="er-top"><button class="er-b" data-er="cancel">Annulla</button><b>Gomma</b><button class="er-b gold" data-er="apply">Applica</button></div>
+  <div class="er-stage" id="erStage"><canvas id="erCv"></canvas>
+    <div class="er-float"><button class="er-ic" data-er="undo" title="Annulla tratto">↶</button><button class="er-ic" data-er="redo" title="Ripeti">↷</button><button class="er-ic" data-er="fit" title="Adatta">⤢</button><button class="er-ic" data-er="ba" id="erBA" title="Prima / dopo">◐</button></div>
+    <div class="er-hint" id="erHint">Due dita per zoomare e spostare</div></div>
+  <div class="er-bot">
+    <div class="er-modes"><button data-er="m" data-m="erase">🧽<span>Cancella</span></button><button data-er="m" data-m="restore">🖌️<span>Ripristina</span></button><button data-er="m" data-m="move">✋<span>Muovi</span></button></div>
+    <label class="er-sl">Dimensione <input type="range" id="erSize" min="4" max="160" value="40"><output id="erSizeV">40</output></label>
+    <label class="er-sl">Durezza <input type="range" id="erHard" min="0" max="100" value="60"><output id="erHardV">60</output></label>
+    <div class="er-row"><button class="er-b2" data-er="all-erase">Cancella tutto</button><button class="er-b2" data-er="all-restore">Ripristina tutto</button></div>
+  </div>`;
+  r.style.display = 'flex';
+  r.onclick = onClick;
+  $('erSize').oninput = e => { E.size = +e.target.value; $('erSizeV').textContent = E.size; E.cursor = E.cursor || null; showSizePreview(); };
+  $('erHard').oninput = e => { E.hard = +e.target.value; $('erHardV').textContent = E.hard; showSizePreview(); };
+  const st = $('erStage');
+  st.addEventListener('pointerdown', down); st.addEventListener('pointermove', move);
+  st.addEventListener('pointerup', up); st.addEventListener('pointercancel', up); st.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { E.cursor = null; draw(); } });
+  st.addEventListener('wheel', wheel, { passive: false });
+  ['gesturestart', 'gesturechange'].forEach(t => st.addEventListener(t, e => e.preventDefault()));
+  window.addEventListener('resize', onResize); document.addEventListener('keydown', key);
+  setMode('erase');
+}
+function onResize() { if (E) { fitView(true); draw(); } }
+function key(e) {
+  if (!E) return;
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+  else if (e.key === '[') { E.size = Math.max(4, E.size - 6); syncSl(); } else if (e.key === ']') { E.size = Math.min(160, E.size + 6); syncSl(); }
+  else if (e.key === 'Escape') close(false);
+}
+function syncSl() { $('erSize').value = E.size; $('erSizeV').textContent = E.size; showSizePreview(); }
+let prevT = 0;
+function showSizePreview() { const st = $('erStage').getBoundingClientRect(); if (!E.cursor || E.cursor.auto) E.cursor = { x: st.width / 2, y: st.height / 2, auto: true }; draw(); clearTimeout(prevT); prevT = setTimeout(() => { if (E && E.cursor && E.cursor.auto) { E.cursor = null; draw(); } }, 900); }
+function setMode(m) { E.mode = m; document.querySelectorAll('#svErase [data-m]').forEach(b => b.classList.toggle('on', b.dataset.m === m)); $('erStage').style.cursor = m === 'move' ? 'grab' : 'none'; }
+function onClick(e) {
+  const b = e.target.closest('[data-er]'); if (!b) return;
+  const a = b.dataset.er;
+  if (a === 'm') setMode(b.dataset.m);
+  else if (a === 'undo') undo(); else if (a === 'redo') redo();
+  else if (a === 'fit') { fitView(); draw(); }
+  else if (a === 'ba') { E.before = !E.before; b.classList.toggle('on', E.before); $('erHint').textContent = E.before ? 'PRIMA: foto originale' : 'DOPO: risultato'; $('erHint').classList.add('show'); setTimeout(() => $('erHint') && $('erHint').classList.remove('show'), 1200); draw(); }
+  else if (a === 'all-erase' || a === 'all-restore') { snap(); const c = E.M.getContext('2d'); c.clearRect(0, 0, E.w, E.h); if (a === 'all-restore') { c.fillStyle = '#fff'; c.fillRect(0, 0, E.w, E.h); } E.dirty = true; composite(); draw(); }
+  else if (a === 'cancel') close(false); else if (a === 'apply') apply();
+}
+function snap() { const c = mk(E.w, E.h); c.getContext('2d').drawImage(E.M, 0, 0); E.undo.push(c); if (E.undo.length > 12) E.undo.shift(); E.redo = []; }
+function swap(from, to) { if (!from.length) return; const c = mk(E.w, E.h); c.getContext('2d').drawImage(E.M, 0, 0); to.push(c); const p = from.pop(); const m = E.M.getContext('2d'); m.clearRect(0, 0, E.w, E.h); m.drawImage(p, 0, 0); E.dirty = true; composite(); draw(); }
+function undo() { swap(E.undo, E.redo); } function redo() { swap(E.redo, E.undo); }
+
+function composite() { const c = E.C.getContext('2d'); c.globalCompositeOperation = 'source-over'; c.clearRect(0, 0, E.w, E.h); c.drawImage(E.O, 0, 0); c.globalCompositeOperation = 'destination-in'; c.drawImage(E.M, 0, 0); c.globalCompositeOperation = 'source-over'; }
+function fitView(keep) {
+  const cv = $('erCv'), st = $('erStage'), r = st.getBoundingClientRect(), dpr = Math.min(3, window.devicePixelRatio || 1);
+  cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); cv.style.width = r.width + 'px'; cv.style.height = r.height + 'px'; E.dpr = dpr; E.sw = r.width; E.sh = r.height;
+  if (keep && E.view.set) return;
+  const s = Math.min((r.width - 24) / E.w, (r.height - 24) / E.h);
+  E.view = { s, tx: (r.width - E.w * s) / 2, ty: (r.height - E.h * s) / 2, set: true, s0: s };
+}
+let checker = null;
+function draw() {
+  if (!E) return;
+  const cv = $('erCv'); if (!cv) return; const c = cv.getContext('2d'), v = E.view;
+  c.setTransform(E.dpr, 0, 0, E.dpr, 0, 0); c.fillStyle = '#2b2d31'; c.fillRect(0, 0, E.sw, E.sh);
+  if (!checker) { const p = mk(16, 16), pc = p.getContext('2d'); pc.fillStyle = '#fff'; pc.fillRect(0, 0, 16, 16); pc.fillStyle = '#d6d9de'; pc.fillRect(0, 0, 8, 8); pc.fillRect(8, 8, 8, 8); checker = c.createPattern(p, 'repeat'); }
+  c.save(); c.fillStyle = checker; c.fillRect(v.tx, v.ty, E.w * v.s, E.h * v.s); c.restore();
+  c.imageSmoothingQuality = 'high';
+  if (E.before) c.drawImage(E.O, v.tx, v.ty, E.w * v.s, E.h * v.s);
+  else {
+    if (E.mode === 'restore') { c.globalAlpha = 0.28; c.drawImage(E.O, v.tx, v.ty, E.w * v.s, E.h * v.s); c.globalAlpha = 1; }
+    c.drawImage(E.C, v.tx, v.ty, E.w * v.s, E.h * v.s);
+  }
+  if (E.cursor && E.mode !== 'move') {
+    const r = E.size / 2; c.lineWidth = 1.5; c.strokeStyle = 'rgba(0,0,0,.8)'; c.beginPath(); c.arc(E.cursor.x, E.cursor.y, r, 0, 7); c.stroke();
+    c.strokeStyle = '#fff'; c.lineWidth = 1; c.beginPath(); c.arc(E.cursor.x, E.cursor.y, r - 1.2, 0, 7); c.stroke();
+    if (E.hard < 95) { c.setLineDash([3, 3]); c.beginPath(); c.arc(E.cursor.x, E.cursor.y, Math.max(1, r * (0.15 + 0.85 * E.hard / 100)), 0, 7); c.stroke(); c.setLineDash([]); }
+    c.fillStyle = E.mode === 'erase' ? 'rgba(255,80,80,.18)' : 'rgba(80,200,120,.18)'; c.beginPath(); c.arc(E.cursor.x, E.cursor.y, r, 0, 7); c.fill();
+  }
+}
+function pt(e) { const r = $('erStage').getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+function toImg(p) { return { x: (p.x - E.view.tx) / E.view.s, y: (p.y - E.view.ty) / E.view.s }; }
+function stamp(c, x, y, r) {
+  const h = E.hard / 100, g = c.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(Math.min(0.99, 0.05 + h * 0.94), 'rgba(255,255,255,1)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
+}
+function paintTo(p) {
+  const q = toImg(p), s = E.stroke, r = Math.max(0.5, E.size / 2 / E.view.s);
+  const c = E.M.getContext('2d'); c.globalCompositeOperation = E.mode === 'erase' ? 'destination-out' : 'source-over';
+  const last = s.last || q; const d = Math.hypot(q.x - last.x, q.y - last.y), step = Math.max(0.5, r * 0.22);
+  const n = s.last ? Math.max(1, Math.ceil(d / step)) : 1;
+  for (let i = 1; i <= n; i++) { const t = i / n; stamp(c, last.x + (q.x - last.x) * t, last.y + (q.y - last.y) * t, r); }
+  c.globalCompositeOperation = 'source-over'; s.last = q; E.dirty = true;
+  composite();
+}
+function down(e) {
+  if (e.target.closest && e.target.closest('button')) return;
+  e.preventDefault(); try { $('erStage').setPointerCapture(e.pointerId); } catch (err) {}
+  const p = pt(e); E.ptrs.set(e.pointerId, p);
+  if (E.ptrs.size === 2) {
+    if (E.stroke && E.stroke.snap) { const m = E.M.getContext('2d'); m.clearRect(0, 0, E.w, E.h); m.drawImage(E.undo.pop(), 0, 0); composite(); }
+    E.stroke = null; const [a, b] = [...E.ptrs.values()];
+    E.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2, v: Object.assign({}, E.view) }; E.cursor = null; draw(); return;
+  }
+  if (E.ptrs.size > 2) return;
+  if (E.mode === 'move' || e.button === 1 || E.space) { E.pan = { p, v: Object.assign({}, E.view) }; return; }
+  snap(); E.stroke = { snap: true, last: null }; E.cursor = p; paintTo(p); draw();
+}
+function move(e) {
+  const p = pt(e);
+  if (E.ptrs.has(e.pointerId)) E.ptrs.set(e.pointerId, p);
+  if (E.pinch && E.ptrs.size >= 2) {
+    const [a, b] = [...E.ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y), cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2, P = E.pinch;
+    const s = SV.clamp(P.v.s * d / Math.max(1, P.d), E.view.s0 * 0.5, E.view.s0 * 24);
+    E.view.s = s; E.view.tx = cx - (P.cx - P.v.tx) * s / P.v.s; E.view.ty = cy - (P.cy - P.v.ty) * s / P.v.s; draw(); return;
+  }
+  if (E.pan) { E.view.tx = E.pan.v.tx + p.x - E.pan.p.x; E.view.ty = E.pan.v.ty + p.y - E.pan.p.y; draw(); return; }
+  if (E.stroke) { paintTo(p); E.cursor = p; draw(); return; }
+  if (e.pointerType === 'mouse') { E.cursor = p; draw(); }
+}
+function up(e) {
+  E.ptrs.delete(e.pointerId);
+  if (E.ptrs.size < 2) E.pinch = null;
+  if (!E.ptrs.size) { E.pan = null; E.stroke = null; if (e.pointerType !== 'mouse') E.cursor = null; draw(); }
+}
+function wheel(e) {
+  e.preventDefault(); const p = pt(e);
+  if (e.ctrlKey || e.metaKey || !e.shiftKey) {
+    const f = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0022)), v = E.view, s = SV.clamp(v.s * f, v.s0 * 0.5, v.s0 * 24);
+    v.tx = p.x - (p.x - v.tx) * s / v.s; v.ty = p.y - (p.y - v.ty) * s / v.s; v.s = s;
+  } else { E.view.tx -= e.deltaX || e.deltaY; }
+  E.cursor = p; draw();
+}
+function close(applied) {
+  window.removeEventListener('resize', onResize); document.removeEventListener('keydown', key);
+  const r = $('svErase'); if (r) { r.style.display = 'none'; r.innerHTML = ''; }
+  E = null; if (!applied) SV.render();
+}
+async function apply() {
+  if (!E.dirty && E.el.cutMask) return close(false);
+  SV.busy(true, 'Applico…');
+  try {
+    const el = E.el;
+    const mrec = await SV.addAsset(E.M, 'mask', 'Maschera');
+    const orig = await SV.loadAsset(E.srcId);
+    const W = Math.min(E.iw, 2400), H = Math.round(E.ih * W / E.iw);
+    const out = mk(W, H), c = out.getContext('2d');
+    c.drawImage(orig, 0, 0, W, H); c.globalCompositeOperation = 'destination-in'; c.imageSmoothingQuality = 'high'; c.drawImage(E.M, 0, 0, W, H);
+    const crec = await SV.addAsset(out, 'cut', 'Ritaglio');
+    SV.change(() => { el.origAsset = E.srcId; el.cutMask = mrec.id; el.asset = crec.id; });
+    close(true); SV.toast('Modifiche applicate ✓');
+  } catch (e) { console.error(e); SV.toast('Errore: ' + e.message); }
+  SV.busy(false);
+}
+SV.eraserState = () => E;
+})();
+
+/* I miei modelli: user templates (IndexedDB kv 'mytpl'), import/export, image→template */
+(function () {
+const SV = window.SV, U = SV.U, $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const EV = () => (typeof EVENT_TYPES !== 'undefined' ? EVENT_TYPES : []);
+SV.myTpls = async function (force) { if (!U.myTpls || force) U.myTpls = (await SV.kvGet('mytpl').catch(() => null)) || []; return U.myTpls; };
+const save = async () => { await SV.kvSet('mytpl', U.myTpls); };
+const assetsOf = pages => { const s = new Set(); pages.forEach(p => { if (p.bg && p.bg.img) s.add(p.bg.img); p.els.forEach(e => ['asset', 'origAsset', 'cutMask'].forEach(k => e[k] && s.add(e[k]))); }); return [...s]; };
+function thumbOf(pages, w, h) { const k = 360 / w; return SV.renderToCanvas(pages[0], w, h, k, { res: k, placeholders: true }).toDataURL('image/jpeg', 0.75); }
+const evLabel = id => { const e = EV().find(x => x.id === id); return e ? e.icon + ' ' + e.label : 'Altro'; };
+
+/* ---- save current design as template ---- */
+SV.saveAsTemplate = async function () {
+  if (U.mode === 'text') SV.endTextEdit();
+  const p = U.proj; if (!p) return;
+  SV.modal(`<h3>⭐ Salva come modello</h3><p>Il modello resta su questo dispositivo e appare in “I miei modelli”.</p>
+    <div class="sv-lbl">Nome</div><input class="sv-inp" id="mtName" value="${esc(p.name)}" maxlength="60">
+    <div class="sv-lbl">Tipo di evento</div><select class="sv-inp" id="mtCat">${EV().map(e => `<option value="${e.id}">${esc(e.icon + ' ' + e.label)}</option>`).join('')}<option value="altro">Altro</option></select>
+    ${p.pages.length > 1 ? `<div class="sv-lbl">Pagine</div><select class="sv-inp" id="mtPages"><option value="all">Tutte (${p.pages.length})</option><option value="cur">Solo pagina ${U.pi + 1}</option></select>` : ''}
+    <label class="sv-check"><input type="checkbox" id="mtKeep" checked> Includi foto e immagini</label>
+    <div class="sv-row" style="margin-top:14px"><button class="sv-btn sec" data-a="closeModal">Annulla</button><button class="sv-btn gold" id="mtOk">Salva modello</button></div>`);
+  $('mtOk').onclick = async () => {
+    const name = ($('mtName').value || '').trim() || 'Il mio modello';
+    let pages = SV.clone($('mtPages') && $('mtPages').value === 'cur' ? [p.pages[U.pi]] : p.pages);
+    if (!$('mtKeep').checked) pages.forEach(pg => pg.els.forEach(e => { if (e.type === 'image' && e.asset) { e.asset = null; e.origAsset = null; e.cutMask = null; e.frame = true; e.ph = e.ph || 'Tocca e aggiungi la foto'; } }));
+    await SV.ensureAssets(pages);
+    const t = { id: SV.uid('ut'), name, cat: $('mtCat').value, w: p.w, h: p.h, sizeId: p.sizeId, pages, thumb: thumbOf(pages, p.w, p.h), created: Date.now() };
+    await SV.myTpls(); U.myTpls.unshift(t); await save();
+    SV.closeModal(); SV.toast('Modello salvato in “I miei modelli” ⭐');
+    if (U.panel === 'modelli') SV.refreshPanel(true);
+  };
+};
+
+/* ---- use ---- */
+function pagesFor(t, w, h) {
+  const tmp = { w: t.w, h: t.h, pages: SV.clone(t.pages) };
+  const gm = {};
+  tmp.pages.forEach(pg => { pg.id = SV.uid('p'); pg.els.forEach(e => { e.id = SV.uid(); if (e.gid) e.gid = gm[e.gid] || (gm[e.gid] = SV.uid('g')); }); });
+  if (w && (w !== t.w || h !== t.h)) SV.resizeProject(tmp, w, h);
+  return tmp.pages;
+}
+SV.useMyTpl = async function (id) {
+  const t = (await SV.myTpls()).find(x => x.id === id); if (!t) return;
+  const p = SV.newProject(t.w, t.h, t.name, t.sizeId); p.pages = pagesFor(t);
+  await SV.dbPut('projects', p); SV.openProject(p.id, p);
+};
+SV.applyMyTpl = async function (id) {
+  const t = (await SV.myTpls()).find(x => x.id === id); if (!t) return;
+  const empty = !U.proj.pages[U.pi].els.length && !(U.proj.pages[U.pi].bg && U.proj.pages[U.pi].bg.img);
+  const pages = pagesFor(t, U.proj.w, U.proj.h);
+  SV.change(() => { if (empty) U.proj.pages.splice(U.pi, 1, ...pages); else { U.proj.pages.splice(U.pi + 1, 0, ...pages); U.pi++; } });
+  U.sel = []; await SV.ensureAssets(U.proj.pages); SV.refresh(); SV.render(); SV.renderPagesStrip && SV.renderPagesStrip();
+  if (SV.isMobile()) SV.closePanel();
+  SV.toast(empty ? 'Modello applicato' : 'Modello aggiunto come nuova pagina');
+};
+
+/* ---- menu ---- */
+SV.myTplMenu = async function (id) {
+  const t = (await SV.myTpls()).find(x => x.id === id); if (!t) return;
+  SV.modal(`<h3>${esc(t.name)}</h3><p>${esc(evLabel(t.cat))} · ${t.w}×${t.h} px · ${t.pages.length} pag.</p>
+    <button class="sv-opt" id="mm1"><span>✏️</span><span><b>Usa il modello</b></span></button>
+    <button class="sv-opt" id="mm2"><span>🔤</span><span><b>Rinomina / categoria</b></span></button>
+    <button class="sv-opt" id="mm3"><span>⧉</span><span><b>Duplica</b></span></button>
+    <button class="sv-opt" id="mm5"><span>📤</span><span><b>Esporta come file</b><small>Per backup o per un altro telefono</small></span></button>
+    <button class="sv-opt" id="mm4" style="color:#b42318"><span>🗑️</span><span><b>Elimina</b></span></button>
+    <button class="sv-btn sec" data-a="closeModal">Chiudi</button>`);
+  const after = () => { SV.closeModal(); SV.refreshMyTpl(); };
+  $('mm1').onclick = () => { SV.closeModal(); U.proj && $('svEditor') && !$('svEditor').hidden ? SV.applyMyTpl(id) : SV.useMyTpl(id); };
+  $('mm2').onclick = () => {
+    SV.modal(`<h3>Rinomina modello</h3><div class="sv-lbl">Nome</div><input class="sv-inp" id="mrN" value="${esc(t.name)}"><div class="sv-lbl">Tipo di evento</div><select class="sv-inp" id="mrC">${EV().map(e => `<option value="${e.id}" ${e.id === t.cat ? 'selected' : ''}>${esc(e.icon + ' ' + e.label)}</option>`).join('')}<option value="altro">Altro</option></select><div class="sv-row" style="margin-top:14px"><button class="sv-btn sec" data-a="closeModal">Annulla</button><button class="sv-btn" id="mrOk">Salva</button></div>`);
+    $('mrOk').onclick = async () => { t.name = $('mrN').value.trim() || t.name; t.cat = $('mrC').value; await save(); after(); SV.toast('Rinominato'); };
+  };
+  $('mm3').onclick = async () => { const c = SV.clone(t); c.id = SV.uid('ut'); c.name = t.name + ' (copia)'; c.created = Date.now(); U.myTpls.splice(U.myTpls.indexOf(t) + 1, 0, c); await save(); after(); SV.toast('Duplicato'); };
+  $('mm4').onclick = async () => { if (!(await SV.ask('Eliminare “' + t.name + '”?', 'Il modello verrà rimosso da questo dispositivo.', 'Elimina', true))) return; U.myTpls = U.myTpls.filter(x => x.id !== id); await save(); after(); SV.toast('Eliminato'); };
+  $('mm5').onclick = () => { SV.closeModal(); SV.exportTpls([id]); };
+};
+
+/* ---- export / import file ---- */
+const b64 = buf => { let s = ''; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = s => { const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; };
+SV.buildTplFile = async function (ids) {
+  const all = await SV.myTpls(); const list = ids ? all.filter(t => ids.includes(t.id)) : all;
+  const assets = {};
+  for (const id of new Set(list.flatMap(t => assetsOf(t.pages)))) {
+    const r = await SV.dbGet('assets', id); if (!r) continue;
+    const buf = r.buf || (r.blob && await r.blob.arrayBuffer()); if (!buf) continue;
+    assets[id] = { type: r.type || (r.blob && r.blob.type) || 'image/png', w: r.w, h: r.h, kind: r.kind, name: r.name, data: b64(buf) };
+  }
+  const json = JSON.stringify({ format: 'volantino-mouride-templates', v: 1, exported: new Date().toISOString(), templates: list, assets });
+  const name = (list.length === 1 ? list[0].name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w-]+/g, '-').slice(0, 40) : 'miei-modelli') + '.volantino.json';
+  return new File([json], name, { type: 'application/json' });
+};
+SV.exportTpls = async function (ids) {
+  const all = await SV.myTpls(); if (!all.length) return SV.toast('Nessun modello da esportare');
+  SV.busy(true, 'Preparo il file…');
+  try {
+    const f = await SV.buildTplFile(ids); SV.busy(false);
+    if (navigator.canShare && navigator.share && navigator.canShare({ files: [f] })) { try { await navigator.share({ files: [f], title: 'Modelli Volantino' }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+    const u = URL.createObjectURL(f), a = document.createElement('a'); a.href = u; a.download = f.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 30000);
+    SV.toast('File salvato: ' + f.name);
+  } catch (e) { SV.busy(false); console.error(e); SV.toast('Errore: ' + e.message); }
+};
+SV.importTplFile = async function (file) {
+  const txt = await file.text(); let d;
+  try { d = JSON.parse(txt); } catch (e) { throw new Error('File non valido'); }
+  if (!d || d.format !== 'volantino-mouride-templates' || !Array.isArray(d.templates)) throw new Error('Non è un file di modelli Volantino');
+  for (const [id, a] of Object.entries(d.assets || {})) {
+    if (await SV.dbGet('assets', id)) continue;
+    const u = unb64(a.data);
+    await SV.dbPut('assets', { id, buf: u.buffer, type: a.type, w: a.w, h: a.h, kind: a.kind === 'upload' ? 'tpl' : (a.kind || 'tpl'), name: a.name || '', created: Date.now() });
+  }
+  await SV.myTpls(); const have = new Set(U.myTpls.map(t => t.id)); let n = 0;
+  for (const t of d.templates) { if (!t || !Array.isArray(t.pages)) continue; const c = Object.assign({}, t); if (have.has(c.id)) { c.id = SV.uid('ut'); c.name += ' (importato)'; } U.myTpls.unshift(c); n++; }
+  await save(); return n;
+};
+
+/* ---- image → template ---- */
+SV.imageToTemplate = async function (file) {
+  SV.busy(true, 'Creo il modello dall’immagine…');
+  try {
+    const rec = await SV.addAsset(file, 'tpl', 'Volantino importato', { max: 2400 });
+    const r = rec.h / rec.w;
+    const presets = SV.SIZES.map(s => ({ s, d: Math.abs(s.h / s.w - r) })).sort((a, b) => a.d - b.d);
+    let W, H, sizeId = null;
+    if (presets[0].d < 0.03) { W = presets[0].s.w; H = presets[0].s.h; sizeId = presets[0].s.id; } else { W = 1080; H = Math.round(1080 * r); }
+    const k = W / 1080;
+    const pg = SV.newPage();
+    pg.bg = { color: '#ffffff', img: rec.id };
+    const T = (txt, y, size, o) => { const e = SV.newText(txt, Object.assign({ size, bold: true, color: '#ffffff', align: 'center', shadow: { c: 'rgba(0,0,0,.55)', b: 10 * k, x: 0, y: 3 * k } }, o || {}), W, H); e.x = W * 0.08; e.w = W * 0.84; SV.fitTextH(e); e.y = H * y; e.name = 'Testo modificabile'; return e; };
+    pg.els.push(T('TITOLO EVENTO', 0.08, 96, { font: 'Montserrat', weight: 900 }), T('Sottotitolo', 0.08 + 130 * k / H, 44, { bold: false }), T('Sabato 24 ottobre 2026 · ore 16', 0.78, 46), T('Indirizzo · Città', 0.78 + 70 * k / H, 36, { bold: false }));
+    const name = (file.name || 'Volantino').replace(/\.\w+$/, '').slice(0, 40) || 'Volantino';
+    const t = { id: SV.uid('ut'), name, cat: 'altro', w: W, h: H, sizeId, pages: [pg], created: Date.now() };
+    await SV.ensureAssets(t.pages); await SV.ensureFonts && SV.ensureFonts(t.pages);
+    t.thumb = thumbOf(t.pages, W, H);
+    await SV.myTpls(); U.myTpls.unshift(t); await save();
+    SV.busy(false); SV.toast('Modello creato: modifica i testi e salva');
+    return t;
+  } catch (e) { SV.busy(false); console.error(e); SV.toast('Errore: ' + e.message); throw e; }
+};
+
+function pick(accept, multi) { return new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.multiple = !!multi; i.style.display = 'none'; document.body.appendChild(i); i.onchange = () => { res([...i.files]); i.remove(); }; i.click(); }); }
+SV.pickImportTpl = async function () {
+  const fs = await pick('.json,application/json,.volantino', false); if (!fs.length) return;
+  SV.busy(true, 'Importo…');
+  try { const n = await SV.importTplFile(fs[0]); SV.busy(false); SV.toast(n + ' modello/i importato/i ✓'); SV.refreshMyTpl(); }
+  catch (e) { SV.busy(false); SV.toast(e.message); }
+};
+SV.pickImageTpl = async function () { const fs = await pick('image/jpeg,image/png,image/webp', false); if (!fs.length) return; const t = await SV.imageToTemplate(fs[0]); if (t) SV.useMyTpl(t.id); };
+
+/* ---- UI ---- */
+function card(t, act) {
+  return `<div class="sv-tcard mine" data-a="${act}" data-id="${t.id}" style="cursor:pointer"><div class="th" style="aspect-ratio:${t.w}/${t.h};background:#fff">${t.thumb ? `<img src="${t.thumb}" alt="" style="object-fit:contain">` : ''}</div><button class="more" data-a="myTplMenu" data-id="${t.id}" aria-label="Opzioni">⋯</button><b>${esc(t.name)}</b><small>⭐ ${esc(evLabel(t.cat))}</small></div>`;
+}
+function section(list, act, inPanel) {
+  const tools = `<div class="sv-mytools"><button class="sv-chip" data-a="impImgTpl">🔎 Analizza volantino</button><button class="sv-chip" data-a="impTpl">📥 Importa file</button>${list.length ? `<button class="sv-chip" data-a="expTpls">📤 Esporta tutti</button>` : ''}</div>`;
+  return `<div class="sv-h2 sv-mine-h" ${inPanel ? 'style="margin:10px 0 6px;font-size:14px"' : ''}>⭐ I miei modelli <span style="font-size:12px;color:var(--mut);font-weight:600">${list.length || ''}</span></div>${tools}
+  <div class="${inPanel ? 'sv-g2' : 'sv-grid'}">${list.length ? list.map(t => card(t, act)).join('') : `<div class="sv-empty" style="grid-column:1/-1">Nessun modello personale. Nell’editor usa “⭐ Salva come modello”, oppure crea un modello da un’immagine.</div>`}</div>`;
+}
+const match = (t, cat, q) => (!cat || cat === 'all' || cat === 'mine' || t.cat === cat) && (!q || SV.fold(t.name + ' ' + evLabel(t.cat)).includes(SV.fold(q)));
+SV.fold = s => (typeof foldAccents === 'function' ? foldAccents(String(s).toLowerCase()) : String(s).toLowerCase());
+
+const _home = SV.showHome;
+SV.showHome = async function () {
+  await _home.apply(this, arguments);
+  const list = await SV.myTpls();
+  const anchor = $('svHomeTpl'); if (!anchor || !$('svHome')) return;
+  const box = document.createElement('div'); box.id = 'svHomeMine'; box.innerHTML = section(list.slice(0, 8), 'useMy');
+  anchor.parentNode.insertBefore(box, anchor.previousElementSibling);
+};
+const _gal = SV.showGallery;
+SV.showGallery = async function () {
+  const mineOnly = U.galleryCat === 'mine';
+  _gal.apply(this, arguments);
+  const g = $('svGallery'); const chips = g.querySelector('.sv-chips');
+  if (chips && !chips.querySelector('[data-id="mine"]')) chips.insertAdjacentHTML('afterbegin', `<button class="sv-chip ${mineOnly ? 'on' : ''}" data-a="galCat" data-id="mine">⭐ I miei modelli</button>`);
+  if (mineOnly) { const a = chips.querySelector('[data-id="all"]'); a && a.classList.remove('on'); }
+  const list = (await SV.myTpls()).filter(t => match(t, U.galleryCat, U.gallerySearch));
+  const wrap = g.querySelector('.sv-wrap:last-child'); if (!wrap) return;
+  const box = document.createElement('div'); box.id = 'svGalMine'; box.innerHTML = section(list, 'useMy');
+  if (mineOnly) { wrap.innerHTML = ''; wrap.appendChild(box); } else if (list.length || !U.gallerySearch) { wrap.insertBefore(box, wrap.firstChild); const h = document.createElement('div'); h.className = 'sv-h2'; h.textContent = 'Modelli Mouride'; wrap.insertBefore(h, box.nextSibling); }
+};
+const _pm = SV.P && SV.P.modelli;
+SV.refreshMyTpl = function () {
+  if ($('svHome') && !$('svHome').hidden) SV.showHome();
+  else if ($('svGallery') && !$('svGallery').hidden) SV.showGallery();
+  else if (U.panel === 'modelli') SV.refreshPanel(true);
+};
+SV.myTplPanelHTML = function () {
+  const list = (U.myTpls || []).filter(t => match(t, U.tplCat, U.tplQ));
+  return `<button class="sv-btn gold" data-a="saveTpl" style="margin:4px 0 6px">⭐ Salva questo design come modello</button>` + section(list, 'applyMy', true) + `<div class="sv-lbl" style="margin-top:12px">Modelli Mouride</div>`;
+};
+
+const _act = SV.act;
+SV.act = async function (a, d, b, ev) {
+  d = d || {};
+  switch (a) {
+    case 'saveTpl': return SV.saveAsTemplate();
+    case 'useMy': if (ev && ev.target.closest('.more')) return; return SV.useMyTpl(d.id);
+    case 'applyMy': if (ev && ev.target.closest('.more')) return; return SV.applyMyTpl(d.id);
+    case 'myTplMenu': return SV.myTplMenu(d.id);
+    case 'impTpl': return SV.pickImportTpl();
+    case 'impImgTpl': return SV.pickImageTpl();
+    case 'expTpls': return SV.exportTpls();
+  }
+  return _act.call(this, a, d, b, ev);
+};
+SV.myTpls();
+})();
+
+/* Analizza volantino: OCR → editable text layers, text removal (inpaint), palette, photo frames, review */
+(function () {
+const SV = window.SV, U = SV.U, $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const TESS = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+const _tw = {};
+function loadScript(src) { return new Promise((res, rej) => { if (window.Tesseract) return res(); const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('script')); document.head.appendChild(s); }); }
+async function worker(langs, progress) {
+  if (_tw[langs]) return _tw[langs];
+  await loadScript(TESS);
+  const w = await window.Tesseract.createWorker(langs.split('+'), 1, { logger: m => progress && progress(m) });
+  await w.setParameters({ preserve_interword_spaces: '1', tessedit_pageseg_mode: '11' });
+  return (_tw[langs] = w);
+}
+function wordsOf(data, sc, src) {
+  const out = [];
+  (data.blocks || []).forEach(b => (b.paragraphs || []).forEach(p => (p.lines || []).forEach(l => (l.words || []).forEach(w => {
+    const bb = w.bbox; out.push({ text: w.text, conf: w.confidence, src, bbox: { x0: bb.x0 / sc, y0: bb.y0 / sc, x1: bb.x1 / sc, y1: bb.y1 / sc } });
+  }))));
+  return out;
+}
+const iou = (a, b) => { const x0 = Math.max(a.x0, b.x0), y0 = Math.max(a.y0, b.y0), x1 = Math.min(a.x1, b.x1), y1 = Math.min(a.y1, b.y1); if (x1 <= x0 || y1 <= y0) return 0; const i = (x1 - x0) * (y1 - y0); return i / Math.min((a.x1 - a.x0) * (a.y1 - a.y0), (b.x1 - b.x0) * (b.y1 - b.y0)); };
+function goodWord(w) {
+  const t = w.text.trim(); if (!t) return false;
+  const ar = /[\u0600-\u06FF]/.test(t);
+  const letters = (t.match(/[\p{L}\p{N}]/gu) || []).length;
+  if (letters / t.length < 0.6) return false;
+  if (ar) return w.conf >= 72 && letters >= 2;
+  if (/^\d+$/.test(t)) return w.conf >= 60;
+  if (letters < 2) return w.conf >= 85 && /^[A-Za-zÀ-ÿ&]$/.test(t);
+  // reject vowel-less gibberish like "ww", "Vas" mixed case noise
+  if (!/[aeiouyàèéìòùAEIOUYÀÈÉÌÒÙ]/.test(t) && !/^[A-Z]{2,4}$/.test(t)) return w.conf >= 88;
+  return w.conf >= 66;
+}
+function groupLines(words) {
+  words = words.slice().sort((a, b) => (a.bbox.y0 + a.bbox.y1) - (b.bbox.y0 + b.bbox.y1));
+  const rows = [];
+  words.forEach(w => {
+    const h = w.bbox.y1 - w.bbox.y0, cy = (w.bbox.y0 + w.bbox.y1) / 2;
+    let R = rows.find(r => Math.abs(r.cy - cy) < Math.min(r.h, h) * 0.5 && Math.abs(r.h - h) < Math.max(r.h, h) * 0.5);
+    if (!R) { R = { words: [], cy, h }; rows.push(R); }
+    R.words.push(w); R.cy = R.words.reduce((s, x) => s + (x.bbox.y0 + x.bbox.y1) / 2, 0) / R.words.length; R.h = R.words.reduce((s, x) => s + x.bbox.y1 - x.bbox.y0, 0) / R.words.length;
+  });
+  const lines = [];
+  rows.forEach(R => {
+    R.words.sort((a, b) => a.bbox.x0 - b.bbox.x0);
+    let cur = null;
+    R.words.forEach(w => { if (cur && w.bbox.x0 - cur[cur.length - 1].bbox.x1 < R.h * 1.8) cur.push(w); else { cur = [w]; lines.push(cur); } });
+  });
+  return lines.map(ws => { const ar = ws.some(w => /[\u0600-\u06FF]/.test(w.text)); if (ar) ws = ws.slice().reverse();
+    const bb = { x0: Math.min(...ws.map(w => w.bbox.x0)), y0: Math.min(...ws.map(w => w.bbox.y0)), x1: Math.max(...ws.map(w => w.bbox.x1)), y1: Math.max(...ws.map(w => w.bbox.y1)) };
+    return { text: ws.map(w => w.text).join(' '), bbox: bb, confidence: ws.reduce((s, w) => s + w.conf, 0) / ws.length, ar, n: ws.length }; })
+    .filter(l => { const t = l.text.replace(/\s/g, ''); if (l.n === 1 && t.length <= 2 && !/^\d+$/.test(t)) return l.confidence >= 95 && /^[A-Z]{2}$/.test(t); if (l.n === 1 && t.length <= 4 && /[a-z]/.test(t) && !l.ar) return l.confidence >= 90; return true; });
+}
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+const hex = (r, g, b) => '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+const d2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
+function kmeans(px, k, it) {
+  let cs = []; for (let i = 0; i < k; i++) cs.push(px[Math.floor((i + 0.5) * px.length / k)].slice());
+  let as = new Array(px.length).fill(0);
+  for (let t = 0; t < (it || 8); t++) {
+    const sum = cs.map(() => [0, 0, 0, 0]);
+    px.forEach((p, i) => { let b = 0, bd = 1e12; cs.forEach((c, j) => { const d = d2(p, c); if (d < bd) { bd = d; b = j; } }); as[i] = b; const s = sum[b]; s[0] += p[0]; s[1] += p[1]; s[2] += p[2]; s[3]++; });
+    cs = cs.map((c, j) => sum[j][3] ? [sum[j][0] / sum[j][3], sum[j][1] / sum[j][3], sum[j][2] / sum[j][3]] : c);
+  }
+  const n = cs.map((_, j) => as.filter(a => a === j).length);
+  return { cs, n, as };
+}
+SV.palette = function (cv, k) {
+  const s = mk(64, Math.max(8, Math.round(64 * cv.height / cv.width))); const c = s.getContext('2d'); c.drawImage(cv, 0, 0, s.width, s.height);
+  const d = c.getImageData(0, 0, s.width, s.height).data, px = [];
+  for (let i = 0; i < d.length; i += 4) px.push([d[i], d[i + 1], d[i + 2]]);
+  const r = kmeans(px, k || 6, 10);
+  return r.cs.map((c, i) => ({ c: hex(...c), n: r.n[i] })).sort((a, b) => b.n - a.n).map(x => x.c);
+};
+/* analyse one text line box: text & bg colour + ink mask */
+function inkOf(id, W, b) {
+  const x0 = Math.max(0, b.x0 - 3), y0 = Math.max(0, b.y0 - 3), x1 = Math.min(W.w - 1, b.x1 + 3), y1 = Math.min(W.h - 1, b.y1 + 3);
+  const px = [], ring = [];
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const i = (y * W.w + x) * 4; const p = [id[i], id[i + 1], id[i + 2]]; px.push(p); if (x - x0 < 2 || x1 - x < 2 || y - y0 < 2 || y1 - y < 2) ring.push(p); }
+  const r = kmeans(px, 2, 6);
+  const rm = ring.reduce((a, p) => [a[0] + p[0], a[1] + p[1], a[2] + p[2]], [0, 0, 0]).map(v => v / Math.max(1, ring.length));
+  const ti = d2(r.cs[0], rm) > d2(r.cs[1], rm) ? 0 : 1;
+  return { x0, y0, x1, y1, text: r.cs[ti], bg: rm, ratio: r.n[ti] / px.length, as: r.as, ti };
+}
+/* push-pull inpainting of masked pixels */
+function inpaint(img, mask, w, h) {
+  const levels = [{ w, h, c: new Float32Array(w * h * 4) }];
+  for (let i = 0; i < w * h; i++) { if (!mask[i]) { levels[0].c[i * 4] = img[i * 4]; levels[0].c[i * 4 + 1] = img[i * 4 + 1]; levels[0].c[i * 4 + 2] = img[i * 4 + 2]; levels[0].c[i * 4 + 3] = 1; } }
+  while (levels[levels.length - 1].w > 2 && levels[levels.length - 1].h > 2) {
+    const L = levels[levels.length - 1], nw = Math.ceil(L.w / 2), nh = Math.ceil(L.h / 2), n = new Float32Array(nw * nh * 4);
+    for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) { const s = (y * L.w + x) * 4, t = ((y >> 1) * nw + (x >> 1)) * 4, a = L.c[s + 3]; if (a > 0) { n[t] += L.c[s] * a; n[t + 1] += L.c[s + 1] * a; n[t + 2] += L.c[s + 2] * a; n[t + 3] += a; } }
+    for (let i = 0; i < nw * nh; i++) { const a = n[i * 4 + 3]; if (a > 0) { n[i * 4] /= a; n[i * 4 + 1] /= a; n[i * 4 + 2] /= a; n[i * 4 + 3] = Math.min(1, a); } }
+    levels.push({ w: nw, h: nh, c: n });
+  }
+  for (let l = levels.length - 2; l >= 0; l--) {
+    const L = levels[l], P = levels[l + 1];
+    for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
+      const s = (y * L.w + x) * 4, a = L.c[s + 3]; if (a >= 1) continue;
+      // bilinear sample from parent
+      const fx = Math.min(P.w - 1, Math.max(0, x / 2 - 0.25)), fy = Math.min(P.h - 1, Math.max(0, y / 2 - 0.25)), ix = Math.floor(fx), iy = Math.floor(fy), ax = fx - ix, ay = fy - iy;
+      const g = (xx, yy, k) => P.c[(Math.min(P.h - 1, yy) * P.w + Math.min(P.w - 1, xx)) * 4 + k];
+      for (let k = 0; k < 3; k++) { const v = g(ix, iy, k) * (1 - ax) * (1 - ay) + g(ix + 1, iy, k) * ax * (1 - ay) + g(ix, iy + 1, k) * (1 - ax) * ay + g(ix + 1, iy + 1, k) * ax * ay; L.c[s + k] = L.c[s + k] * a + v * (1 - a); }
+      L.c[s + 3] = 1;
+    }
+  }
+  const o = levels[0].c;
+  for (let i = 0; i < w * h; i++) if (mask[i]) { img[i * 4] = o[i * 4]; img[i * 4 + 1] = o[i * 4 + 1]; img[i * 4 + 2] = o[i * 4 + 2]; }
+}
+const isArabic = s => /[\u0600-\u06FF]/.test(s);
+const clean = s => s.replace(/[|_~^`{}\[\]<>]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+SV.analyzeFlyer = async function (file, opts) {
+  opts = opts || {};
+  const prog = t => { SV.busy(true, t); };
+  prog('Leggo l’immagine…');
+  const im = await SV.blobToImg(file);
+  const iw = im.naturalWidth, ih = im.naturalHeight, k = Math.min(1, 1600 / Math.max(iw, ih));
+  const w = Math.round(iw * k), h = Math.round(ih * k);
+  const cv = mk(w, h), c = cv.getContext('2d', { willReadFrequently: true }); c.drawImage(im, 0, 0, w, h);
+  const res = { w, h, cv, blocks: [], palette: SV.palette(cv, 6), photos: [], ocr: true, file };
+  try {
+    const P = m => { if (m.status) prog((/load|init/.test(m.status) ? 'Scarico il lettore di testo… ' : 'Leggo i testi… ') + Math.round((m.progress || 0) * 100) + '%'); };
+    // upscale small images for OCR
+    const sc = Math.max(1, Math.min(2.5, 1800 / Math.max(w, h)));
+    const oc = mk(Math.round(w * sc), Math.round(h * sc)), ox = oc.getContext('2d'); ox.imageSmoothingQuality = 'high'; ox.drawImage(cv, 0, 0, oc.width, oc.height);
+    const inv = mk(oc.width, oc.height), ix = inv.getContext('2d'); ix.filter = 'invert(1) grayscale(1) contrast(1.4)'; ix.drawImage(oc, 0, 0); ix.filter = 'none';
+    const lat = await worker('ita+fra+eng', P);
+    let words = wordsOf((await lat.recognize(oc, {}, { blocks: true })).data, sc, 'n');
+    prog('Leggo i testi chiari su fondo scuro…');
+    words = words.concat(wordsOf((await lat.recognize(inv, {}, { blocks: true })).data, sc, 'i'));
+    if (opts.arabic !== false) { try { prog('Leggo i testi arabi…'); const ar = await worker('ara', P); words = words.concat(wordsOf((await ar.recognize(oc, {}, { blocks: true })).data, sc, 'a').filter(x => /[\u0600-\u06FF]/.test(x.text))); } catch (e) { console.warn('ara', e); } }
+    words = words.filter(goodWord).sort((a, b) => b.conf - a.conf);
+    const kept = []; words.forEach(x => { if (!kept.some(k => iou(k.bbox, x.bbox) > 0.35)) kept.push(x); });
+    const id = c.getImageData(0, 0, w, h).data;
+    groupLines(kept).forEach(l => {
+      const t = clean(l.text); const bb = { x0: Math.round(l.bbox.x0), y0: Math.round(l.bbox.y0), x1: Math.round(l.bbox.x1), y1: Math.round(l.bbox.y1) }; const bh = bb.y1 - bb.y0;
+      if (t.replace(/\s/g, '').length < 2 || bh < 6) return;
+      const ink = inkOf(id, { w, h }, bb);
+      const ar = l.ar;
+      const up = t.replace(/[^\p{L}]/gu, ''); const upper = up.length > 1 && up === up.toUpperCase() && !ar;
+      const hasDesc = /[gjpqy,]/.test(t);
+      const size = ar ? bh * 0.95 : upper ? bh / 0.74 : bh / (hasDesc ? 0.98 : 0.8);
+      res.blocks.push({ on: true, text: t, bbox: bb, conf: Math.round(l.confidence), color: hex(...ink.text), bg: hex(...ink.bg), size, bold: ink.ratio > 0.28, font: ar ? 'Amiri' : (upper && bh > h * 0.045 ? 'Anton' : 'Montserrat'), upper, ar, ink });
+    });
+    res.blocks.sort((a, b) => a.bbox.y0 - b.bbox.y0);
+  } catch (e) { console.warn('OCR failed', e); res.ocr = false; }
+  if (opts.photos) {
+    try {
+      prog('Cerco le foto (persone)…');
+      const blob = await SV.runBgRemoval(cv);
+      const cut = await SV.blobToImg(blob); const m = mk(w, h), mc = m.getContext('2d'); mc.drawImage(cut, 0, 0, w, h);
+      const a = mc.getImageData(0, 0, w, h).data;
+      // connected-ish regions by column/row projection: find bbox of big alpha blobs via coarse grid
+      const G = 24, gw = Math.ceil(w / G), gh = Math.ceil(h / G), grid = new Uint8Array(gw * gh);
+      for (let y = 0; y < h; y += 2) for (let x = 0; x < w; x += 2) if (a[(y * w + x) * 4 + 3] > 128) grid[Math.floor(y / G) * gw + Math.floor(x / G)]++;
+      const thr = (G * G / 4) * 0.35, seen = new Uint8Array(gw * gh);
+      for (let i = 0; i < gw * gh; i++) {
+        if (seen[i] || grid[i] < thr) continue;
+        const st = [i]; seen[i] = 1; let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1, n = 0;
+        while (st.length) { const j = st.pop(), gx = j % gw, gy = (j / gw) | 0; n++; x0 = Math.min(x0, gx); y0 = Math.min(y0, gy); x1 = Math.max(x1, gx); y1 = Math.max(y1, gy);
+          [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => { const nx = gx + dx, ny = gy + dy; if (nx < 0 || ny < 0 || nx >= gw || ny >= gh) return; const q = ny * gw + nx; if (!seen[q] && grid[q] >= thr) { seen[q] = 1; st.push(q); } }); }
+        const bx = { x: x0 * G, y: y0 * G, w: Math.min(w, (x1 + 1) * G) - x0 * G, h: Math.min(h, (y1 + 1) * G) - y0 * G };
+        if (bx.w * bx.h > w * h * 0.04 && n > 6) res.photos.push({ on: true, ...bx });
+      }
+      res.photos.sort((p, q) => q.w * q.h - p.w * p.h); res.photos = res.photos.slice(0, 4);
+    } catch (e) { console.warn('photo detect failed', e); }
+  }
+  SV.busy(false);
+  return res;
+};
+
+/* build a template from the analysis */
+SV.buildAnalyzed = async function (R, o) {
+  o = o || {};
+  const { w, h } = R;
+  const presets = SV.SIZES.map(s => ({ s, d: Math.abs(s.h / s.w - h / w) })).sort((a, b) => a.d - b.d);
+  let PW, PH, sizeId = null; if (presets[0].d < 0.04) { PW = presets[0].s.w; PH = presets[0].s.h; sizeId = presets[0].s.id; } else { PW = 1080; PH = Math.round(1080 * h / w); }
+  const sx = PW / w, sy = PH / h;
+  const bgc = mk(w, h), bc = bgc.getContext('2d'); bc.drawImage(R.cv, 0, 0);
+  const on = R.blocks.filter(b => b.on);
+  if (o.removeText !== false && on.length) {
+    const img = bc.getImageData(0, 0, w, h); const mask = new Uint8Array(w * h);
+    on.forEach(b => { const I = b.ink; const bw = I.x1 - I.x0 + 1; let i = 0;
+      for (let y = I.y0; y <= I.y1; y++) for (let x = I.x0; x <= I.x1; x++, i++) if (I.as[i] === I.ti) for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const X = x + dx, Y = y + dy; if (X >= 0 && Y >= 0 && X < w && Y < h) mask[Y * w + X] = 1; } });
+    inpaint(img.data, mask, w, h); bc.putImageData(img, 0, 0);
+  }
+  const bgRec = await SV.addAsset(bgc, 'tpl', 'Sfondo analizzato', { jpeg: true });
+  const pg = SV.newPage({ color: R.palette[0] || '#ffffff', img: bgRec.id });
+  // photo frames: keep the photo pixels as replaceable images
+  for (const p of R.photos.filter(p => p.on)) {
+    const pc = mk(Math.round(p.w), Math.round(p.h)); pc.getContext('2d').drawImage(R.cv, p.x, p.y, p.w, p.h, 0, 0, p.w, p.h);
+    const r = await SV.addAsset(pc, 'tpl', 'Foto rilevata', { jpeg: true });
+    pg.els.push({ id: SV.uid(), type: 'image', name: 'Cornice foto', asset: r.id, x: p.x * sx, y: p.y * sy, w: p.w * sx, h: p.h * sy, rot: 0, op: 1, frame: true, ph: 'Tocca e sostituisci la foto' });
+  }
+  for (const b of on) {
+    const st = { font: b.font, size: b.size * sy, color: b.color, bold: b.bold, weight: b.bold ? 800 : 500, align: 'center', upper: b.upper || undefined };
+    const e = SV.newText(b.text, Object.assign({}, st, { size: 80 }), PW, PH); // create, then set exact geometry
+    e.st = Object.assign(e.st, st); e.st.size = Math.max(10, Math.round(b.size * sy));
+    const cx = (b.bbox.x0 + b.bbox.x1) / 2 * sx, bw = (b.bbox.x1 - b.bbox.x0) * sx;
+    e.w = Math.min(PW, bw * 1.12 + e.st.size * 0.4); e.x = cx - e.w / 2; SV.fitTextH(e);
+    e.y = (b.bbox.y0 + b.bbox.y1) / 2 * sy - e.h / 2; e.name = b.text.slice(0, 24);
+    // shrink if the layout wrapped
+    for (let i = 0; i < 8; i++) { const L = SV.textLayout(e); if (L.lines.length <= 1) break; e.st.size = Math.round(e.st.size * 0.93); SV.fitTextH(e); }
+    pg.els.push(e);
+  }
+  if (!on.length) { // fallback: manual boxes
+    ['TITOLO EVENTO', 'Data · Ora · Luogo'].forEach((t, i) => { const e = SV.newText(t, { size: i ? 46 : 96, bold: true, color: '#ffffff', shadow: { c: 'rgba(0,0,0,.55)', b: 10, x: 0, y: 3 } }, PW, PH); e.y = PH * (i ? 0.8 : 0.1); pg.els.push(e); });
+  }
+  return { pg, PW, PH, sizeId };
+};
+
+/* review UI */
+SV.openAnalyzer = async function (file) {
+  let R;
+  try { R = await SV.analyzeFlyer(file, { photos: false }); } catch (e) { SV.busy(false); SV.toast('Analisi non riuscita: uso l’immagine come sfondo'); const t = await SV.imageToTemplate(file); if (t) SV.useMyTpl(t.id); return; }
+  SV._lastAnalysis = R;
+  let root = $('svAnalyze'); if (!root) { root = document.createElement('div'); root.id = 'svAnalyze'; $('sv').appendChild(root); }
+  const st = { removeText: true, view: 'boxes' };
+  const render = () => {
+    root.style.display = 'flex';
+    root.innerHTML = `<div class="an-top"><button class="er-b" data-an="cancel">Annulla</button><b>Analizza volantino</b><button class="er-b gold" data-an="save">Salva modello</button></div>
+    <div class="an-body"><div class="an-prev"><canvas id="anCv"></canvas><div class="an-seg"><button data-an="v" data-v="boxes" class="${st.view === 'boxes' ? 'on' : ''}">Originale + testi</button><button data-an="v" data-v="clean" class="${st.view === 'clean' ? 'on' : ''}">Sfondo pulito</button><button data-an="v" data-v="result" class="${st.view === 'result' ? 'on' : ''}">Risultato</button></div></div>
+    <div class="an-side">
+      ${R.ocr ? '' : '<div class="an-warn">⚠️ Lettura testi non riuscita (serve internet la prima volta). Il volantino sarà usato come sfondo con caselle di testo da modificare.</div>'}
+      <div class="an-h">📝 Testi trovati (${R.blocks.length})</div>
+      <div class="an-list">${R.blocks.map((b, i) => `<div class="an-it ${b.on ? '' : 'off'}"><input type="checkbox" data-an="tog" data-i="${i}" ${b.on ? 'checked' : ''}><span class="n">${i + 1}</span><span class="sw" style="background:${b.color}"></span><input class="tx" data-an="txt" data-i="${i}" value="${esc(b.text)}" dir="auto"><button data-an="del" data-i="${i}" title="Elimina">✕</button></div>`).join('') || '<div class="an-empty">Nessun testo riconosciuto</div>'}</div>
+      <label class="sv-check"><input type="checkbox" data-an="rm" ${st.removeText ? 'checked' : ''}> Cancella i testi originali dallo sfondo</label>
+      <div class="an-h">🎨 Colori</div><div class="an-pal">${R.palette.map(c => `<span style="background:${c}" title="${c}"></span>`).join('')}<button class="sv-chip" data-an="kit">Usa nel Kit</button></div>
+      <div class="an-h">👤 Foto</div>
+      ${R.photos.length ? R.photos.map((p, i) => `<label class="sv-check"><input type="checkbox" data-an="ph" data-i="${i}" ${p.on ? 'checked' : ''}> Foto ${i + 1} → cornice sostituibile</label>`).join('') : `<button class="sv-chip" data-an="findPh">🔎 Rileva foto di persone</button><small style="display:block;color:#9aa0a6;margin-top:4px">Usa il ritaglio AI (scarica ~40 MB la prima volta)</small>`}
+      <div class="an-h">Nome e tipo</div><input class="sv-inp" id="anName" value="${esc((R.file.name || 'Volantino').replace(/\.\w+$/, '').slice(0, 40))}"><select class="sv-inp" id="anCat" style="margin-top:6px">${(typeof EVENT_TYPES !== 'undefined' ? EVENT_TYPES : []).map(e => `<option value="${e.id}">${esc(e.icon + ' ' + e.label)}</option>`).join('')}<option value="altro" selected>Altro</option></select>
+    </div></div>`;
+    draw();
+  };
+  let cleanCache = null, resultCache = null;
+  const invalidate = () => { cleanCache = null; resultCache = null; };
+  async function draw() {
+    const cvs = $('anCv'); if (!cvs) return; const box = cvs.parentNode.getBoundingClientRect();
+    const s = Math.min((box.width - 8) / R.w, (box.height - 56) / R.h); cvs.width = Math.round(R.w * s * 2); cvs.height = Math.round(R.h * s * 2); cvs.style.width = R.w * s + 'px'; cvs.style.height = R.h * s + 'px';
+    const c = cvs.getContext('2d'); c.scale(cvs.width / R.w, cvs.height / R.h);
+    if (st.view === 'boxes') {
+      c.drawImage(R.cv, 0, 0);
+      R.blocks.forEach((b, i) => { const B = b.bbox; c.lineWidth = Math.max(2, R.w / 300); c.strokeStyle = b.on ? '#7d2ae8' : 'rgba(150,150,150,.8)'; c.setLineDash(b.on ? [] : [6, 4]); c.strokeRect(B.x0 - 2, B.y0 - 2, B.x1 - B.x0 + 4, B.y1 - B.y0 + 4); c.setLineDash([]);
+        const fs = Math.max(12, R.w / 45); c.fillStyle = b.on ? '#7d2ae8' : '#888'; c.fillRect(B.x0 - 2, B.y0 - 2 - fs * 1.2, fs * 1.6, fs * 1.2); c.fillStyle = '#fff'; c.font = `700 ${fs}px sans-serif`; c.fillText(i + 1, B.x0 + 1, B.y0 - 2 - fs * 0.25); });
+      R.photos.forEach(p => { if (!p.on) return; c.strokeStyle = '#d4af37'; c.setLineDash([10, 6]); c.lineWidth = Math.max(3, R.w / 220); c.strokeRect(p.x, p.y, p.w, p.h); c.setLineDash([]); });
+    } else {
+      if (!cleanCache || (st.view === 'result' && !resultCache)) { SV.busy(true, 'Preparo l’anteprima…'); await new Promise(r => setTimeout(r, 30)); const out = await SV.buildAnalyzed(R, { removeText: st.removeText }); const im = await SV.loadAsset(out.pg.bg.img);
+        cleanCache = im; resultCache = SV.renderToCanvas(out.pg, out.PW, out.PH, R.w / out.PW, { res: R.w / out.PW, placeholders: true }); SV._anOut = out; SV.busy(false); }
+      c.drawImage(st.view === 'clean' ? cleanCache : resultCache, 0, 0, R.w, R.h);
+    }
+  }
+  root.onclick = async e => {
+    const b = e.target.closest('[data-an]'); if (!b) return; const a = b.dataset.an, i = +b.dataset.i;
+    if (a === 'cancel') { root.style.display = 'none'; root.innerHTML = ''; return; }
+    if (a === 'v') { st.view = b.dataset.v; render(); return; }
+    if (a === 'tog') { R.blocks[i].on = b.checked; invalidate(); render(); return; }
+    if (a === 'del') { R.blocks.splice(i, 1); invalidate(); render(); return; }
+    if (a === 'rm') { st.removeText = b.checked; invalidate(); render(); return; }
+    if (a === 'ph') { R.photos[i].on = b.checked; invalidate(); render(); return; }
+    if (a === 'kit') { if (!U.kit) await SV.loadKit(); U.kit.colors = R.palette.slice(0, 6); await SV.saveKit(); SV.toast('Colori aggiunti al Kit del marchio ✓'); return; }
+    if (a === 'findPh') { const r2 = await SV.analyzeFlyer(R.file, { photos: true }).catch(() => null); if (r2) { R.photos = r2.photos; if (!R.photos.length) SV.toast('Nessuna foto di persona trovata'); } SV.busy(false); invalidate(); render(); return; }
+    if (a === 'save') {
+      SV.busy(true, 'Creo il modello…');
+      try {
+        const out = await SV.buildAnalyzed(R, { removeText: st.removeText });
+        await SV.ensureAssets([out.pg]);
+        const k = 360 / out.PW;
+        const t = { id: SV.uid('ut'), name: $('anName').value.trim() || 'Volantino analizzato', cat: $('anCat').value, w: out.PW, h: out.PH, sizeId: out.sizeId, pages: [out.pg], created: Date.now(), analyzed: true };
+        t.thumb = SV.renderToCanvas(out.pg, out.PW, out.PH, k, { res: k, placeholders: true }).toDataURL('image/jpeg', 0.75);
+        await SV.myTpls(); U.myTpls.unshift(t); await SV.kvSet('mytpl', U.myTpls);
+        SV.busy(false); root.style.display = 'none'; root.innerHTML = '';
+        SV.toast('Salvato in “I miei modelli” ⭐'); SV.useMyTpl(t.id);
+      } catch (err) { SV.busy(false); console.error(err); SV.toast('Errore: ' + err.message); }
+    }
+  };
+  root.oninput = e => { const b = e.target.closest('[data-an="txt"]'); if (b) { R.blocks[+b.dataset.i].text = b.value; invalidate(); } };
+  render();
+};
+SV.pickImageTpl = async function () {
+  const f = await new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/jpeg,image/png,image/webp'; i.style.display = 'none'; document.body.appendChild(i); i.onchange = () => { res(i.files[0]); i.remove(); }; i.click(); });
+  if (f) SV.openAnalyzer(f);
+};
 })();
 
 window.SV.init();
