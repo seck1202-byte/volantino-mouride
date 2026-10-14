@@ -851,6 +851,23 @@ textarea.sv-in{height:auto;padding:8px 10px;min-height:70px}
 #svAnalyze .sv-inp{width:100%;box-sizing:border-box;border:1px solid #3a3d43;border-radius:10px;padding:9px 10px;font-size:16px;background:#2b2d31;color:#fff}
 #svAnalyze .sv-check{color:#e8eaed}
 @media (max-width:899px){#svAnalyze .an-body{flex-direction:column}#svAnalyze .an-prev{flex:0 0 46%}#svAnalyze .an-side{flex:1}}
+.sv-textdone{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:8;border:0;border-radius:20px;background:#7d2ae8;color:#fff;font-weight:800;font-size:15px;padding:9px 18px;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.sv-cancel{margin-top:10px;border:0;border-radius:10px;background:#fff;color:#1d1f23;padding:8px 16px;font-weight:700;display:block;margin-left:auto;margin-right:auto}
+#svAnalyze .an-cvs{flex:1;display:flex;gap:8px;align-items:center;justify-content:center;width:100%;min-height:0}
+#svAnalyze .an-cvs canvas{box-shadow:0 4px 20px rgba(0,0,0,.5);background:#fff}
+#svAnalyze .an-it2{display:flex;gap:8px;align-items:flex-start;background:#2b2d31;border-radius:10px;padding:6px}
+#svAnalyze .an-it2.off{opacity:.45}
+#svAnalyze .an-th{width:52px;height:52px;object-fit:contain;background:repeating-conic-gradient(#555 0 25%,#444 0 50%) 0 0/12px 12px;border-radius:6px;flex:0 0 auto}
+#svAnalyze .an-th.wide{width:96px;height:40px}
+#svAnalyze .an-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+#svAnalyze .an-k{font-size:11.5px;color:#aeb4bb;font-weight:700}
+#svAnalyze .an-it2 .tx{background:#1d1f23;border:1px solid #3a3d43;border-radius:8px;color:#fff;font-size:15px;padding:6px 8px;width:100%;box-sizing:border-box}
+#svAnalyze .an-opts{display:flex;gap:4px;flex-wrap:wrap}
+#svAnalyze .an-opts button{border:1px solid #3a3d43;background:none;color:#cfd2d6;border-radius:8px;font-size:11.5px;padding:4px 7px}
+#svAnalyze .an-opts button.on{background:#7d2ae8;border-color:#7d2ae8;color:#fff}
+#svAnalyze .an-h small{font-weight:500;color:#9aa0a6;margin-left:6px}
+#svAnalyze .an-tip{color:#8a9097;font-size:12px;margin-top:12px}
+#svAnalyze .an-list{max-height:none}
 
 </style>
 </head>
@@ -10995,6 +11012,8 @@ SV.addAsset = async function (src, kind, name, opts) {
   _img.set(id, el);
   return rec;
 };
+SV.registerImg = (id, el) => { _img.set(id, el); };
+SV.unregisterImg = id => { _img.delete(id); };
 SV.blobToImg = function (blob) {
   return new Promise((res, rej) => {
     const u = URL.createObjectURL(blob);
@@ -11826,7 +11845,7 @@ SV.prompt = function (title, val, okLabel) {
     SV.modal(`<h3>${esc(title)}</h3><input class="sv-in" id="svPrIn" value="${esc(val || '')}" style="margin:10px 0 14px"><div class="sv-row"><button class="sv-btn sec" id="svPrNo">Annulla</button><button class="sv-btn" id="svPrOk">${esc(okLabel || 'OK')}</button></div>`);
     const i = $('svPrIn'); setTimeout(() => { i.focus(); i.select(); }, 30);
     const ok = () => { const v = i.value; SV.closeModal(); res(v); };
-    $('svPrOk').onclick = ok; i.onkeydown = e => { if (e.key === 'Enter') ok(); };
+    $('svPrOk').onclick = ok;
     $('svPrNo').onclick = () => { SV.closeModal(); res(null); };
   });
 };
@@ -12050,7 +12069,7 @@ SV.dirty = function () {
   if (!U.proj) return;
   $('svSaved').textContent = 'Salvataggio…';
   clearTimeout(_saveT);
-  _saveT = setTimeout(SV.saveNow, 600);
+  _saveT = setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(() => SV.saveNow(), { timeout: 1500 }) : SV.saveNow()), 1200);
 };
 SV.saveNow = async function () {
   if (!U.proj) return;
@@ -12058,12 +12077,13 @@ SV.saveNow = async function () {
   const p = U.proj;
   p.updated = Date.now();
   try {
-    if (Date.now() - _thumbT > 1500 || !p.thumb) {
+    if (Date.now() - _thumbT > 20000 || !p.thumb || SV._forceThumb) {
+      SV._forceThumb = false;
       _thumbT = Date.now();
       const s = 260 / Math.max(p.w, p.h);
       p.thumb = SV.renderToCanvas(p.pages[0], p.w, p.h, s, { res: 0.25, placeholders: true }).toDataURL('image/jpeg', 0.7);
     }
-    await SV.dbPut('projects', JSON.parse(JSON.stringify(p)));
+    await SV.dbPut('projects', p);
     $('svSaved').textContent = 'Salvato ✓';
     SV.renderPagesStripSoon();
   } catch (e) { console.warn('save', e); $('svSaved').textContent = 'Errore salvataggio'; }
@@ -12626,6 +12646,15 @@ SV.startTextEdit = function (el) {
   SV.beginOp();
   posTextEdit();
   ta.oninput = () => { el.text = ta.value; SV.fitTextH(el); posTextEdit(); SV.render(); };
+  ta.setAttribute('enterkeyhint', 'done');
+  const orig = el.text;
+  ta.onkeydown = e => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); SV.endTextEdit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); el.text = orig; SV.fitTextH(el); SV.endTextEdit(); }
+  };
+  let done = $('svTextDone');
+  if (!done) { done = document.createElement('button'); done.id = 'svTextDone'; done.className = 'sv-textdone'; done.textContent = '✓ Fatto'; $('svStage').appendChild(done); done.addEventListener('pointerdown', ev => { ev.preventDefault(); ev.stopPropagation(); SV.endTextEdit(); }); }
+  done.hidden = false;
   setTimeout(() => { ta.focus(); ta.setSelectionRange(0, ta.value.length); }, 20);
   SV.refresh(); SV.render();
 };
@@ -12645,7 +12674,8 @@ function posTextEdit() {
 }
 SV.endTextEdit = function () {
   if (U.mode !== 'text') return;
-  const ta = $('svTextEdit'); ta.hidden = true; ta.oninput = null; ta.blur();
+  const ta = $('svTextEdit'); ta.hidden = true; ta.oninput = null; ta.onkeydown = null; ta.blur();
+  if ($('svTextDone')) $('svTextDone').hidden = true;
   const el = byId(U.editing);
   U.mode = null; U.editing = null;
   if (el && !String(el.text).trim()) { const i = els().indexOf(el); els().splice(i, 1); U.sel = []; }
@@ -12653,7 +12683,7 @@ SV.endTextEdit = function () {
 };
 SV.startCrop = function (el) {
   if (el.locked) return SV.toast('Elemento bloccato');
-  U.mode = 'crop'; U.sel = [el.id]; SV.refresh(); SV.render();
+  U.mode = 'crop'; U.sel = [el.id]; U._crop0 = { id: el.id, crop: el.crop ? Object.assign({}, el.crop) : null }; SV.refresh(); SV.render();
   SV.toast(isMobile() ? 'Trascina per spostare la foto, pizzica per zoomare' : 'Trascina per spostare la foto, usa lo zoom');
 };
 SV.endCrop = function () { U.mode = null; SV.refresh(); SV.render(); };
@@ -12675,7 +12705,8 @@ function onKey(e) {
   if (mod && k === 'a') { e.preventDefault(); SV.select(els().map(x => x.id)); return; }
   if (mod && k === 'g') { e.preventDefault(); SV.act(e.shiftKey ? 'ungroup' : 'group'); return; }
   if (e.key === 'Delete' || e.key === 'Backspace') { if (U.sel.length) { e.preventDefault(); SV.act('del'); } return; }
-  if (e.key === 'Escape') { if (U.mode === 'crop') SV.endCrop(); else SV.select([]); return; }
+  if (U.mode === 'crop' && (e.key === 'Enter' || e.key === 'Escape')) { e.preventDefault(); if (e.key === 'Escape' && U._crop0) { const c0 = U._crop0; SV.change(() => { const el = byId(c0.id); if (el) el.crop = c0.crop; }); } SV.endCrop(); return; }
+  if (e.key === 'Escape') { SV.select([]); return; }
   if (e.key === 'Enter' && U.sel.length === 1) { const el = SV.selEls()[0]; if (el.type === 'text') { e.preventDefault(); SV.startTextEdit(el); } return; }
   if (e.key.startsWith('Arrow') && U.sel.length) {
     e.preventDefault();
@@ -12746,6 +12777,14 @@ SV.init = function () {
     if (e.dataTransfer.files && e.dataTransfer.files.length) { U.pickPurpose = 'add'; onFiles(e.dataTransfer.files); }
   });
   window.addEventListener('keydown', onKey);
+  window.addEventListener('keydown', e => {
+    const m = $('svModal'); if (!m || m.hidden || e.isComposing) return;
+    if (e.key === 'Escape') { e.preventDefault(); const no = m.querySelector('#svAskNo, #svPrNo'); if (no) no.click(); else SV.closeModal(); return; }
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    const t = e.target; if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON')) return;
+    const ok = m.querySelector('#svAskOk, #svPrOk, #mtOk, #mrOk, #svCsOk') || [...m.querySelectorAll('.sv-btn:not(.sec)')].filter(b => b.offsetParent).pop();
+    if (ok) { e.preventDefault(); ok.click(); }
+  }, true);
   window.addEventListener('keyup', onKey);
   window.addEventListener('resize', () => { if (U.proj && !$('svEditor').hidden) { SV.fit(); SV.buildRail(); SV.refresh(); } });
   $('svFile').addEventListener('change', e => onFiles(e.target.files));
@@ -13424,12 +13463,7 @@ async function bgRemove() {
   } catch (e) { console.error(e); SV.busy(false); SV.toast('Rimozione non riuscita: controlla la connessione'); try { showBgProgress(false); } catch (e2) {} }
 }
 SV.bgRemove = bgRemove;
-SV.runBgRemoval = async function (im) {
-  const removeBackground = await loadImgly();
-  const srcBlob = await imageToPngBlob(im);
-  return await removeBackground(srcBlob, { publicPath: IMGLY_PUBLIC_PATH, model: 'small', proxyToWorker: true, device: 'cpu', output: { format: 'image/png', quality: 0.92 },
-    progress: (key, cur, tot) => { const b = document.querySelector('#svBusy .t, #svBusy span'); if (b && tot) b.textContent = (String(key).includes('fetch') ? 'Scarico il modello… ' : 'Elaboro… ') + Math.round(100 * cur / tot) + '%'; } });
-};
+
 
 /* ---------- pages ---------- */
 function clonePage(p) { const n = SV.clone(p); n.id = SV.uid('p'); const gmap = {}; n.els.forEach(e => { e.id = SV.uid(); if (e.gid) e.gid = gmap[e.gid] || (gmap[e.gid] = SV.uid('g')); }); return n; }
@@ -13441,7 +13475,7 @@ SV.act = async function (a, d, b, ev) {
   const el = U.proj ? one() : null;
   const each = fn => SV.change(() => sel().forEach(fn));
   switch (a) {
-    case 'home': if (U.mode === 'text') SV.endTextEdit(); if (U.proj) await SV.saveNow(); SV.closeModal(); SV.showHome(); break;
+    case 'home': if (U.mode === 'text') SV.endTextEdit(); if (U.proj) { SV._forceThumb = true; await SV.saveNow(); } SV.closeModal(); SV.showHome(); break;
     case 'quick': SV.quit(); break;
     case 'newSize': { const s = SV.sizeById(d.id); SV.createFromSize(s.w, s.h, s.id); break; }
     case 'customSize': return customSize();
@@ -13871,6 +13905,7 @@ function key(e) {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
   else if (e.key === '[') { E.size = Math.max(4, E.size - 6); syncSl(); } else if (e.key === ']') { E.size = Math.min(160, E.size + 6); syncSl(); }
   else if (e.key === 'Escape') close(false);
+  else if (e.key === 'Enter' && !(e.target && e.target.tagName === 'INPUT' && e.target.type !== 'range')) { e.preventDefault(); apply(); }
 }
 function syncSl() { $('erSize').value = E.size; $('erSizeV').textContent = E.size; showSizePreview(); }
 let prevT = 0;
@@ -14484,10 +14519,640 @@ SV.openAnalyzer = async function (file) {
   root.oninput = e => { const b = e.target.closest('[data-an="txt"]'); if (b) { R.blocks[+b.dataset.i].text = b.value; invalidate(); } };
   render();
 };
+SV._an = { worker, wordsOf, goodWord, groupLines, iou, clean };
 SV.pickImageTpl = async function () {
   const f = await new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/jpeg,image/png,image/webp'; i.style.display = 'none'; document.body.appendChild(i); i.onchange = () => { res(i.files[0]); i.remove(); }; i.click(); });
   if (f) SV.openAnalyzer(f);
 };
+})();
+
+/* Analizza volantino — pixel worker (runs off the main thread). Exposed as source string SV.AN_WORKER_SRC */
+SV.AN_WORKER_SRC = function () {
+const d2 = (r1, g1, b1, r2, g2, b2) => (r1 - r2) * (r1 - r2) + (g1 - g2) * (g1 - g2) + (b1 - b2) * (b1 - b2);
+function kmeans(px, n, k, it) {
+  const cs = []; for (let i = 0; i < k; i++) { const j = Math.floor((i + 0.5) * n / k) * 3; cs.push([px[j], px[j + 1], px[j + 2]]); }
+  const as = new Uint8Array(n);
+  for (let t = 0; t < it; t++) {
+    const s = cs.map(() => [0, 0, 0, 0]);
+    for (let i = 0; i < n; i++) { const r = px[i * 3], g = px[i * 3 + 1], b = px[i * 3 + 2]; let bj = 0, bd = 1e12; for (let j = 0; j < k; j++) { const d = d2(r, g, b, cs[j][0], cs[j][1], cs[j][2]); if (d < bd) { bd = d; bj = j; } } as[i] = bj; const q = s[bj]; q[0] += r; q[1] += g; q[2] += b; q[3]++; }
+    for (let j = 0; j < k; j++) if (s[j][3]) cs[j] = [s[j][0] / s[j][3], s[j][1] / s[j][3], s[j][2] / s[j][3]];
+  }
+  const cnt = new Array(k).fill(0); for (let i = 0; i < n; i++) cnt[as[i]]++;
+  return { cs, as, cnt };
+}
+function dilate(m, w, h, r) {
+  if (r <= 0) return m;
+  const t = new Uint8Array(w * h), o = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) { let last = -1e9; for (let x = 0; x < w; x++) { if (m[y * w + x]) last = x; if (x - last <= r) t[y * w + x] = 1; } last = 1e9; for (let x = w - 1; x >= 0; x--) { if (m[y * w + x]) last = x; if (last - x <= r) t[y * w + x] = 1; } }
+  for (let x = 0; x < w; x++) { let last = -1e9; for (let y = 0; y < h; y++) { if (t[y * w + x]) last = y; if (y - last <= r) o[y * w + x] = 1; } last = 1e9; for (let y = h - 1; y >= 0; y--) { if (t[y * w + x]) last = y; if (last - y <= r) o[y * w + x] = 1; } }
+  return o;
+}
+function erode(m, w, h, r) { const inv = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) inv[i] = m[i] ? 0 : 1; const d = dilate(inv, w, h, r); for (let i = 0; i < w * h; i++) d[i] = d[i] ? 0 : 1; return d; }
+/* per-box text ink analysis: fill / outline / extrude-shadow colours + local mask */
+function ink({ data, w, h, boxes }) {
+  const out = [], gmask = new Uint8Array(w * h);
+  for (const b of boxes) {
+    const pad = Math.max(2, Math.round((b.y1 - b.y0) * 0.12));
+    const x0 = Math.max(0, b.x0 - pad), y0 = Math.max(0, b.y0 - pad), x1 = Math.min(w - 1, b.x1 + pad), y1 = Math.min(h - 1, b.y1 + pad);
+    const bw = x1 - x0 + 1, bh = y1 - y0 + 1, n = bw * bh, px = new Float32Array(n * 3);
+    let rr = 0, rg = 0, rb = 0, rn = 0;
+    for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) { const i = ((y + y0) * w + x + x0) * 4, j = (y * bw + x) * 3; px[j] = data[i]; px[j + 1] = data[i + 1]; px[j + 2] = data[i + 2]; if (x < 2 || y < 2 || bw - x <= 2 || bh - y <= 2) { rr += data[i]; rg += data[i + 1]; rb += data[i + 2]; rn++; } }
+    rr /= rn; rg /= rn; rb /= rn;
+    let rv = 0; for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) if (x < 2 || y < 2 || bw - x <= 2 || bh - y <= 2) { const j = (y * bw + x) * 3; rv += d2(px[j], px[j + 1], px[j + 2], rr, rg, rb); }
+    const ringStd = Math.sqrt(rv / rn);
+    const K = 4, km = kmeans(px, n, K, 7);
+    // background clusters: close to ring mean OR dominant on the border
+    const border = new Array(K).fill(0); for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) if (x < 2 || y < 2 || bw - x <= 2 || bh - y <= 2) border[km.as[y * bw + x]]++;
+    const isBg = km.cs.map((c, j) => border[j] / rn > 0.18 || d2(c[0], c[1], c[2], rr, rg, rb) < 32 * 32);
+    if (isBg.every(Boolean)) { let far = 0, fd = -1; km.cs.forEach((c, j) => { const d = d2(c[0], c[1], c[2], rr, rg, rb); if (d > fd) { fd = d; far = j; } }); isBg[far] = false; }
+    const m = new Uint8Array(n); let cnt = 0;
+    for (let i = 0; i < n; i++) if (!isBg[km.as[i]]) { m[i] = 1; cnt++; }
+    // interior vs edge
+    const inner = erode(m, bw, bh, Math.max(1, Math.round(bh * 0.04)));
+    const acc = { f: [0, 0, 0, 0], e: [0, 0, 0, 0] }; const cl = new Array(K).fill(0).map(() => [0, 0, 0]);
+    for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) { const i = y * bw + x; if (!m[i]) continue; const j = i * 3, a = inner[i] ? acc.f : acc.e; a[0] += px[j]; a[1] += px[j + 1]; a[2] += px[j + 2]; a[3]++; const c = cl[km.as[i]]; c[0] += x; c[1] += y; c[2]++; }
+    const mean = a => a[3] ? [a[0] / a[3], a[1] / a[3], a[2] / a[3]] : null;
+    // fill = dominant ink cluster among interior pixels
+    const inkCl = km.cs.map((c, j) => j).filter(j => !isBg[j]).sort((a, b) => km.cnt[b] - km.cnt[a]);
+    const icnt = new Array(K).fill(0); for (let i = 0; i < n; i++) if (inner[i]) icnt[km.as[i]]++;
+    const fillJ = inkCl.slice().sort((a, b) => icnt[b] - icnt[a])[0];
+    const fill = km.cs[fillJ];
+    const edge = mean(acc.e);
+    let stroke = null, extrude = null;
+    // outline: another ink cluster mostly on edges, clearly different from fill
+    for (const j of inkCl) {
+      if (j === fillJ) continue; const c = km.cs[j], frac = km.cnt[j] / Math.max(1, cnt);
+      if (frac < 0.12 || d2(c[0], c[1], c[2], fill[0], fill[1], fill[2]) < 55 * 55) continue;
+      const cf = cl[fillJ], cj = cl[j];
+      const dy = cj[2] ? (cj[1] / cj[2] - cf[1] / cf[2]) : 0, dx = cj[2] ? (cj[0] / cj[2] - cf[0] / cf[2]) : 0;
+      if (dy > bh * 0.035 || dx > bw * 0.02) { if (!extrude) extrude = { c: c, dx, dy }; }
+      else if (!stroke) stroke = { c, frac };
+    }
+    const sw = stroke ? Math.max(1, (stroke.frac * cnt) / Math.max(1, (cnt - (stroke.frac * cnt))) * bh * 0.08) : 0;
+    // stroke thickness → weight: area / boundary
+    let per = 0; for (let y = 1; y < bh - 1; y++) for (let x = 1; x < bw - 1; x++) { const i = y * bw + x; if (m[i] && (!m[i - 1] || !m[i + 1] || !m[i - bw] || !m[i + bw])) per++; }
+    const thick = per ? 2 * cnt / per : 1;
+    // write into global mask
+    for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) if (m[y * bw + x]) gmask[(y + y0) * w + x + x0] = 1;
+    out.push({ x0, y0, bw, bh, fill, edge, stroke: stroke ? { c: stroke.c, w: sw } : null, extrude, ring: [rr, rg, rb], ringStd, ratio: cnt / n, thick, mask: m });
+  }
+  return { info: out, mask: dilate(gmask, w, h, 2) };
+}
+/* push-pull inpainting + smoothing */
+function inpaint({ data, w, h, mask }) {
+  const img = new Uint8ClampedArray(data);
+  const levels = [{ w, h, c: new Float32Array(w * h * 4) }];
+  for (let i = 0; i < w * h; i++) if (!mask[i]) { const L = levels[0].c; L[i * 4] = img[i * 4]; L[i * 4 + 1] = img[i * 4 + 1]; L[i * 4 + 2] = img[i * 4 + 2]; L[i * 4 + 3] = 1; }
+  while (levels[levels.length - 1].w > 1 || levels[levels.length - 1].h > 1) {
+    const L = levels[levels.length - 1], nw = Math.max(1, Math.ceil(L.w / 2)), nh = Math.max(1, Math.ceil(L.h / 2)), n = new Float32Array(nw * nh * 4);
+    for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) { const s = (y * L.w + x) * 4, t = ((y >> 1) * nw + (x >> 1)) * 4, a = L.c[s + 3]; if (a > 0) { n[t] += L.c[s] * a; n[t + 1] += L.c[s + 1] * a; n[t + 2] += L.c[s + 2] * a; n[t + 3] += a; } }
+    for (let i = 0; i < nw * nh; i++) { const a = n[i * 4 + 3]; if (a > 0) { n[i * 4] /= a; n[i * 4 + 1] /= a; n[i * 4 + 2] /= a; n[i * 4 + 3] = Math.min(1, a); } }
+    levels.push({ w: nw, h: nh, c: n });
+    if (nw === 1 && nh === 1) break;
+  }
+  for (let l = levels.length - 2; l >= 0; l--) {
+    const L = levels[l], P = levels[l + 1];
+    for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
+      const s = (y * L.w + x) * 4, a = L.c[s + 3]; if (a >= 1) continue;
+      const fx = Math.min(P.w - 1, Math.max(0, x / 2 - 0.25)), fy = Math.min(P.h - 1, Math.max(0, y / 2 - 0.25)), ix = fx | 0, iy = fy | 0, ax = fx - ix, ay = fy - iy, ix1 = Math.min(P.w - 1, ix + 1), iy1 = Math.min(P.h - 1, iy + 1);
+      for (let k = 0; k < 3; k++) { const v = P.c[(iy * P.w + ix) * 4 + k] * (1 - ax) * (1 - ay) + P.c[(iy * P.w + ix1) * 4 + k] * ax * (1 - ay) + P.c[(iy1 * P.w + ix) * 4 + k] * (1 - ax) * ay + P.c[(iy1 * P.w + ix1) * 4 + k] * ax * ay; L.c[s + k] = L.c[s + k] * a + v * (1 - a); }
+      L.c[s + 3] = 1;
+    }
+  }
+  const o = levels[0].c;
+  for (let i = 0; i < w * h; i++) if (mask[i]) { img[i * 4] = o[i * 4]; img[i * 4 + 1] = o[i * 4 + 1]; img[i * 4 + 2] = o[i * 4 + 2]; }
+  // diffusion smoothing inside mask (few passes) to remove blockiness
+  for (let it = 0; it < 6; it++) for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) { const i = y * w + x; if (!mask[i]) continue; for (let k = 0; k < 3; k++) img[i * 4 + k] = (img[(i - 1) * 4 + k] + img[(i + 1) * 4 + k] + img[(i - w) * 4 + k] + img[(i + w) * 4 + k] + img[i * 4 + k] * 2) / 6; }
+  // subtle noise to match texture
+  for (let i = 0; i < w * h; i++) if (mask[i]) { const n = (Math.random() - 0.5) * 3; img[i * 4] += n; img[i * 4 + 1] += n; img[i * 4 + 2] += n; }
+  return { data: img };
+}
+/* foreground segmentation against a robust large-scale background model */
+function segment({ data, w, h, excl, T }) {
+  const C = 16, gw = Math.ceil(w / C), gh = Math.ceil(h / C), med = new Float32Array(gw * gh * 3);
+  const tmp = [[], [], []];
+  for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) {
+    tmp[0].length = tmp[1].length = tmp[2].length = 0;
+    for (let y = gy * C; y < Math.min(h, gy * C + C); y += 2) for (let x = gx * C; x < Math.min(w, gx * C + C); x += 2) { const i = (y * w + x) * 4; tmp[0].push(data[i]); tmp[1].push(data[i + 1]); tmp[2].push(data[i + 2]); }
+    for (let k = 0; k < 3; k++) { tmp[k].sort((a, b) => a - b); med[(gy * gw + gx) * 3 + k] = tmp[k][tmp[k].length >> 1]; }
+  }
+  const R = 4, model = new Float32Array(gw * gh * 3), arr = [[], [], []];
+  for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) {
+    arr[0].length = arr[1].length = arr[2].length = 0;
+    for (let yy = Math.max(0, gy - R); yy <= Math.min(gh - 1, gy + R); yy++) for (let xx = Math.max(0, gx - R); xx <= Math.min(gw - 1, gx + R); xx++) for (let k = 0; k < 3; k++) arr[k].push(med[(yy * gw + xx) * 3 + k]);
+    for (let k = 0; k < 3; k++) { arr[k].sort((a, b) => a - b); model[(gy * gw + gx) * 3 + k] = arr[k][arr[k].length >> 1]; }
+  }
+  const fg = new Uint8Array(w * h), TT = (T || 42) ** 2;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const fx = Math.min(gw - 1, Math.max(0, x / C - 0.5)), fy = Math.min(gh - 1, Math.max(0, y / C - 0.5)), ix = fx | 0, iy = fy | 0, ax = fx - ix, ay = fy - iy, ix1 = Math.min(gw - 1, ix + 1), iy1 = Math.min(gh - 1, iy + 1);
+    const i = y * w + x; if (excl && excl[i]) continue;
+    let d = 0;
+    for (let k = 0; k < 3; k++) { const v = model[(iy * gw + ix) * 3 + k] * (1 - ax) * (1 - ay) + model[(iy * gw + ix1) * 3 + k] * ax * (1 - ay) + model[(iy1 * gw + ix) * 3 + k] * (1 - ax) * ay + model[(iy1 * gw + ix1) * 3 + k] * ax * ay; const q = data[i * 4 + k] - v; d += q * q; }
+    if (d > TT) fg[i] = 1;
+  }
+  const closed = erode(dilate(fg, w, h, 4), w, h, 3);
+  if (excl) for (let i = 0; i < w * h; i++) if (excl[i]) closed[i] = 0;
+  return Object.assign(label(closed, w, h), { fg: closed });
+}
+function label(m, w, h) {
+  const lab = new Int32Array(w * h), comps = []; let n = 0; const st = new Int32Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    if (!m[i] || lab[i]) continue;
+    n++; let sp = 0; st[sp++] = i; lab[i] = n; let x0 = w, y0 = h, x1 = 0, y1 = 0, c = 0;
+    while (sp) { const j = st[--sp], x = j % w, y = (j / w) | 0; c++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      if (x > 0 && m[j - 1] && !lab[j - 1]) { lab[j - 1] = n; st[sp++] = j - 1; } if (x < w - 1 && m[j + 1] && !lab[j + 1]) { lab[j + 1] = n; st[sp++] = j + 1; }
+      if (y > 0 && m[j - w] && !lab[j - w]) { lab[j - w] = n; st[sp++] = j - w; } if (y < h - 1 && m[j + w] && !lab[j + w]) { lab[j + w] = n; st[sp++] = j + w; } }
+    comps.push({ id: n, x0, y0, x1, y1, n: c });
+  }
+  return { lab, comps };
+}
+function palette({ data, w, h }) {
+  const step = Math.max(1, Math.floor(Math.sqrt(w * h / 6000))), px = []; for (let y = 0; y < h; y += step) for (let x = 0; x < w; x += step) { const i = (y * w + x) * 4; px.push(data[i], data[i + 1], data[i + 2]); }
+  const k = kmeans(new Float32Array(px), px.length / 3, 8, 10); return { cs: k.cs, cnt: k.cnt };
+}
+const CMDS = { ink, inpaint, segment, palette, label: a => label(a.mask, a.w, a.h), dilate: a => ({ mask: dilate(a.mask, a.w, a.h, a.r) }) };
+self.onmessage = e => { const { id, cmd, a } = e.data; try { const r = CMDS[cmd](a); const tr = []; const walk = o => { if (!o || typeof o !== 'object') return; if (ArrayBuffer.isView(o)) { if (!tr.includes(o.buffer)) tr.push(o.buffer); return; } Object.values(o).forEach(walk); }; walk(r); self.postMessage({ id, r }, tr); } catch (err) { self.postMessage({ id, err: String(err && err.message || err) }); } };
+}.toString();
+
+/* Analizza volantino v2 — layered decomposition (text / graphics / people / clean background), worker-based */
+(function () {
+const SV = window.SV, U = SV.U, $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, w); c.height = Math.max(1, h); return c; };
+const hex = c => '#' + c.slice(0, 3).map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+const yieldUI = () => new Promise(r => setTimeout(r, 0));
+
+/* ---- worker pool (single) ---- */
+let _w = null, _wid = 0; const _wp = new Map();
+function W() {
+  if (_w) return _w;
+  const src = '(' + SV.AN_WORKER_SRC + ')()';
+  _w = new Worker(URL.createObjectURL(new Blob([src], { type: 'application/javascript' })));
+  _w.onmessage = e => { const p = _wp.get(e.data.id); if (!p) return; _wp.delete(e.data.id); e.data.err ? p.rej(new Error(e.data.err)) : p.res(e.data.r); };
+  _w.onerror = e => { _wp.forEach(p => p.rej(new Error('worker'))); _wp.clear(); _w = null; };
+  return _w;
+}
+function wcall(cmd, a, tr) { return new Promise((res, rej) => { const id = ++_wid; _wp.set(id, { res, rej }); W().postMessage({ id, cmd, a }, tr || []); }); }
+SV.anWorkerCall = wcall;
+function killWorker() { if (_w) { _w.terminate(); _w = null; } _wp.forEach(p => p.rej(new Error('Annullato'))); _wp.clear(); }
+
+/* ---- cancellable progress ---- */
+let CANCEL = false;
+function prog(t, pct) {
+  SV.busy(true, t + (pct != null ? ' ' + Math.round(pct) + '%' : ''));
+  const b = $('svBusy'); if (b && !b.querySelector('.sv-cancel')) { const x = document.createElement('button'); x.className = 'sv-cancel'; x.textContent = 'Annulla'; x.onclick = () => { CANCEL = true; killWorker(); }; b.firstElementChild.appendChild(x); }
+  if (CANCEL) throw new Error('Annullato');
+}
+function done() { SV.busy(false); const b = $('svBusy'); const x = b && b.querySelector('.sv-cancel'); if (x) x.remove(); }
+const chk = () => { if (CANCEL) throw new Error('Annullato'); };
+
+/* ---- helpers ---- */
+const imgData = cv => cv.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, cv.width, cv.height);
+function cropCanvas(src, x, y, w, h, mask, mw, alphaFeather) {
+  const c = mk(w, h), x2 = c.getContext('2d'); x2.drawImage(src, x, y, w, h, 0, 0, w, h);
+  if (mask) {
+    const id = x2.getImageData(0, 0, w, h);
+    for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) { const m = mask[(yy + y) * mw + xx + x]; if (!m) id.data[(yy * w + xx) * 4 + 3] = 0; }
+    x2.putImageData(id, 0, 0);
+    if (alphaFeather) { const c2 = mk(w, h), y2 = c2.getContext('2d'); y2.filter = 'blur(0.6px)'; y2.drawImage(c, 0, 0); y2.filter = 'none'; y2.globalCompositeOperation = 'source-atop'; y2.drawImage(c, 0, 0); return c2; }
+  }
+  return c;
+}
+const thumb = (cv, max) => { const k = Math.min(1, (max || 96) / Math.max(cv.width, cv.height)); const t = mk(Math.round(cv.width * k), Math.round(cv.height * k)); t.getContext('2d').drawImage(cv, 0, 0, t.width, t.height); return t.toDataURL('image/png'); };
+const isAr = s => /[\u0600-\u06FF]/.test(s);
+
+/* ---- font matching ---- */
+const LAT_FONTS = [['Montserrat', 900], ['Montserrat', 700], ['Montserrat', 500], ['Poppins', 600], ['Anton', 400], ['Bebas Neue', 400], ['Oswald', 700], ['Playfair Display', 700], ['Playfair Display', 400], ['Cinzel', 700], ['Lobster', 400], ['Pacifico', 400], ['Great Vibes', 400], ['Abril Fatface', 400], ['Dancing Script', 700], ['Lato', 400], ['Righteous', 400], ['Alfa Slab One', 400]];
+const AR_FONTS = [['Amiri', 700], ['Aref Ruqaa', 700], ['Reem Kufi', 700], ['Cairo', 700], ['Lateef', 700], ['Lalezar', 400], ['Scheherazade New', 700]];
+async function ensureFont(f) { try { if (typeof loadFontFamily === 'function') await loadFontFamily(f); await document.fonts.load(`700 40px "${f}"`); } catch (e) {} }
+async function matchFont(text, maskInfo, big) {
+  const ar = isAr(text);
+  const cands = ar ? AR_FONTS : (big ? LAT_FONTS : LAT_FONTS.filter(f => /Montserrat|Poppins|Lato|Playfair/.test(f[0])));
+  await Promise.all([...new Set(cands.map(c => c[0]))].map(ensureFont));
+  const { bw, bh, mask } = maskInfo; const S = 56 / bh, tw = Math.max(8, Math.round(bw * S)), th = 56;
+  // target mask scaled
+  const tgt = new Uint8Array(tw * th); let tn = 0;
+  for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) { const v = mask[Math.min(bh - 1, Math.floor(y / S)) * bw + Math.min(bw - 1, Math.floor(x / S))]; if (v) { tgt[y * tw + x] = 1; tn++; } }
+  // tight bbox of target
+  let X0 = tw, Y0 = th, X1 = 0, Y1 = 0; for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) if (tgt[y * tw + x]) { if (x < X0) X0 = x; if (x > X1) X1 = x; if (y < Y0) Y0 = y; if (y > Y1) Y1 = y; }
+  if (X1 <= X0 || Y1 <= Y0) return { font: ar ? 'Amiri' : 'Montserrat', weight: 700, score: 0 };
+  const c = mk(tw, th), x = c.getContext('2d', { willReadFrequently: true });
+  let best = null;
+  for (const [f, wt] of cands) {
+    x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, tw, th); x.font = `${wt} 100px "${f}"`; x.direction = ar ? 'rtl' : 'ltr';
+    const m = x.measureText(text); const gw = (m.actualBoundingBoxRight + m.actualBoundingBoxLeft) || m.width, gh = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
+    if (!gw || !gh) continue;
+    const sx = (X1 - X0 + 1) / gw, sy = (Y1 - Y0 + 1) / gh;
+    x.setTransform(sx, 0, 0, sy, X0 + m.actualBoundingBoxLeft * sx, Y0 + m.actualBoundingBoxAscent * sy); x.fillStyle = '#000'; x.textAlign = 'left'; x.textBaseline = 'alphabetic'; x.fillText(text, 0, 0);
+    const d = x.getImageData(0, 0, tw, th).data; let inter = 0, uni = 0;
+    for (let i = 0; i < tw * th; i++) { const a = d[i * 4 + 3] > 100 ? 1 : 0, b = tgt[i]; if (a && b) inter++; if (a || b) uni++; }
+    const iou = inter / Math.max(1, uni), distort = Math.abs(Math.log(sx / sy));
+    const score = iou - distort * 0.12;
+    if (!best || score > best.score) best = { font: f, weight: wt, score, iou, sizeK: sy * 100 / S, widthK: sx / sy, glyphH: gh / 100 };
+  }
+  return best;
+}
+
+/* ---- OCR (re-uses analyze.js helpers) ---- */
+async function ocrAll(cv, opts) {
+  const A = SV._an; const w = cv.width, h = cv.height;
+  const P = m => { if (m.status && /recogn/.test(m.status)) prog('Leggo i testi…', (m.progress || 0) * 100); else if (m.status) prog('Preparo il lettore di testo…'); };
+  const sc = Math.max(1, Math.min(2.5, 1900 / Math.max(w, h)));
+  const oc = mk(Math.round(w * sc), Math.round(h * sc)), ox = oc.getContext('2d'); ox.imageSmoothingQuality = 'high'; ox.filter = 'contrast(1.25)'; ox.drawImage(cv, 0, 0, oc.width, oc.height); ox.filter = 'none';
+  const inv = mk(oc.width, oc.height), ix = inv.getContext('2d'); ix.filter = 'invert(1) grayscale(1) contrast(1.5)'; ix.drawImage(oc, 0, 0); ix.filter = 'none';
+  const lat = await A.worker('ita+fra+eng', P); chk();
+  await lat.setParameters({ tessedit_pageseg_mode: '11' });
+  let words = A.wordsOf((await lat.recognize(oc, {}, { blocks: true })).data, sc, 'n'); chk();
+  prog('Leggo i testi chiari su fondo scuro…');
+  words = words.concat(A.wordsOf((await lat.recognize(inv, {}, { blocks: true })).data, sc, 'i')); chk();
+  try { prog('Leggo i testi arabi…'); const ar = await A.worker('ara', P); await ar.setParameters({ tessedit_pageseg_mode: '11' }); words = words.concat(A.wordsOf((await ar.recognize(oc, {}, { blocks: true })).data, sc, 'a').filter(x => isAr(x.text))); } catch (e) { if (CANCEL) throw e; }
+  chk();
+  const raw = words.slice();
+  words = words.filter(A.goodWord).sort((a, b) => b.conf - a.conf);
+  const kept = []; words.forEach(x => { if (!kept.some(k => A.iou(k.bbox, x.bbox) > 0.35)) kept.push(x); });
+  let lines = A.groupLines(kept).map(l => Object.assign(l, { text: A.clean(l.text) })).filter(l => l.text.replace(/\s/g, '').length >= 2);
+  // big lines must be real words (stylised titles are handled per region)
+  lines = lines.filter(l => { const hh = l.bbox.y1 - l.bbox.y0, letters = (l.text.match(/[\p{L}]/gu) || []).length, digits = (l.text.match(/\d/g) || []).length;
+    if (l.ar) return l.confidence >= 70 && letters >= 3;
+    if (/^[\d\s]+$/.test(l.text) && l.text.replace(/\s/g, '').length <= 4 && l.confidence < 92) return false;
+    if (hh > h * 0.025) return (l.confidence >= 80 && (letters >= 4 || digits >= 2)) || (letters + digits >= 8 && l.confidence >= 70);
+    return true; });
+  // re-read each row as one line at high resolution (fixes split / partial words)
+  lines = await rereadRows(cv, lines, lat);
+  lines = await rereadRows(cv, lines, lat, 1e9);
+  return { lines, raw };
+}
+async function rereadRows(cv, lines, wk, gapK = 14) {
+  const A = SV._an, w = cv.width, h = cv.height; const rows = [];
+  lines.filter(l => !l.ar).sort((a, b) => a.bbox.x0 - b.bbox.x0).forEach(l => {
+    const hh = l.bbox.y1 - l.bbox.y0, cy = (l.bbox.y0 + l.bbox.y1) / 2;
+    const r = rows.find(r => Math.abs(r.cy - cy) < Math.min(r.h, hh) * 0.5 && Math.abs(r.h - hh) < Math.max(r.h, hh) * 0.4 && l.bbox.x0 - r.x1 < hh * gapK);
+    if (r) { r.ls.push(l); r.x1 = Math.max(r.x1, l.bbox.x1); r.y0 = Math.min(r.y0, l.bbox.y0); r.y1 = Math.max(r.y1, l.bbox.y1); } else rows.push({ ls: [l], cy, h: hh, x0: l.bbox.x0, x1: l.bbox.x1, y0: l.bbox.y0, y1: l.bbox.y1 });
+  });
+  await wk.setParameters({ tessedit_pageseg_mode: '7' });
+  const out = lines.filter(l => l.ar);
+  for (const r of rows) {
+    chk(); const hh = r.y1 - r.y0, ext = hh * (gapK > 100 ? 1 : 4), x0 = Math.max(0, Math.round(r.x0 - ext)), x1 = Math.min(w - 1, Math.round(r.x1 + ext)), y0 = Math.max(0, Math.round(r.y0 - hh * 0.35)), y1 = Math.min(h - 1, Math.round(r.y1 + hh * 0.35));
+    const sc = Math.max(1, Math.min(10, 110 / (y1 - y0 + 1)));
+    const c = mk(Math.round((x1 - x0 + 1) * sc), Math.round((y1 - y0 + 1) * sc)), x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.filter = 'grayscale(1) contrast(1.5)'; x.drawImage(cv, x0, y0, x1 - x0 + 1, y1 - y0 + 1, 0, 0, c.width, c.height); x.filter = 'none';
+    // make text dark on light
+    const d = x.getImageData(0, 0, c.width, c.height).data; let sum = 0; for (let i = 0; i < d.length; i += 16) sum += d[i]; const mean = sum / (d.length / 16);
+    const lum = []; // estimate text lum from centre row
+    let cs = 0, cn = 0; for (let yy = Math.round(c.height * 0.4); yy < c.height * 0.6; yy++) for (let xx = 0; xx < c.width; xx += 3) { cs += d[(yy * c.width + xx) * 4]; cn++; }
+    if (mean < 128) { x.globalCompositeOperation = 'difference'; x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.globalCompositeOperation = 'source-over'; }
+    let best = null;
+    try {
+      const dd = (await wk.recognize(c, {}, { blocks: true })).data;
+      const ws = []; (dd.blocks || []).forEach(b => (b.paragraphs || []).forEach(p => (p.lines || []).forEach(l => (l.words || []).forEach(wd => { if (wd.confidence > 50 && wd.text.trim()) ws.push({ t: wd.text, c: wd.confidence, x0: x0 + wd.bbox.x0 / sc, x1: x0 + wd.bbox.x1 / sc, y0: y0 + wd.bbox.y0 / sc, y1: y0 + wd.bbox.y1 / sc }); }))));
+      const good = ws.filter(wd => (wd.t.match(/[\p{L}\p{N}]/gu) || []).length / wd.t.length >= 0.6 && Math.abs((wd.y1 - wd.y0) - hh) < hh * 0.6);
+      if (good.length) best = { text: A.clean(good.map(g => g.t).join(' ')), conf: good.reduce((s, g) => s + g.c, 0) / good.length, bbox: { x0: Math.min(...good.map(g => g.x0)), y0: Math.min(...good.map(g => g.y0)), x1: Math.max(...good.map(g => g.x1)), y1: Math.max(...good.map(g => g.y1)) } };
+    } catch (e) { if (CANCEL) throw e; }
+    const oldText = r.ls.map(l => l.text).join(' '), oldConf = r.ls.reduce((s, l) => s + l.confidence, 0) / r.ls.length;
+        if (best && best.text.length >= oldText.length * 0.8 && best.conf >= oldConf - 12) out.push({ text: best.text, bbox: best.bbox, confidence: best.conf, ar: false, n: 2 });
+    else out.push(...r.ls);
+  }
+  await wk.setParameters({ tessedit_pageseg_mode: '11' });
+  const ov = (a, b) => { const ix = Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)), iy = Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0)); return ix * iy / Math.max(1, (a.x1 - a.x0) * (a.y1 - a.y0)); };
+  return out.filter(l => !out.some(o => o !== l && (o.bbox.y1 - o.bbox.y0) > (l.bbox.y1 - l.bbox.y0) * 1.3 && ov(l.bbox, o.bbox) > 0.3));
+}
+async function ocrRegion(cv, b, mask, mw, langs) {
+  const A = SV._an; const pad = Math.round((b.y1 - b.y0) * 0.08) + 4;
+  const x0 = Math.max(0, b.x0 - pad), y0 = Math.max(0, b.y0 - pad), x1 = Math.min(cv.width - 1, b.x1 + pad), y1 = Math.min(cv.height - 1, b.y1 + pad), w = x1 - x0 + 1, h = y1 - y0 + 1;
+  const sc = Math.max(1, Math.min(4, 520 / h));
+  const tries = [];
+  // a) original crop over white matte, b) silhouette of mask (dark on white)
+  const a = mk(Math.round(w * sc), Math.round(h * sc)), ax = a.getContext('2d'); ax.fillStyle = '#fff'; ax.fillRect(0, 0, a.width, a.height);
+  ax.drawImage(cropCanvas(cv, x0, y0, w, h, mask, mw), 0, 0, a.width, a.height);
+  const g = mk(a.width, a.height), gx = g.getContext('2d'); gx.filter = 'grayscale(1) contrast(1.6)'; gx.drawImage(a, 0, 0); gx.filter = 'none';
+  const gi = mk(a.width, a.height), gix = gi.getContext('2d'); gix.filter = 'invert(1) grayscale(1) contrast(1.6)'; gix.drawImage(a, 0, 0); gix.filter = 'none';
+  // white-matte invert would be dark bg: re-matte
+  const wk = await A.worker(langs || 'ita+fra+eng');
+  let best = null;
+  for (const [img, psm] of [[g, '6'], [g, '7'], [gi, '6']]) {
+    chk(); await wk.setParameters({ tessedit_pageseg_mode: psm });
+    const d = (await wk.recognize(img, {}, { blocks: true })).data;
+    const lines = [];
+    (d.blocks || []).forEach(bl => (bl.paragraphs || []).forEach(p => (p.lines || []).forEach(l => { const ws = (l.words || []).filter(x => x.confidence > 20 && x.text.trim()); if (!ws.length) return; lines.push({ text: A.clean(ws.map(x => x.text).join(' ')), conf: ws.reduce((s, x) => s + x.confidence, 0) / ws.length, bbox: { x0: x0 + l.bbox.x0 / sc, y0: y0 + l.bbox.y0 / sc, x1: x0 + l.bbox.x1 / sc, y1: y0 + l.bbox.y1 / sc } }); })));
+    const good = lines.filter(l => l.text.replace(/[^\p{L}\p{N}]/gu, '').length >= 2);
+    const rawLines = lines.filter(l => l.text.replace(/[^\p{L}\p{N}\u0600-\u06FF]/gu, '').length >= 3);
+    const cover = good.reduce((s, l) => s + (l.bbox.x1 - l.bbox.x0) * (l.bbox.y1 - l.bbox.y0), 0) / Math.max(1, (b.x1 - b.x0) * (b.y1 - b.y0));
+    const score = good.length ? good.reduce((s, l) => s + l.conf, 0) / good.length * Math.min(1, cover * 1.5) : 0;
+    if (!best || score > best.score) best = { lines: good, score, cover, conf: good.length ? good.reduce((s, l) => s + l.conf, 0) / good.length : 0, raw: rawLines, rawConf: rawLines.length ? rawLines.reduce((s, l) => s + l.conf, 0) / rawLines.length : 0 };
+    else if (!best.raw.length && rawLines.length) { best.raw = rawLines; best.rawConf = rawLines.reduce((s, l) => s + l.conf, 0) / rawLines.length; }
+  }
+  await wk.setParameters({ tessedit_pageseg_mode: '11' });
+  return best;
+}
+
+const L_isLogo = (c, w, h) => { const bw = c.x1 - c.x0, bh = c.y1 - c.y0; return bw / bh > 0.75 && bw / bh < 1.33 && bw < w * 0.35; };
+/* ---- main analysis ---- */
+SV.analyzeFlyer2 = async function (file, opts) {
+  opts = opts || {}; CANCEL = false;
+  prog('Leggo l’immagine…');
+  const im = await SV.blobToImg(file);
+  const iw = im.naturalWidth, ih = im.naturalHeight, k = Math.min(1, 1400 / Math.max(iw, ih));
+  const w = Math.round(iw * k), h = Math.round(ih * k), A = w * h;
+  const cv = mk(w, h); cv.getContext('2d').drawImage(im, 0, 0, w, h);
+  const id0 = imgData(cv);
+  const R = { w, h, cv, file, layers: [], palette: [], ocr: true, warnings: [] };
+  // palette
+  try { const p = await wcall('palette', { data: id0.data.slice(), w, h }); R.palette = p.cs.map((c, i) => ({ c: hex(c), n: p.cnt[i] })).sort((a, b) => b.n - a.n).map(x => x.c); } catch (e) {}
+  // 1. OCR
+  let O = { lines: [], raw: [] };
+  try { O = await ocrAll(cv, opts); } catch (e) { if (CANCEL) { done(); throw e; } console.warn('ocr', e); R.ocr = false; R.warnings.push('Lettura testi non riuscita'); }
+  chk();
+  // 2. people
+  let person = null;
+  if (opts.people !== false) {
+    try {
+      prog('Riconosco le persone (AI)…');
+      const blob = await SV.runBgRemoval(cv); chk();
+      const cut = await SV.blobToImg(blob); const pc = mk(w, h); pc.getContext('2d').drawImage(cut, 0, 0, w, h);
+      const pa = imgData(pc).data; const pm = new Uint8Array(A); for (let i = 0; i < A; i++) pm[i] = pa[i * 4 + 3] > 140 ? 1 : 0;
+      const L = await wcall('label', { mask: pm, w, h });
+      const keep = new Set(L.comps.filter(c => c.n > A * 0.012).map(c => c.id));
+      if (keep.size) { person = new Uint8Array(A); let x0 = w, y0 = h, x1 = 0, y1 = 0; for (let i = 0; i < A; i++) if (keep.has(L.lab[i])) { person[i] = 1; const x = i % w, y = (i / w) | 0; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } R.personBox = { x0, y0, x1, y1 }; }
+    } catch (e) { if (CANCEL) { done(); throw e; } console.warn('people', e); R.warnings.push('Riconoscimento persone non disponibile'); }
+  }
+  // remove OCR lines that are inside people (false positives on clothes)
+  let lines = O.lines.filter(l => { if (!person) return true; let n = 0, t = 0; for (let y = Math.round(l.bbox.y0); y < l.bbox.y1; y += 2) for (let x = Math.round(l.bbox.x0); x < l.bbox.x1; x += 2) { t++; if (person[y * w + x]) n++; } return n / Math.max(1, t) < 0.6; });
+  // 3. text ink (global lines)
+  prog('Analizzo stile dei testi…');
+  const boxes = lines.map(l => ({ x0: Math.round(l.bbox.x0), y0: Math.round(l.bbox.y0), x1: Math.round(l.bbox.x1), y1: Math.round(l.bbox.y1) }));
+  let ink = boxes.length ? await wcall('ink', { data: id0.data.slice(), w, h, boxes }) : { info: [], mask: new Uint8Array(A) };
+  chk();
+  // 4. segmentation of non-text graphics on a text-free version
+  prog('Separo grafiche e loghi…');
+  const noText0 = await wcall('inpaint', { data: id0.data.slice(), w, h, mask: ink.mask }); chk();
+  let excl = person ? (await wcall('dilate', { mask: person, w, h, r: 3 })).mask : null;
+  const seg = await wcall('segment', { data: noText0.data, w, h, excl, T: 40 }); chk();
+  let comps = seg.comps.filter(c => c.n > A * 0.0005 && (c.x1 - c.x0 + 1) * (c.y1 - c.y0 + 1) > A * 0.001);
+  comps = comps.filter(c => { const bw = c.x1 - c.x0 + 1, bh = c.y1 - c.y0 + 1; if (bw * bh > A * 0.4) return false; if (bw > w * 0.9 && bh < h * 0.2 && (c.y0 < 4 || c.y1 > h - 5)) return false; return true; });
+  // merge near comps
+  const gap = Math.max(3, Math.round(w * 0.004)); let merged = true;
+  comps = comps.map(c => ({ ids: [c.id], x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1, n: c.n }));
+  while (merged) { merged = false; for (let i = 0; i < comps.length && !merged; i++) for (let j = i + 1; j < comps.length; j++) { const a = comps[i], b = comps[j]; if (a.x0 - gap <= b.x1 && b.x0 - gap <= a.x1 && a.y0 - gap <= b.y1 && b.y0 - gap <= a.y1) { a.ids.push(...b.ids); a.x0 = Math.min(a.x0, b.x0); a.y0 = Math.min(a.y0, b.y0); a.x1 = Math.max(a.x1, b.x1); a.y1 = Math.max(a.y1, b.y1); a.n += b.n; comps.splice(j, 1); merged = true; break; } } }
+  // 5. classify components: stylized text (per-region OCR) vs graphic
+  const noTextCv = mk(w, h); noTextCv.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(noText0.data), w, h), 0, 0);
+  const extraLines = []; const compLayers = [];
+  for (let ci = 0; ci < comps.length; ci++) {
+    const c = comps[ci]; chk(); prog('Analizzo gli elementi…', 100 * ci / comps.length); await yieldUI();
+    const bw = c.x1 - c.x0 + 1, bh = c.y1 - c.y0 + 1, ids = new Set(c.ids);
+    const cm = new Uint8Array(A); for (let y = c.y0; y <= c.y1; y++) for (let x = c.x0; x <= c.x1; x++) { const i = y * w + x; if (ids.has(seg.lab[i])) cm[i] = 1; }
+    const fill = c.n / (bw * bh), aspect = bw / bh;
+    const containsLines = lines.filter(l => l.bbox.x0 >= c.x0 - 3 && l.bbox.x1 <= c.x1 + 3 && l.bbox.y0 >= c.y0 - 3 && l.bbox.y1 <= c.y1 + 3);
+    let kind = 'graphic', rl = null;
+    const logoLike = aspect > 0.75 && aspect < 1.33 && fill > 0.55 && bw < w * 0.35;
+    const bigComp = bh > h * 0.06 && bw > w * 0.2;
+    if ((!containsLines.length || bigComp) && !logoLike && bh > h * 0.03) {
+      if (containsLines.length) { containsLines.forEach(l => { for (let y = Math.max(0, Math.round(l.bbox.y0) - 2); y <= Math.min(h - 1, l.bbox.y1 + 2); y++) for (let x = Math.max(0, Math.round(l.bbox.x0) - 2); x <= Math.min(w - 1, l.bbox.x1 + 2); x++) cm[y * w + x] = 0; }); }
+      try { rl = await ocrRegion(cv, c, cm, w); } catch (e) { if (CANCEL) throw e; }
+      if (!(rl && rl.conf >= 55 && rl.cover >= 0.35)) { try { const ra = await ocrRegion(cv, c, cm, w, 'ara'); if (ra && ra.lines.some(l => isAr(l.text)) && ra.conf >= 45 && (!rl || ra.score > rl.score)) rl = ra; } catch (e) { if (CANCEL) throw e; } }
+      if (rl) rl.lines = rl.lines.filter(l => isAr(l.text) ? (l.text.match(/[\u0600-\u06FF]/g) || []).length >= 4 && l.conf >= 55 : (l.text.match(/[\p{L}]/gu) || []).length >= 3 && /[aeiouyàéèAEIOUY]/.test(l.text));
+      if (rl && rl.lines.length && (rl.conf >= 55 && rl.cover >= 0.3 || rl.lines.some(l => isAr(l.text)) && rl.conf >= 55)) kind = 'stext';
+      else if (rl && rl.raw && rl.raw.length && bw > bh * 1.6 && !L_isLogo(c, w, h)) { rl = { lines: rl.raw, conf: rl.rawConf, cover: rl.cover, guess: true }; kind = 'stext'; }
+    }
+    compLayers.push({ c, cm, kind, rl, containsLines, fill, logoLike });
+  }
+  // stylized texts: each OCR line becomes a text box, analysed by ink on its comp mask
+  const stBoxes = []; compLayers.filter(L => L.kind === 'stext').forEach(L => L.rl.lines.forEach(l => stBoxes.push({ L, l })));
+  let stInk = { info: [] };
+  if (stBoxes.length) {
+    // ink restricted to component pixels: pass masked image (non-comp pixels -> ring colour)
+    stInk = await wcall('ink', { data: id0.data.slice(), w, h, boxes: stBoxes.map(s => ({ x0: Math.round(s.l.bbox.x0), y0: Math.round(s.l.bbox.y0), x1: Math.round(s.l.bbox.x1), y1: Math.round(s.l.bbox.y1) })) });
+  }
+  // 6. build layer list
+  let n = 0; const addL = o => { o.id = 'L' + (++n); o.on = o.on !== false; R.layers.push(o); return o; };
+  if (person) {
+    const b = R.personBox; const pcv = cropCanvas(noTextCv, b.x0, b.y0, b.x1 - b.x0 + 1, b.y1 - b.y0 + 1, person, w, true);
+    addL({ kind: 'people', name: 'Persone (ritaglio)', bbox: b, cv: pcv, mask: person, thumb: thumb(pcv), asFrame: false });
+  }
+  compLayers.filter(L => L.kind === 'graphic').sort((a, b) => b.c.n - a.c.n).forEach(L => {
+    const c = L.c; const g = cropCanvas(noTextCv, c.x0, c.y0, c.x1 - c.x0 + 1, c.y1 - c.y0 + 1, L.cm, w, true);
+    const name = L.containsLines.length ? 'Etichetta / forma' : L.logoLike ? 'Logo / badge' : (c.x1 - c.x0) > (c.y1 - c.y0) * 4 ? 'Ornamento / divisore' : 'Grafica';
+    addL({ kind: 'graphic', name, bbox: { x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1 }, cv: g, mask: L.cm, thumb: thumb(g) });
+  });
+  const textItems = [];
+  lines.forEach((l, i) => textItems.push({ text: l.text, conf: Math.round(l.confidence), bbox: boxes[i], ink: ink.info[i], styl: false }));
+  stBoxes.forEach((s, i) => textItems.push({ text: s.l.text, conf: Math.round(s.l.conf), bbox: { x0: Math.round(s.l.bbox.x0), y0: Math.round(s.l.bbox.y0), x1: Math.round(s.l.bbox.x1), y1: Math.round(s.l.bbox.y1) }, ink: stInk.info[i], styl: true, comp: s.L, guess: !!s.L.rl.guess }));
+  for (let i = 0; i < textItems.length; i++) {
+    const T = textItems[i]; chk(); if (i % 3 === 0) { prog('Riconosco i caratteri…', 100 * i / textItems.length); await yieldUI(); }
+    const I = T.ink; if (!I) continue;
+    const big = (T.bbox.y1 - T.bbox.y0) > h * 0.022 || T.styl;
+    const fm = await matchFont(T.text, I, big);
+    const st = { font: fm ? fm.font : 'Montserrat', weight: fm ? fm.weight : 700, bold: (fm ? fm.weight : 700) >= 600, color: hex(I.fill) };
+    // size: glyph height of box → font size
+    const gH = (T.bbox.y1 - T.bbox.y0);
+    st.size = fm && fm.glyphH ? gH / fm.glyphH : gH * 1.25;
+    if (fm && fm.widthK && Math.abs(fm.widthK - 1) > 0.06) st.lsFit = fm.widthK;
+    const bigT = gH > h * 0.025 || T.styl;
+    if (I.stroke && bigT) st.stroke = { c: hex(I.stroke.c), w: Math.max(1, Math.round(Math.min(gH * 0.12, I.stroke.w))) };
+    if (I.extrude && bigT) st.extrude = { d: Math.round(Math.hypot(I.extrude.dx, I.extrude.dy)), c: hex(I.extrude.c) };
+    else if (bigT) { const lum = (I.fill[0] * 299 + I.fill[1] * 587 + I.fill[2] * 114) / 1000, rl = (I.ring[0] * 299 + I.ring[1] * 587 + I.ring[2] * 114) / 1000; if (Math.abs(lum - rl) < 60) st.shadow = { c: 'rgba(0,0,0,0.45)', b: Math.round(gH * 0.15), x: 0, y: Math.round(gH * 0.05) }; }
+    // per-text original cut-out (for "Originale" layer / image mode)
+    const pad = 3, bx = Math.max(0, T.bbox.x0 - pad), by = Math.max(0, T.bbox.y0 - pad), bw2 = Math.min(w - 1, T.bbox.x1 + pad) - bx + 1, bh2 = Math.min(h - 1, T.bbox.y1 + pad) - by + 1;
+    const tm = new Uint8Array(A); for (let y = 0; y < I.bh; y++) for (let x = 0; x < I.bw; x++) if (I.mask[y * I.bw + x]) tm[(y + I.y0) * w + x + I.x0] = 1;
+    const tmd = (await wcall('dilate', { mask: tm, w, h, r: 2 })).mask;
+    let mm = tmd;
+    if (T.styl && T.comp) { mm = new Uint8Array(A); for (let y = by; y < by + bh2; y++) for (let x = bx; x < bx + bw2; x++) { const q = y * w + x; mm[q] = T.comp.cm[q] ? 1 : 0; } }
+    const ocv = cropCanvas(cv, bx, by, bw2, bh2, mm, w, true);
+    addL({ kind: 'text', name: T.styl ? 'Titolo' : 'Testo', text: T.text, conf: T.conf, bbox: T.bbox, st, mask: mm, cv: ocv, thumb: thumb(ocv, 160), mode: (T.styl && (T.guess || T.conf < 75 || isAr(T.text))) ? 'image' : 'text', styl: T.styl, fm, ar: isAr(T.text), guess: T.guess });
+  }
+  // texts sorted top→bottom for review
+  R.layers.sort((a, b) => (a.kind === 'text') - (b.kind === 'text') || a.bbox.y0 - b.bbox.y0);
+  // stylized components that produced text: keep their cut-out as hidden 'Originale'
+  compLayers.filter(L => L.kind === 'stext').forEach(L => { const c = L.c; const g = cropCanvas(cv, c.x0, c.y0, c.x1 - c.x0 + 1, c.y1 - c.y0 + 1, L.cm, w, true); addL({ kind: 'orig', name: 'Originale (nascosto)', bbox: { x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1 }, cv: g, mask: L.cm, thumb: thumb(g), on: true, hiddenLayer: true, bgMask: true }); });
+  done();
+  return R;
+};
+
+/* ---- compose: clean background + elements ---- */
+SV.composeAnalyzed = async function (R, opt) {
+  opt = opt || {};
+  const { w, h } = R, A = w * h;
+  const presets = SV.SIZES.map(s => ({ s, d: Math.abs(s.h / s.w - h / w) })).sort((a, b) => a.d - b.d);
+  let PW, PH, sizeId = null; if (presets[0].d < 0.035) { PW = presets[0].s.w; PH = presets[0].s.h; sizeId = presets[0].s.id; } else { PW = 1080; PH = Math.round(1080 * h / w); }
+  const sx = PW / w, sy = PH / h;
+  const on = R.layers.filter(L => L.on);
+  // background mask: all extracted layers that are "on" (text in text-mode or image-mode both removed from bg)
+  const bm = new Uint8Array(A);
+  on.forEach(L => { if (L.kind === 'orig' && !L.bgMask) return; if (L.kind === 'people' && L.asFrame === 'keep') return; const m = L.mask; for (let i = 0; i < A; i++) if (m[i]) bm[i] = 1; });
+  const key = on.map(L => L.id).join(',');
+  if (R._bgKey !== key) {
+    const d = await wcall('inpaint', { data: imgData(R.cv).data, w, h, mask: (await wcall('dilate', { mask: bm, w, h, r: 1 })).mask });
+    const bg = mk(w, h); bg.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(d.data), w, h), 0, 0); R._bg = bg; R._bgKey = key;
+  }
+  const reg = opt.temp ? ((cv, name) => { const id = 'tmp' + Math.random().toString(36).slice(2); SV.registerImg(id, cv); (R._tmp = R._tmp || []).push(id); return { id }; }) : ((cv, name) => SV.addAsset(cv, 'tpl', name, { jpeg: false }));
+  const bgRec = await (opt.temp ? reg(R._bg) : SV.addAsset(R._bg, 'tpl', 'Sfondo pulito', { jpeg: true }));
+  const pg = SV.newPage({ color: R.palette[0] || '#ffffff', img: bgRec.id });
+  const box = b => ({ x: b.x0 * sx, y: b.y0 * sy, w: (b.x1 - b.x0 + 1) * sx, h: (b.y1 - b.y0 + 1) * sy });
+  for (const L of on.filter(L => L.kind === 'people')) {
+    const r = await reg(L.cv, 'Persone'); const b = box(L.bbox);
+    pg.els.push(Object.assign({ id: SV.uid(), type: 'image', name: L.name, asset: r.id, rot: 0, op: 1, fit: 'contain' }, b, L.asFrame === true ? { asset: null, frame: true, ph: 'Tocca e aggiungi la foto', mask: 'none' } : {}));
+  }
+  for (const L of on.filter(L => L.kind === 'graphic')) { const r = await reg(L.cv, L.name); pg.els.push(Object.assign({ id: SV.uid(), type: 'image', name: L.name, asset: r.id, rot: 0, op: 1, fit: 'contain' }, box(L.bbox))); }
+  for (const L of on.filter(L => L.kind === 'text')) {
+    if (L.mode === 'image') { const r = await reg(L.cv, L.name); const pad = 3; pg.els.push(Object.assign({ id: SV.uid(), type: 'image', name: L.name + ' (immagine)', asset: r.id, rot: 0, op: 1, fit: 'contain' }, box({ x0: Math.max(0, L.bbox.x0 - pad), y0: Math.max(0, L.bbox.y0 - pad), x1: Math.min(w - 1, L.bbox.x1 + pad), y1: Math.min(h - 1, L.bbox.y1 + pad) }))); continue; }
+    const st = Object.assign({}, L.st); const lsFit = st.lsFit; delete st.lsFit; delete st.weight;
+    st.weight = L.st.weight; st.size = Math.max(8, st.size * sy); st.align = 'center';
+    if (st.stroke) st.stroke = { c: st.stroke.c, w: Math.max(1, st.stroke.w * sy) };
+    if (st.extrude) st.extrude = { d: Math.max(1, st.extrude.d * sy), c: st.extrude.c };
+    if (st.shadow) st.shadow = Object.assign({}, st.shadow, { b: st.shadow.b * sy, y: st.shadow.y * sy });
+    const e = SV.newText(L.text, { size: 80 }, PW, PH); e.st = Object.assign(e.st, st); e.st.size = Math.round(st.size); e.name = (L.styl ? 'Titolo: ' : '') + L.text.slice(0, 22);
+    const b = box(L.bbox), cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    // fit width with letter spacing
+    const L0 = SV.textLayout(Object.assign({}, e, { w: 99999 }));
+    const natural = L0.maxLine;
+    if (natural > 0) { const chars = Math.max(1, L.text.length - 1); const extra = (b.w - natural) / chars; e.st.ls = Math.max(-8, Math.min(40, Math.round(extra / e.st.size * 100))); if (Math.abs(e.st.ls) < 2) delete e.st.ls; }
+    const L1 = SV.textLayout(Object.assign({}, e, { w: 99999 }));
+    e.w = Math.min(PW, L1.maxLine + L1.pad * 2 + e.st.size * 0.3); SV.fitTextH(e); e.x = cx - e.w / 2; e.y = cy - e.h / 2;
+    e.ana = { conf: L.conf, font: L.st.font };
+    pg.els.push(e);
+  }
+  for (const L of on.filter(L => L.kind === 'orig')) { const r = await reg(L.cv, 'Originale'); pg.els.push(Object.assign({ id: SV.uid(), type: 'image', name: 'Originale – confronto', asset: r.id, rot: 0, op: 1, fit: 'contain', hidden: true, locked: true }, box(L.bbox))); }
+  return { pg, PW, PH, sizeId };
+};
+SV.freeAnalyzedTemps = R => { (R._tmp || []).forEach(id => SV.unregisterImg(id)); R._tmp = []; };
+
+/* ---- review UI ---- */
+const KIND = { text: ['📝', 'Testo'], graphic: ['🔷', 'Grafica'], people: ['👤', 'Persone'], orig: ['🗂️', 'Originale'] };
+SV.openAnalyzer = async function (file) {
+  let R;
+  try { R = await SV.analyzeFlyer2(file, {}); }
+  catch (e) { done(); if (e.message === 'Annullato') return SV.toast('Analisi annullata'); console.error(e); SV.toast('Analisi non riuscita: uso l’immagine come sfondo'); const t = await SV.imageToTemplate(file); if (t) SV.useMyTpl(t.id); return; }
+  SV._lastAnalysis = R;
+  let root = $('svAnalyze'); if (!root) { root = document.createElement('div'); root.id = 'svAnalyze'; $('sv').appendChild(root); }
+  const st = { view: 'compare', busy: false };
+  const list = () => R.layers.filter(L => L.kind !== 'orig');
+  const render = () => {
+    root.style.display = 'flex';
+    const ls = list();
+    root.innerHTML = `<div class="an-top"><button class="er-b" data-an="cancel">Annulla</button><b>Analizza volantino</b><button class="er-b gold" data-an="save">Salva modello</button></div>
+    <div class="an-body"><div class="an-prev"><div class="an-cvs" id="anCvs"></div><div class="an-seg">${[['orig', 'Originale'], ['layers', 'Livelli'], ['clean', 'Sfondo pulito'], ['result', 'Risultato'], ['compare', 'Confronto']].map(([v, l]) => `<button data-an="v" data-v="${v}" class="${st.view === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+    <div class="an-side">
+      ${R.warnings.map(x => `<div class="an-warn">⚠️ ${esc(x)}</div>`).join('')}
+      <div class="an-h">Livelli trovati (${ls.length}) <small>tocca il testo per correggerlo</small></div>
+      <div class="an-list">${ls.map(L => `<div class="an-it2 ${L.on ? '' : 'off'}" data-id="${L.id}">
+        <input type="checkbox" data-an="tog" data-id="${L.id}" ${L.on ? 'checked' : ''}>
+        <img src="${L.thumb}" class="an-th ${L.kind === 'text' ? 'wide' : ''}">
+        <div class="an-mid"><span class="an-k">${KIND[L.kind][0]} ${esc(L.name)}${L.kind === 'text' ? ` · ${esc(L.st.font)}${L.conf ? ` · ${L.conf}%` : ''}${L.guess || L.conf < 60 ? ' · <b style="color:#f0b429">⚠️ controlla il testo</b>' : ''}` : ''}</span>
+          ${L.kind === 'text' ? `<input class="tx" data-an="txt" data-id="${L.id}" value="${esc(L.text)}" dir="auto">
+            <div class="an-opts"><button data-an="mode" data-id="${L.id}" class="${L.mode === 'text' ? 'on' : ''}" data-m="text">Testo modificabile</button><button data-an="mode" data-id="${L.id}" class="${L.mode === 'image' ? 'on' : ''}" data-m="image">Immagine originale</button></div>` : ''}
+          ${L.kind === 'people' ? `<div class="an-opts"><button data-an="pf" data-id="${L.id}" class="${!L.asFrame ? 'on' : ''}" data-m="0">Ritaglio</button><button data-an="pf" data-id="${L.id}" class="${L.asFrame === true ? 'on' : ''}" data-m="1">Cornice vuota</button><button data-an="pf" data-id="${L.id}" class="${L.asFrame === 'keep' ? 'on' : ''}" data-m="2">Lascia nello sfondo</button></div>` : ''}
+        </div></div>`).join('')}</div>
+      <div class="an-h">🎨 Colori del volantino</div><div class="an-pal">${R.palette.slice(0, 8).map(c => `<span style="background:${c}" title="${c}"></span>`).join('')}<button class="sv-chip" data-an="kit">Salva nel Kit</button></div>
+      <div class="an-h">Nome e tipo</div><input class="sv-inp" id="anName" value="${esc((R.file.name || 'Volantino').replace(/\.\w+$/, '').slice(0, 40))}"><select class="sv-inp" id="anCat" style="margin-top:6px">${(typeof EVENT_TYPES !== 'undefined' ? EVENT_TYPES : []).map(e => `<option value="${e.id}">${esc(e.icon + ' ' + e.label)}</option>`).join('')}<option value="altro" selected>Altro</option></select>
+      <p class="an-tip">Invio = Salva · Esc = Annulla</p>
+    </div></div>`;
+    draw();
+  };
+  let drawSeq = 0;
+  async function draw() {
+    const my = ++drawSeq; const box = $('anCvs'); if (!box) return;
+    const r = box.getBoundingClientRect(); const both = st.view === 'compare';
+    const s = Math.min((r.width - 8) / (R.w * (both ? 2.04 : 1)), (r.height - 8) / R.h);
+    const make = () => { const c = mk(Math.round(R.w * s * 2), Math.round(R.h * s * 2)); c.style.width = R.w * s + 'px'; c.style.height = R.h * s + 'px'; return c; };
+    const paintOrig = (c, boxes) => { const x = c.getContext('2d'); x.drawImage(R.cv, 0, 0, c.width, c.height); if (!boxes) return; const k = c.width / R.w; list().forEach((L, i) => { if (!L.on) return; const b = L.bbox, col = L.kind === 'text' ? '#7d2ae8' : L.kind === 'people' ? '#e67e22' : '#00a3a3'; x.strokeStyle = col; x.lineWidth = 3; x.strokeRect(b.x0 * k, b.y0 * k, (b.x1 - b.x0) * k, (b.y1 - b.y0) * k); }); };
+    const paintRes = async (c, clean) => {
+      const out = await SV.composeAnalyzed(R, { temp: true }); if (my !== drawSeq) return;
+      await SV.ensureFonts && SV.ensureFonts([out.pg]);
+      const x = c.getContext('2d'); if (clean) { x.drawImage(R._bg, 0, 0, c.width, c.height); } else { const pc = SV.renderToCanvas(out.pg, out.PW, out.PH, c.width / out.PW, { res: c.width / out.PW, placeholders: true }); x.drawImage(pc, 0, 0); }
+      SV.freeAnalyzedTemps(R);
+    };
+    const nodes = [];
+    if (st.view === 'orig' || st.view === 'layers') { const c = make(); paintOrig(c, st.view === 'layers'); nodes.push(c); }
+    else {
+      SV.busy(true, 'Preparo l’anteprima…'); await yieldUI();
+      try {
+        if (both) { const a = make(); paintOrig(a, false); const b = make(); await paintRes(b, false); nodes.push(a, b); }
+        else { const c = make(); await paintRes(c, st.view === 'clean'); nodes.push(c); }
+      } catch (e) { console.error(e); }
+      SV.busy(false);
+    }
+    if (my !== drawSeq) return; box.innerHTML = ''; nodes.forEach(n => box.appendChild(n));
+  }
+  const byId = id => R.layers.find(L => L.id === id);
+  async function save() {
+    SV.busy(true, 'Creo il modello…');
+    try {
+      const out = await SV.composeAnalyzed(R, {}); await SV.ensureAssets([out.pg]);
+      const k = 360 / out.PW;
+      const t = { id: SV.uid('ut'), name: ($('anName') && $('anName').value.trim()) || 'Volantino analizzato', cat: $('anCat') ? $('anCat').value : 'altro', w: out.PW, h: out.PH, sizeId: out.sizeId, pages: [out.pg], created: Date.now(), analyzed: true, palette: R.palette.slice(0, 6) };
+      await SV.ensureFonts && SV.ensureFonts([out.pg]);
+      t.thumb = SV.renderToCanvas(out.pg, out.PW, out.PH, k, { res: k, placeholders: true }).toDataURL('image/jpeg', 0.75);
+      await SV.myTpls(); U.myTpls.unshift(t); await SV.kvSet('mytpl', U.myTpls);
+      SV.busy(false); close(); SV.toast('Salvato in “I miei modelli” ⭐'); SV.useMyTpl(t.id);
+    } catch (err) { SV.busy(false); console.error(err); SV.toast('Errore: ' + err.message); }
+  }
+  function close() { root.style.display = 'none'; root.innerHTML = ''; document.removeEventListener('keydown', key, true); R.layers.forEach(L => { L.cv = null; }); }
+  function key(e) {
+    if (root.style.display !== 'flex' || !$('svModal').hidden) return;
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+    else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (e.target && e.target.tagName === 'INPUT' && e.target.classList.contains('tx')) { e.target.blur(); draw(); } else save(); }
+  }
+  document.addEventListener('keydown', key, true);
+  root.onclick = async e => {
+    const b = e.target.closest('[data-an]'); if (!b) return; const a = b.dataset.an, L = byId(b.dataset.id);
+    if (a === 'cancel') return close();
+    if (a === 'save') return save();
+    if (a === 'v') { st.view = b.dataset.v; render(); return; }
+    if (a === 'tog') { L.on = b.checked; render(); return; }
+    if (a === 'mode') { L.mode = b.dataset.m; render(); return; }
+    if (a === 'pf') { L.asFrame = [false, true, 'keep'][+b.dataset.m]; render(); return; }
+    if (a === 'kit') { if (!U.kit) await SV.loadKit(); U.kit.colors = R.palette.slice(0, 6); U.kit.palettes = (U.kit.palettes || []).concat([R.palette.slice(0, 5)]).slice(-12); await SV.saveKit(); SV.toast('Colori salvati nel Kit ✓'); }
+  };
+  root.oninput = e => { const b = e.target.closest('[data-an="txt"]'); if (b) { const L = byId(b.dataset.id); L.text = b.value; if (L.mode !== 'text') { L.mode = 'text'; L._autoText = true; } } };
+  root.addEventListener('change', e => { if (e.target.closest('[data-an="txt"]')) { const L = byId(e.target.dataset.id); if (L && L._autoText) { L._autoText = false; render(); } draw(); } });
+  render();
+};
+})();
+
+/* Background removal in a module Web Worker (keeps the page responsive). Falls back to main thread. */
+(function () {
+const SV = window.SV;
+const SRC = `import { removeBackground } from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm';
+self.onmessage = async e => { const { id, blob, cfg } = e.data;
+  try { const out = await removeBackground(blob, Object.assign({}, cfg, { progress: (k, c, t) => self.postMessage({ id, prog: [String(k), c, t] }) })); self.postMessage({ id, blob: out }); }
+  catch (err) { self.postMessage({ id, err: String(err && err.message || err) }); } };`;
+let W = null, wid = 0, broken = false; const P = new Map();
+function worker() {
+  if (W) return W;
+  W = new Worker(URL.createObjectURL(new Blob([SRC], { type: 'text/javascript' })), { type: 'module' });
+  W.onmessage = e => { const p = P.get(e.data.id); if (!p) return; if (e.data.prog) { p.prog && p.prog(...e.data.prog); return; } P.delete(e.data.id); e.data.err ? p.rej(new Error(e.data.err)) : p.res(e.data.blob); };
+  W.onerror = e => { e.preventDefault && e.preventDefault(); broken = true; P.forEach(p => p.rej(new Error('worker-failed'))); P.clear(); W = null; };
+  return W;
+}
+const cfgBase = () => ({ publicPath: (typeof IMGLY_PUBLIC_PATH !== 'undefined' ? IMGLY_PUBLIC_PATH : 'https://staticimgly.com/@imgly/background-removal-data/1.7.0/dist/'), model: 'small', device: 'cpu', output: { format: 'image/png', quality: 0.92 } });
+async function toBlob(src) {
+  if (src instanceof Blob) return src;
+  if (typeof imageToPngBlob === 'function') return imageToPngBlob(src);
+  const c = document.createElement('canvas'); c.width = src.naturalWidth || src.width; c.height = src.naturalHeight || src.height; c.getContext('2d').drawImage(src, 0, 0);
+  return new Promise(r => c.toBlob(r, 'image/png'));
+}
+SV.cancelBg = () => { if (W) { W.terminate(); W = null; } P.forEach(p => p.rej(new Error('Annullato'))); P.clear(); };
+SV.runBgRemoval = async function (src, onProg) {
+  const blob = await toBlob(src);
+  const busyTxt = t => { const b = document.querySelector('#svBusyT'); if (b && !document.getElementById('svBusy').hidden) b.textContent = t; };
+  const prog = (k, c, t) => { if (!t) return; const pct = Math.round(100 * c / t); const lbl = /fetch/.test(k) ? 'Scarico il modello AI… ' : 'Elaboro la foto… '; busyTxt(lbl + pct + '%'); onProg && onProg(lbl, pct); try { showBgProgress(true, lbl + pct + '%', 10 + pct * 0.85); } catch (e) {} };
+  if (!broken && typeof Worker !== 'undefined') {
+    try {
+      const out = await new Promise((res, rej) => { const id = ++wid; P.set(id, { res, rej, prog }); worker().postMessage({ id, blob, cfg: cfgBase() }); });
+      return out;
+    } catch (e) { if (e.message === 'Annullato') throw e; console.warn('bg worker failed, fallback', e); broken = true; }
+  }
+  const removeBackground = await loadImgly();
+  return removeBackground(blob, Object.assign(cfgBase(), { proxyToWorker: true, progress: prog }));
+};
+// old quick flow uses the same worker
+try {
+  window.removeBackgroundFromImage = async function (img) {
+    showBgProgress(true, 'Rimozione sfondo in corso…', 10);
+    const blob = await SV.runBgRemoval(img);
+    showBgProgress(true, 'Ritaglio pronto', 100);
+    const cut = await blobToImage(blob); const cropped = await cropToAlphaBounds(cut, 0.04);
+    setTimeout(() => showBgProgress(false), 600); return cropped;
+  };
+} catch (e) {}
 })();
 
 window.SV.init();
