@@ -1,4 +1,4 @@
-const CACHE = 'volantino-mouride-v3';
+const CACHE = 'volantino-studio-202610142151';
 const ASSETS = [
   './',
   './index.html',
