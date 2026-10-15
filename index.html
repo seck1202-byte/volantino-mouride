@@ -868,6 +868,16 @@ textarea.sv-in{height:auto;padding:8px 10px;min-height:70px}
 #svAnalyze .an-h small{font-weight:500;color:#9aa0a6;margin-left:6px}
 #svAnalyze .an-tip{color:#8a9097;font-size:12px;margin-top:12px}
 #svAnalyze .an-list{max-height:none}
+.cp-head{display:flex;gap:8px;margin-bottom:8px}.cp-head .sv-btn{flex:1;margin:0}
+.cp-leg{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;font-size:9px;opacity:.65;text-align:center;margin:2px 0 6px;padding-right:34px}
+.cp-row{display:flex;align-items:center;gap:8px;padding:6px;border-radius:10px;cursor:pointer;border:2px solid transparent;margin-bottom:4px;background:rgba(127,127,127,.08)}
+.cp-row:hover{background:rgba(127,127,127,.16)}.cp-row.on{border-color:#7d2ae8}
+.cp-sw{display:grid;grid-template-columns:repeat(6,1fr);flex:1;height:30px;border-radius:7px;overflow:hidden;box-shadow:0 0 0 1px rgba(0,0,0,.15)}
+.cp-sw span{display:block}.cp-nm{display:none}
+.cp-row .cp-sv{width:28px;height:28px;border:0;border-radius:8px;background:transparent;font-size:15px;cursor:pointer;color:#d4af37}
+.cp-row{flex-wrap:wrap}.cp-row .cp-nm{display:block;width:100%;font-size:11px;opacity:.75;order:3}
+.cp-all{display:flex;gap:6px;align-items:center;font-size:12px;margin:4px 0}.cp-tip{font-size:11px;opacity:.6}
+.sv-fonts button{content-visibility:auto;contain-intrinsic-size:auto 42px}
 
 </style>
 </head>
@@ -11229,6 +11239,7 @@ SV.imageBitmap = function (el, res) {
     if (fx.warm) { st.tint = { c: fx.warm > 0 ? '#ff9a3c' : '#3c8cff', a: Math.abs(fx.warm) * 0.35 }; if (fx.tint && fx.tint.a) st.tint = fx.tint; }
     try { applyPixelFx(c, cw, ch, st); } catch (e) {}
   }
+  if (fx.hue) SV.hueRotateCtx(c, cw, ch, fx.hue);
   let out = cv;
   if (fx.blur) { out = blurCanvas(cv, fx.blur / 100 * Math.min(cw, ch) * 0.04); }
   const oc = out === cv ? c : out.getContext('2d');
@@ -11802,6 +11813,17 @@ SV.makePDF = async function (pages, o) {
 };
 SV.MM = 72 / 25.4;
 })();
+
+/* fast hue rotation (CSS hue-rotate matrix) */
+SV.hueRotateCtx = function (c, w, h, deg) {
+  const a = deg * Math.PI / 180, co = Math.cos(a), si = Math.sin(a);
+  const m = [0.213 + co * 0.787 - si * 0.213, 0.715 - co * 0.715 - si * 0.715, 0.072 - co * 0.072 + si * 0.928,
+    0.213 - co * 0.213 + si * 0.143, 0.715 + co * 0.285 + si * 0.140, 0.072 - co * 0.072 - si * 0.283,
+    0.213 - co * 0.213 - si * 0.787, 0.715 - co * 0.715 + si * 0.715, 0.072 + co * 0.928 + si * 0.072];
+  const id = c.getImageData(0, 0, w, h), d = id.data;
+  for (let i = 0; i < d.length; i += 4) { const r = d[i], g = d[i + 1], b = d[i + 2]; d[i] = m[0] * r + m[1] * g + m[2] * b; d[i + 1] = m[3] * r + m[4] * g + m[5] * b; d[i + 2] = m[6] * r + m[7] * g + m[8] * b; }
+  c.putImageData(id, 0, 0);
+};
 
 </script>
 <script>
@@ -12845,10 +12867,10 @@ SV.h = { page, els, sel, one, W, H, kk };
 
 const TABS = [
   ['modelli', '▦', 'Modelli'], ['elementi', '◆', 'Elementi'], ['testo', 'T', 'Testo'], ['caricamenti', '☁︎', 'Foto'],
-  ['sfondo', '🎨', 'Sfondo'], ['livelli', '☰', 'Livelli'], ['pagine', '❐', 'Pagine'], ['kit', '★', 'Kit'],
+  ['sfondo', '🎨', 'Sfondo'], ['livelli', '☰', 'Livelli'], ['pagine', '❐', 'Pagine'], ['combo', '🌈', 'Colori'], ['kit', '★', 'Kit'],
 ];
 const TITLES = {
-  modelli: 'Modelli', elementi: 'Elementi', testo: 'Testo', caricamenti: 'Caricamenti', sfondo: 'Sfondo', livelli: 'Livelli', pagine: 'Pagine', kit: 'Kit del marchio',
+  modelli: 'Modelli', elementi: 'Elementi', testo: 'Testo', caricamenti: 'Caricamenti', sfondo: 'Sfondo', livelli: 'Livelli', pagine: 'Pagine', kit: 'Kit del marchio', combo: 'Combinazioni colori',
   font: 'Carattere', colore: 'Colore', effetti: 'Effetti testo', spaziatura: 'Spaziatura', foto: 'Modifica foto', posizione: 'Posizione', trasparenza: 'Trasparenza', qr: 'Codice QR', forma: 'Forma e bordo', linea: 'Linea',
 };
 SV.buildRail = function () {
@@ -13113,7 +13135,7 @@ P.caricamenti_after = async () => {
 };
 P.sfondo = function () {
   const bg = page().bg || {};
-  let h = `<div class="sv-lbl">Colore</div>` + swatches('bg', bg.g ? '' : (bg.color || '#ffffff'));
+  let h = `<button class="sv-btn gold" data-a="tab" data-tab="combo" style="margin:0 0 8px">🌈 Combinazioni colori automatiche</button><div class="sv-lbl">Colore</div>` + swatches('bg', bg.g ? '' : (bg.color || '#ffffff'));
   h += gradRow('bg', bg.g);
   h += `<div class="sv-lbl">Foto di sfondo</div>`;
   if (bg.img) {
@@ -13197,7 +13219,7 @@ P.font = function () {
   const el = one(); if (!el || el.type !== 'text') return '';
   const q = foldAccents((U.fontQ || '').toLowerCase());
   const ar = SV.isArabic(el.text);
-  try { loadFontPreviews(); } catch (e) {}
+  if (!SV._fpv) { SV._fpv = 1; (window.requestIdleCallback || setTimeout)(() => { try { loadFontPreviews(); } catch (e) {} }, { timeout: 1500 }); }
   let h = `<div class="sv-psearch">🔍<input data-in="fontQ" value="${esc(U.fontQ || '')}" placeholder="Cerca carattere"></div><div class="sv-fonts">`;
   const kitF = [...new Set(Object.values(U.kit.fonts))];
   (ar ? ['Kit', 'Arabo', 'Sans', 'Display', 'Serif', 'Script'] : ['Kit', 'Sans', 'Display', 'Serif', 'Script', 'Arabo']).forEach(cat => {
@@ -15153,6 +15175,161 @@ try {
     setTimeout(() => showBgProgress(false), 600); return cropped;
   };
 } catch (e) {}
+})();
+
+/* Combinazioni colori: palettes from the design / analysed flyer, recolor by role */
+(function () {
+const SV = window.SV, U = SV.U, esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const h2r = h => { h = String(h || '#000').replace('#', ''); if (h.length === 3) h = h.split('').map(x => x + x).join(''); const n = parseInt(h.slice(0, 6), 16) || 0; return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+const r2h = (r, g, b) => '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+const r2hsl = ([r, g, b]) => { r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0; const l = (mx + mn) / 2; if (mx !== mn) { const d = mx - mn; s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn); h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; } return [h, s, l]; };
+const hsl = (h, s, l) => { h = ((h % 360) + 360) % 360; s = Math.max(0, Math.min(1, s)); l = Math.max(0, Math.min(1, l)); const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l), f = n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)); return r2h(f(0) * 255, f(8) * 255, f(4) * 255); };
+const HSL = c => r2hsl(h2r(c));
+const lum = c => { const [r, g, b] = h2r(c).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const contrast = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+const fixC = (fg, bg, min) => { if (contrast(fg, bg) >= min) return fg; const [h, s] = HSL(fg); const dark = lum(bg) > 0.4; for (let i = 1; i <= 10; i++) { const c = hsl(h, s, dark ? 0.5 - i * 0.05 : 0.5 + i * 0.05); if (contrast(c, bg) >= min) return c; } return dark ? '#111111' : '#ffffff'; };
+SV.colorUtil = { h2r, r2h, HSL, hsl, contrast, fixC };
+const ROLES = [['bg', 'Sfondo'], ['title', 'Titolo'], ['text', 'Testo'], ['accent', 'Accenti'], ['shape', 'Forme / pillole'], ['outline', 'Contorni']];
+
+/* ---- role extraction from current page ---- */
+function page() { return U.proj && U.proj.pages[U.pageIx || 0]; }
+function textColor(e) { const st = e.st || {}; if (st.color && st.color !== 'transparent') return st.color; if (st.grad === 'gold') return '#d4af37'; return st.stroke ? st.stroke.c : '#ffffff'; }
+function classify(pg) {
+  const W = U.proj.w, H = U.proj.h, els = pg.els.filter(e => !e.hidden);
+  const texts = els.filter(e => e.type === 'text'), maxS = Math.max(1, ...texts.map(e => (e.st || {}).size || 0));
+  const inter = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+  const out = [];
+  els.forEach(e => {
+    if (e.type === 'text') out.push({ e, role: ((e.st || {}).size || 0) >= maxS * 0.6 ? 'title' : 'text' });
+    else if (e.type === 'shape') { const big = e.w * e.h > W * H * 0.35; const pill = !big && texts.some(t => inter(t, e) > t.w * t.h * 0.5); out.push({ e, role: big ? 'bg2' : pill ? 'shape' : 'accent' }); }
+    else if (e.type === 'line' || e.type === 'icon') out.push({ e, role: 'accent' });
+  });
+  return out;
+}
+SV.designRoles = function () {
+  const pg = page(); if (!pg) return null; const R = {}; const cl = classify(pg);
+  const bg = pg.bg || {}; R.bg = bg.g ? bg.g.c1 : (bg.color || '#ffffff');
+  if (bg.img && U._bgDom && U._bgDom[bg.img]) { const [h0, s0, l0] = HSL(U._bgDom[bg.img]); R.bg = hsl(h0 + ((bg.fx && bg.fx.hue) || 0), s0, l0); }
+  const big = cl.filter(c => c.role === 'bg2').sort((a, b) => b.e.w * b.e.h - a.e.w * a.e.h)[0];
+  if (big && big.e.fill && big.e.fill !== 'none' && /^#/.test(big.e.fill)) R.bg = big.e.fill; else if (big && big.e.g) R.bg = big.e.g.c1;
+  const pick = (role, f) => { const x = cl.find(c => c.role === role); return x ? f(x.e) : null; };
+  R.title = pick('title', textColor) || '#d4af37'; R.text = pick('text', textColor) || (lum(R.bg) > 0.4 ? '#222222' : '#ffffff');
+  R.accent = pick('accent', e => e.type === 'line' ? (e.stroke || '#d4af37') : (e.fill && e.fill !== 'none' ? e.fill : (e.grad ? '#d4af37' : '#d4af37'))) || R.title;
+  R.shape = pick('shape', e => e.fill && e.fill !== 'none' ? e.fill : '#d4af37') || R.accent;
+  const so = cl.find(c => c.e.type === 'text' && c.e.st && c.e.st.stroke); R.outline = so ? so.e.st.stroke.c : (lum(R.bg) > 0.4 ? '#1a1a1a' : '#000000');
+  Object.keys(R).forEach(k => { if (!/^#[0-9a-f]{3,8}$/i.test(R[k])) R[k] = '#d4af37'; });
+  return R;
+};
+/* ---- palette generation ---- */
+function fromScheme(name, bgH, bgS, bgL, accH, opt) {
+  opt = opt || {}; const bg = hsl(bgH, bgS, bgL), dark = lum(bg) < 0.35;
+  const title = fixC(hsl(accH, opt.ts != null ? opt.ts : 0.75, dark ? 0.62 : 0.38), bg, 3);
+  const text = fixC(dark ? hsl(bgH, 0.15, 0.95) : hsl(bgH, 0.3, 0.14), bg, 4.5);
+  const accent = hsl(opt.acc2 != null ? opt.acc2 : accH, 0.7, dark ? 0.55 : 0.45);
+  const shape = hsl(opt.sh != null ? opt.sh : accH, 0.7, dark ? 0.45 : 0.4);
+  const outline = dark ? hsl(bgH, bgS, Math.max(0.04, bgL - 0.15)) : hsl(accH, 0.5, 0.18);
+  return { name, roles: { bg, title, text, accent, shape, outline } };
+}
+const MOURIDE = [
+  { name: 'Mouride verde / oro', roles: { bg: '#0d5c2e', title: '#f0c64a', text: '#ffffff', accent: '#d4af37', shape: '#d4af37', outline: '#04220f' } },
+  { name: 'Bianco / verde', roles: { bg: '#ffffff', title: '#0d6b34', text: '#1b3a26', accent: '#1a8a46', shape: '#0d6b34', outline: '#d4af37' } },
+  { name: 'Marrone / oro', roles: { bg: '#3d2414', title: '#f2cf6b', text: '#fbeed6', accent: '#d4af37', shape: '#8a5a2b', outline: '#1e1008' } },
+  { name: 'Blu / oro', roles: { bg: '#0b1f4a', title: '#f0c64a', text: '#ffffff', accent: '#d4af37', shape: '#1e88e5', outline: '#050f26' } },
+  { name: 'Nero / oro', roles: { bg: '#0a0a0a', title: '#e8c35a', text: '#f5f0e0', accent: '#d4af37', shape: '#d4af37', outline: '#000000' } },
+  { name: 'Crema / verde', roles: { bg: '#f7f0dc', title: '#0d5c2e', text: '#2b2b2b', accent: '#b8862b', shape: '#0d5c2e', outline: '#ffffff' } },
+];
+SV.genPalettes = function () {
+  const R = SV.designRoles(); if (!R) return [];
+  const out = [{ name: 'Originale', roles: Object.assign({}, R), orig: true }];
+  const an = SV._lastAnalysis && SV._lastAnalysis.palette;
+  if (an && an.length >= 3) { const p = an.slice().sort((a, b) => lum(a) - lum(b)); const bg = an[0]; out.push({ name: 'Dal volantino analizzato', roles: { bg, title: fixC(an[1] || p[p.length - 1], bg, 3), text: fixC(p[p.length - 1], bg, 4.5), accent: an[2] || an[1], shape: an[3] || an[1], outline: p[0] } }); }
+  const [bh, bs, bl] = HSL(R.bg); let [ah, as] = HSL(R.title); if (as < 0.15) { [ah, as] = HSL(R.accent); } if (as < 0.15) ah = bh + 180;
+  const s = Math.max(0.35, bs);
+  out.push(fromScheme('Accento complementare', bh, s, bl, bh + 180));
+  out.push(fromScheme('Complementare', bh + 180, s, bl, bh));
+  out.push(fromScheme('Analoga', bh + 30, s, bl, bh - 20, { acc2: bh + 60, sh: bh }));
+  out.push(fromScheme('Triadica', bh + 120, s, bl, bh + 240, { acc2: bh, sh: bh }));
+  out.push(fromScheme('Monocromatica', bh, s, bl, bh, { ts: Math.min(0.9, s + 0.2) }));
+  out.push(fromScheme('Chiara', bh, Math.min(0.5, s), 0.95, ah));
+  out.push(fromScheme('Scura', bh, Math.min(0.7, s), 0.1, ah));
+  return out.concat(MOURIDE);
+};
+SV.shufflePalette = function () {
+  const h = Math.random() * 360, rules = [180, 30, 120, 150, 210, 0], r = rules[Math.floor(Math.random() * rules.length)];
+  const dark = Math.random() < 0.6; return fromScheme('Casuale', h, 0.4 + Math.random() * 0.45, dark ? 0.08 + Math.random() * 0.2 : 0.88 + Math.random() * 0.08, h + r, { acc2: h + r + (Math.random() < 0.5 ? 0 : 30) });
+};
+/* ---- apply by role ---- */
+SV.applyPalette = function (P, opt) {
+  const pg = page(); if (!pg) return; const r = P.roles; const all = opt && opt.all;
+  SV.change(() => {
+    (all ? U.proj.pages : [pg]).forEach(pg => {
+      const bg = pg.bg || (pg.bg = {});
+      if (bg.img && U._bgDom && U._bgDom[bg.img]) { const [h0, s0] = HSL(U._bgDom[bg.img]); const [h1, s1] = HSL(r.bg); bg.fx = Object.assign({}, bg.fx || {}); if (s0 > 0.12 && s1 > 0.12) bg.fx.hue = Math.round(((h1 - h0) % 360 + 540) % 360 - 180); else delete bg.fx.hue; if (!bg.fx.hue) delete bg.fx.hue; }
+      let effBg = r.bg; if (bg.img && U._bgDom && U._bgDom[bg.img]) { const [h0, s0, l0] = HSL(U._bgDom[bg.img]); effBg = hsl(h0 + ((bg.fx && bg.fx.hue) || 0), s0, l0); }
+      if (!bg.img) { if (bg.g) bg.g = Object.assign({}, bg.g, { c1: r.bg, c2: hsl(HSL(r.bg)[0], HSL(r.bg)[1], Math.max(0, HSL(r.bg)[2] - 0.12)) }); else bg.color = r.bg; }
+      const cls = classify(pg); const bigs = cls.filter(c => c.role === 'bg2').sort((a, b) => b.e.w * b.e.h - a.e.w * a.e.h); const bigId = bigs[0] && bigs[0].e.id;
+      const under = t => { let best = null; for (const c of cls) { const e = c.e; if (e.type !== 'shape' || e === t || e.fill === 'none') continue; const ix = Math.max(0, Math.min(t.x + t.w, e.x + e.w) - Math.max(t.x, e.x)) * Math.max(0, Math.min(t.y + t.h, e.y + e.h) - Math.max(t.y, e.y)); if (ix > t.w * t.h * 0.5 && pg.els.indexOf(e) < pg.els.indexOf(t)) best = e; } return best; };
+      cls.filter(c => c.e.type !== 'text').concat(cls.filter(c => c.e.type === 'text')).forEach(({ e, role }) => {
+        if (e.type === 'text') {
+          const st = e.st || (e.st = {}); const u = under(e); const ub = u ? (u.fill || effBg) : localBg(pg, e, effBg); const c = fixC(role === 'title' ? r.title : r.text, ub, role === 'title' ? 3 : 4);
+          if (st.color === 'transparent' && st.stroke) st.stroke.c = c; else { st.color = c; delete st.grad; if (st.stroke) st.stroke.c = r.outline; }
+          if (st.extrude) st.extrude.c = r.outline; if (st.hl) st.hl.c = r.shape; if (st.glow) st.glow.c = r.accent;
+          if (st.parts) delete st.parts;
+        } else if (e.type === 'shape') {
+          const c = role === 'bg2' && e.id === bigId ? r.bg : role === 'bg2' ? hsl(HSL(r.bg)[0], HSL(r.bg)[1], Math.min(1, HSL(r.bg)[2] + (lum(r.bg) > 0.4 ? -0.06 : 0.06))) : role === 'shape' ? r.shape : r.accent;
+          if (e.fill !== 'none') { e.fill = c; delete e.grad; delete e.g; } if (e.sw > 0 || e.fill === 'none') e.stroke = role === 'bg2' ? r.accent : (e.fill === 'none' ? r.accent : r.outline);
+        } else if (e.type === 'line') e.stroke = r.accent;
+        else if (e.type === 'icon') { e.fill = r.accent; delete e.grad; }
+      });
+    });
+  });
+  U._palLast = P;
+};
+SV.savePaletteKit = async function (P) {
+  if (!U.kit) await SV.loadKit(); const cs = ROLES.map(([k]) => P.roles[k]);
+  U.kit.palettes = (U.kit.palettes || []).concat([cs]).slice(-12);
+  U.kit.colors = Array.from(new Set(cs.concat(U.kit.colors || []))).slice(0, 12);
+  await SV.saveKit(); SV.toast('Combinazione salvata nel Kit ✓');
+};
+/* ---- panel ---- */
+let cache = null;
+function localBg(pg, e, def) {
+  const id = pg.bg && pg.bg.img, d = id && U._bgPix && U._bgPix[id]; if (!d) return def;
+  const W = U.proj.w, H = U.proj.h; let r = 0, g = 0, b = 0, n = 0;
+  for (let y = Math.max(0, Math.floor(e.y / H * 72)); y <= Math.min(71, Math.floor((e.y + e.h) / H * 72)); y++) for (let x = Math.max(0, Math.floor(e.x / W * 48)); x <= Math.min(47, Math.floor((e.x + e.w) / W * 48)); x++) { const i = (y * 48 + x) * 4; r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+  if (!n) return def; const c = r2h(r / n, g / n, b / n); const hu = (pg.bg.fx && pg.bg.fx.hue) || 0; if (!hu) return c; const [h0, s0, l0] = HSL(c); return hsl(h0 + hu, s0, l0);
+}
+async function bgDom() {
+  const pg = page(); const id = pg && pg.bg && pg.bg.img; if (!id) return; U._bgDom = U._bgDom || {}; if (U._bgDom[id]) return;
+  const im = await SV.loadAsset(id); if (!im) return; const c = document.createElement('canvas'); c.width = 48; c.height = 72; const x = c.getContext('2d'); x.drawImage(im, 0, 0, 48, 72);
+  const d = x.getImageData(0, 0, 48, 72).data, bins = {};
+  for (let i = 0; i < d.length; i += 4) { const [h, s, l] = r2hsl([d[i], d[i + 1], d[i + 2]]); const k = s < 0.15 ? 'g' + Math.round(l * 4) : Math.round(h / 20) + ':' + Math.round(l * 3); const B = bins[k] = bins[k] || { w: 0, c: 0, r: 0, g: 0, b: 0 }; B.w += s < 0.15 ? 0.4 : 1; B.c++; B.r += d[i]; B.g += d[i + 1]; B.b += d[i + 2]; }
+  const top = Object.values(bins).sort((a, b) => b.w - a.w)[0];
+  U._bgPix = U._bgPix || {}; U._bgPix[id] = d;
+  U._bgDom[id] = top ? r2h(top.r / top.c, top.g / top.c, top.b / top.c) : '#ffffff';
+  if (U.panel === 'combo') SV.refreshPanel(true);
+}
+SV.P.combo_after = () => { bgDom(); };
+const row = (P, i) => `<div class="cp-row" data-a="palApply" data-i="${i}"><div class="cp-sw">${ROLES.map(([k, l]) => `<span style="background:${P.roles[k]}" title="${l}: ${P.roles[k]}"></span>`).join('')}</div><div class="cp-nm">${esc(P.name)}${P.orig ? ' <small>(attuale)</small>' : ''}</div><button class="cp-sv" data-a="palKit" data-i="${i}" title="Salva nel Kit">★</button></div>`;
+SV.P.combo = function () {
+  cache = SV.genPalettes(); if (U._palShuffle) cache.splice(1, 0, U._palShuffle);
+  const kitP = ((U.kit && U.kit.palettes) || []).filter(p => p.length >= 6).map((cs, i) => ({ name: 'Kit ' + (i + 1), roles: Object.fromEntries(ROLES.map(([k], j) => [k, cs[j]])) }));
+  const base = cache.length; cache = cache.concat(kitP);
+  return `<div class="cp-head"><button class="sv-btn gold" data-a="palShuffle">🔀 Mescola</button><button class="sv-btn" data-a="undo">↶ Annulla</button></div>
+  <div class="cp-leg">${ROLES.map(([k, l]) => `<span>${l}</span>`).join('')}</div>
+  <label class="cp-all"><input type="checkbox" id="cpAll" ${U._palAll ? 'checked' : ''}> Applica a tutte le pagine</label>
+  <div class="sv-lbl">Suggerite</div>${cache.slice(0, base).map(row).join('')}
+  ${kitP.length ? `<div class="sv-lbl">Dal Kit</div>${kitP.map((P, j) => row(P, base + j)).join('')}` : ''}
+  <p class="cp-tip">Tocca una riga per ricolorare tutto il design (sfondo, titoli, testi, accenti, forme, contorni). ↶ per tornare indietro.</p>`;
+};
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-a^="pal"]'); if (!b || !document.getElementById('svPanelBody') || !document.getElementById('svPanelBody').contains(b)) return;
+  e.stopPropagation(); e.preventDefault();
+  const a = b.dataset.a, all = !!(document.getElementById('cpAll') || {}).checked; U._palAll = all;
+  if (a === 'palKit') { const P = cache && cache[+b.dataset.i]; if (P) SV.savePaletteKit(P); return; }
+  if (a === 'palApply') { const P = cache && cache[+b.dataset.i]; if (!P) return; SV.applyPalette(P, { all }); SV.refreshPanel(true); document.querySelectorAll('.cp-row').forEach(r => r.classList.toggle('on', r.dataset.i === b.dataset.i && !P.orig)); return; }
+  if (a === 'palShuffle') { U._palShuffle = SV.shufflePalette(); SV.applyPalette(U._palShuffle, { all }); SV.refreshPanel(true); const r = document.querySelector('.cp-row[data-i="1"]'); if (r) r.classList.add('on'); }
+}, true);
 })();
 
 window.SV.init();
