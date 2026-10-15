@@ -6806,7 +6806,7 @@ function storedImage(key, onload) {
 
 /* ---------- Fonts (curated Google Fonts, lazy-loaded) ---------- */
 const FONT_LIST = [
-  ['Montserrat', 'wght@400;700;900', 'Sans'], ['Poppins', 'wght@400;700;900', 'Sans'], ['Nunito Sans', 'wght@400;700;900', 'Sans'],
+  ['Montserrat', 'wght@400;500;600;700;900', 'Sans'], ['Poppins', 'wght@400;500;600;700;900', 'Sans'], ['Nunito Sans', 'wght@400;700;900', 'Sans'],
   ['Lato', 'wght@400;700;900', 'Sans'], ['Raleway', 'wght@400;700;900', 'Sans'],
   ['Bebas Neue', '', 'Display'], ['Anton', '', 'Display'], ['Oswald', 'wght@400;700', 'Display'], ['Alfa Slab One', '', 'Display'],
   ['Abril Fatface', '', 'Display'], ['Righteous', '', 'Display'],
@@ -11070,7 +11070,7 @@ const EXTRA_FONTS = [
   ['Harmattan', 'wght@400;700', 'Arabo'], ['Readex Pro', 'wght@400;700', 'Arabo'], ['Rakkas', '', 'Arabo'], ['Katibeh', '', 'Arabo'], ['Lalezar', '', 'Arabo'], ['Mirza', 'wght@400;700', 'Arabo'],
   ['Cormorant Garamond', 'wght@400;700', 'Serif'], ['Abril Fatface', '', 'Display'], ['Righteous', '', 'Display'], ['Bungee', '', 'Display'], ['Josefin Sans', 'wght@400;700', 'Sans'],
   ['Rubik', 'wght@400;700;900', 'Sans'], ['Lobster', '', 'Script'], ['Satisfy', '', 'Script'], ['Yellowtail', '', 'Script'], ['Marcellus', '', 'Serif'], ['Philosopher', 'wght@400;700', 'Sans'],
-  ['Yeseva One', '', 'Display'], ['Berkshire Swash', '', 'Display'], ['Lobster Two', 'wght@400;700', 'Script'], ['Kaushan Script', '', 'Script'],
+  ['Yeseva One', '', 'Display'], ['Berkshire Swash', '', 'Display'], ['Lobster Two', 'wght@400;700', 'Script'], ['Kaushan Script', '', 'Script'], ['Playball', '', 'Script'], ['Grand Hotel', '', 'Script'], ['Rye', '', 'Display'], ['Sancreek', '', 'Display'], ['Bevan', '', 'Display'], ['Ultra', '', 'Display'], ['Chango', '', 'Display'], ['Oleo Script', 'wght@400;700', 'Script'], ['Leckerli One', '', 'Script'], ['Courgette', '', 'Script'], ['Merienda', 'wght@400;800', 'Script'], ['Fugaz One', '', 'Display'],
 ];
 try { TEXT_PRESETS.push(
   { n: 'Ruqaa dorato', s: 'مرحبا', st: { font: 'Aref Ruqaa', size: 140, bold: true, grad: 'gold', shadow: { b: 14, x: 2, y: 5, c: 'rgba(0,0,0,0.5)' } } },
@@ -14723,7 +14723,7 @@ function palette({ data, w, h }) {
   const step = Math.max(1, Math.floor(Math.sqrt(w * h / 6000))), px = []; for (let y = 0; y < h; y += step) for (let x = 0; x < w; x += step) { const i = (y * w + x) * 4; px.push(data[i], data[i + 1], data[i + 2]); }
   const k = kmeans(new Float32Array(px), px.length / 3, 8, 10); return { cs: k.cs, cnt: k.cnt };
 }
-const CMDS = { ink, inpaint, segment, palette, label: a => label(a.mask, a.w, a.h), dilate: a => ({ mask: dilate(a.mask, a.w, a.h, a.r) }) };
+const CMDS = { ink, inpaint, segment, palette, label: a => label(a.mask, a.w, a.h), dilate: a => ({ mask: dilate(a.mask, a.w, a.h, a.r) }), close: a => ({ mask: erode(dilate(a.mask, a.w, a.h, a.r), a.w, a.h, a.r) }) };
 self.onmessage = e => { const { id, cmd, a } = e.data; try { const r = CMDS[cmd](a); const tr = []; const walk = o => { if (!o || typeof o !== 'object') return; if (ArrayBuffer.isView(o)) { if (!tr.includes(o.buffer)) tr.push(o.buffer); return; } Object.values(o).forEach(walk); }; walk(r); self.postMessage({ id, r }, tr); } catch (err) { self.postMessage({ id, err: String(err && err.message || err) }); } };
 }.toString();
 
@@ -14776,9 +14776,13 @@ const thumb = (cv, max) => { const k = Math.min(1, (max || 96) / Math.max(cv.wid
 const isAr = s => /[\u0600-\u06FF]/.test(s);
 
 /* ---- font matching ---- */
-const LAT_FONTS = [['Montserrat', 900], ['Montserrat', 700], ['Montserrat', 500], ['Poppins', 600], ['Anton', 400], ['Bebas Neue', 400], ['Oswald', 700], ['Playfair Display', 700], ['Playfair Display', 400], ['Cinzel', 700], ['Lobster', 400], ['Pacifico', 400], ['Great Vibes', 400], ['Abril Fatface', 400], ['Dancing Script', 700], ['Lato', 400], ['Righteous', 400], ['Alfa Slab One', 400], ['Lilita One', 400], ['Baloo 2', 800], ['Titan One', 400], ['Bowlby One', 400], ['Fredoka', 700], ['Yeseva One', 400], ['Berkshire Swash', 400], ['Bodoni Moda', 900], ['Archivo Black', 400], ['Rubik', 900], ['Lobster Two', 700], ['Kaushan Script', 400], ['Cookie', 400], ['Satisfy', 400], ['Teko', 700], ['Bungee', 400]];
+const LAT_FONTS = [['Montserrat', 900], ['Montserrat', 700], ['Montserrat', 500], ['Montserrat', 400], ['Poppins', 400], ['Poppins', 500], ['Poppins', 600], ['Anton', 400], ['Bebas Neue', 400], ['Oswald', 700], ['Playfair Display', 700], ['Playfair Display', 400], ['Cinzel', 700], ['Lobster', 400], ['Pacifico', 400], ['Great Vibes', 400], ['Abril Fatface', 400], ['Dancing Script', 700], ['Lato', 400], ['Righteous', 400], ['Alfa Slab One', 400], ['Lilita One', 400], ['Baloo 2', 800], ['Titan One', 400], ['Bowlby One', 400], ['Fredoka', 700], ['Yeseva One', 400], ['Berkshire Swash', 400], ['Bodoni Moda', 900], ['Archivo Black', 400], ['Rubik', 900], ['Lobster Two', 700], ['Kaushan Script', 400], ['Cookie', 400], ['Satisfy', 400], ['Teko', 700], ['Bungee', 400], ['Playball', 400], ['Grand Hotel', 400], ['Dancing Script', 700], ['Abril Fatface', 400], ['Rye', 400], ['Sancreek', 400], ['Bevan', 400], ['Ultra', 400], ['Chango', 400], ['Oleo Script', 700], ['Leckerli One', 400], ['Courgette', 400], ['Merienda', 800], ['Fugaz One', 400]];
 const AR_FONTS = [['Amiri', 700], ['Aref Ruqaa', 700], ['Reem Kufi', 700], ['Cairo', 700], ['Lateef', 700], ['Lalezar', 400], ['Scheherazade New', 700]];
 async function ensureFont(f) { try { if (typeof loadFontFamily === 'function') await loadFontFamily(f); await document.fonts.load(`700 40px "${f}"`); } catch (e) {} }
+function slantOf(a, w, h) { let bk = 0, bs = -1; const col = new Float32Array(w * 2 + 4);
+  for (let k = -0.5; k <= 0.501; k += 0.05) { col.fill(0); for (let y = 0; y < h; y++) { const off = Math.round(k * (y - h / 2)) + Math.round(w / 2); for (let x = 0; x < w; x++) { const v = a[y * w + x]; if (v) { const X = x + off; if (X >= 0 && X < col.length) col[X] += v; } } }
+    let ss = 0; for (let i = 0; i < col.length; i++) ss += col[i] * col[i]; if (ss > bs) { bs = ss; bk = k; } }
+  return bk; }
 function blurF(a, w, h, r) { const t = new Float32Array(w * h), o = new Float32Array(w * h);
   for (let y = 0; y < h; y++) { let acc = 0; for (let x = -r; x < w + r; x++) { if (x + r < w && x + r >= 0) acc += a[y * w + x + r]; if (x - r - 1 >= 0 && x - r - 1 < w) acc -= a[y * w + x - r - 1]; if (x >= 0 && x < w) t[y * w + x] = acc / (2 * r + 1); } }
   for (let x = 0; x < w; x++) { let acc = 0; for (let y = -r; y < h + r; y++) { if (y + r < h && y + r >= 0) acc += t[(y + r) * w + x]; if (y - r - 1 >= 0 && y - r - 1 < h) acc -= t[(y - r - 1) * w + x]; if (y >= 0 && y < h) o[y * w + x] = acc / (2 * r + 1); } }
@@ -14795,7 +14799,7 @@ async function matchFont(text, maskInfo, big) {
   let X0 = tw, Y0 = th, X1 = 0, Y1 = 0; for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) if (tgt[y * tw + x]) { if (x < X0) X0 = x; if (x > X1) X1 = x; if (y < Y0) Y0 = y; if (y > Y1) Y1 = y; }
   if (X1 <= X0 || Y1 <= Y0) return { font: ar ? 'Amiri' : 'Montserrat', weight: 700, score: 0 };
   const c = mk(tw, th), x = c.getContext('2d', { willReadFrequently: true });
-  const tb = blurF(Float32Array.from(tgt), tw, th, 3);
+  const tb = blurF(Float32Array.from(tgt), tw, th, 3); const tSlant = slantOf(tgt, tw, th);
   let best = null; const all = [];
   for (const [f, wt] of cands) {
     x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, tw, th); x.font = `${wt} 100px "${f}"`; x.direction = ar ? 'rtl' : 'ltr';
@@ -14807,7 +14811,8 @@ async function matchFont(text, maskInfo, big) {
     for (let i = 0; i < tw * th; i++) { const a = d[i * 4 + 3] > 100 ? 1 : 0, b = tgt[i]; ra[i] = d[i * 4 + 3] / 255; if (a && b) inter++; if (a || b) uni++; }
     const ba = blurF(ra, tw, th, 3); let sm = 0, sM = 0; for (let i = 0; i < tw * th; i++) { sm += Math.min(ba[i], tb[i]); sM += Math.max(ba[i], tb[i]); }
     const iou = inter / Math.max(1, uni), soft = sm / Math.max(1e-6, sM), distort = Math.abs(Math.log(sx / sy));
-    const score = iou * 0.4 + soft * 0.6 - distort * 0.12;
+    const sl = big ? Math.abs(slantOf(ra, tw, th) - tSlant) : 0;
+    const score = iou * 0.4 + soft * 0.6 - distort * 0.12 - sl * 0.5;
     const cand = { font: f, weight: wt, score, iou, sizeK: sy * 100 / S, widthK: sx / sy, glyphH: gh / 100 }; all.push(cand);
     if (!best || score > best.score) best = Object.assign({}, cand);
   }
@@ -14840,7 +14845,7 @@ async function paddleLines(cv) {
     const letters = text.replace(/[^\p{L}\p{N}]/gu, '').length;
     if (letters < 2 || conf < 60) continue;
     if (!isA && letters <= 4 && /^[\d\s.:]+$/.test(text) && conf < 90) continue;
-    out.push({ text, confidence: conf, bbox: { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1 }, ar: isA, paddle: true, detScore: b.score });
+    out.push({ text, confidence: conf, bbox: { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1 }, ar: isA, paddle: true, detScore: b.score, detFill: b.fill });
   }
   if (window.__anDebug) console.log('[paddle] det ' + boxes.length + ' kept ' + out.length + ' :: ' + out.map(l => l.text + '@' + Math.round(l.confidence)).join(' | '));
   return out;
@@ -14996,6 +15001,7 @@ SV.analyzeFlyer2 = async function (file, opts) {
   R.bigDet = [];
   if (!opts.noPaddle) { prog('Riconoscimento avanzato del testo (AI)…'); let P = null; try { P = await paddleLines(cv); } catch (e) { if (CANCEL) { done(); throw e; } console.warn('paddle', e); }
     if (P && P.length) { R.paddle = true; const iou2 = (a, b) => { const ix = Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)), iy = Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0)); return ix * iy / Math.max(1, Math.min((a.x1 - a.x0) * (a.y1 - a.y0), (b.x1 - b.x0) * (b.y1 - b.y0))); };
+      const curved = l => !l.ar && l.detFill && l.detFill < 0.5 && l.text.replace(/[^\p{L}\p{N}]/gu, '').length <= 12; P = P.filter(l => !(curved(l) && l.bbox.y1 - l.bbox.y0 > h * 0.035));
       const small = P.filter(l => l.bbox.y1 - l.bbox.y0 <= h * 0.035); R.bigDet = P.filter(l => l.bbox.y1 - l.bbox.y0 > h * 0.035);
       const extra = O.lines.filter(t => !P.some(l => iou2(l.bbox, t.bbox) > 0.3) && (t.confidence >= 85 || t.ar) && t.bbox.y1 - t.bbox.y0 <= h * 0.035);
       O.lines = small.concat(extra); } }
@@ -15014,7 +15020,12 @@ SV.analyzeFlyer2 = async function (file, opts) {
   }
   // remove OCR lines that are inside people (false positives on clothes)
   let lines = O.lines.filter(l => { if (!person || l.paddle && l.confidence >= 85 && l.text.replace(/[^\p{L}]/gu, '').length >= 4) return true; let n = 0, t = 0; for (let y = Math.round(l.bbox.y0); y < l.bbox.y1; y += 2) for (let x = Math.round(l.bbox.x0); x < l.bbox.x1; x += 2) { t++; if (person[y * w + x]) n++; } return n / Math.max(1, t) < 0.6; });
+  // fill small enclosed holes of the people mask (icons / details inside a cut-out panel would otherwise be torn apart); text lines keep their own layers
+  if (person) { const inv = new Uint8Array(A); for (let i = 0; i < A; i++) inv[i] = person[i] ? 0 : 1; const H = await wcall('label', { mask: inv, w, h });
+    const fillIds = new Set(H.comps.filter(c => c.n < A * 0.006 && c.x0 > 0 && c.y0 > 0 && c.x1 < w - 1 && c.y1 < h - 1 && !lines.some(l => c.x0 >= l.bbox.x0 - 2 && c.x1 <= l.bbox.x1 + 2 && c.y0 >= l.bbox.y0 - 2 && c.y1 <= l.bbox.y1 + 2)).map(c => c.id));
+    if (fillIds.size) for (let i = 0; i < A; i++) if (fillIds.has(H.lab[i])) person[i] = 1; }
   let ink, noText0, excl, seg, comps, bands, gap, boxes;
+  if (window.__anDebug) console.log('[lines] ' + lines.map(l => l.text + '@' + Math.round(l.confidence) + (l.paddle ? 'P' : 'T') + '[' + [l.bbox.x0, l.bbox.y0, l.bbox.x1, l.bbox.y1].map(Math.round) + ']').join(' | '));
   for (let pass = 0; pass < 2; pass++) {
   // 3. text ink (global lines)
   prog('Analizzo stile dei testi…');
@@ -15146,12 +15157,20 @@ SV.analyzeFlyer2 = async function (file, opts) {
         if (isAr(l.text) && !l.big && o > la * 0.6 && la < ca * 0.3 && c.x1 - c.x0 > (b.x1 - b.x0) * 1.6) { G = L; break; }
         if (L.logoLike && o > la * 0.7 && la < ca * 0.5 && !/^\d/.test(letters) && letters.length <= 14) { G = L; break; }
         if (edge && letters.length <= 6 && o > la * 0.3 && (c.x1 - c.x0) < w * 0.3) { G = L; break; } }
+      if (!G && l.detFill && l.detFill < 0.5 && letters.length <= 12 && !l.big) G = gr.find(L => ov(b, L.c) > la * 0.7) || { c: { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1 }, cm: new Uint8Array(A), none: true }; // curved text (round logos)
       if (!G) return; l.absorbed = true; ch = true; if (window.__anDebug) console.log('[absorb] ' + l.text);
       for (let y = 0; y < I.bh; y++) for (let x = 0; x < I.bw; x++) { const X = x + I.x0, Y = y + I.y0; if (X < 0 || Y < 0 || X >= w || Y >= h) continue; const q = Y * w + X;
         if (I.mask[y * I.bw + x] || (X >= b.x0 - 1 && X <= b.x1 + 1 && Y >= b.y0 - 1 && Y <= b.y1 + 1)) { const k = q * 4; nd.data[k] = od[k]; nd.data[k + 1] = od[k + 1]; nd.data[k + 2] = od[k + 2]; if (I.mask[y * I.bw + x] || G.cm[q]) G.cm[q] = 1; } }
       const c = G.c; c.x0 = Math.min(c.x0, b.x0); c.y0 = Math.min(c.y0, b.y0); c.x1 = Math.max(c.x1, b.x1); c.y1 = Math.max(c.y1, b.y1);
       if (edge && G.c.x1 - G.c.x0 < w * 0.3) { for (let y = b.y0; y <= b.y1; y++) for (let x = b.x0; x <= b.x1; x++) G.cm[y * w + x] = 1; G.badge = true; } });
     if (ch) nctx.putImageData(nd, 0, 0); }
+  // giant graphic components interleaved with the people cut-out (panels, icons): give the shared fringe to the people layer so small details stay whole
+  if (person) { const pd = (await wcall('dilate', { mask: person, w, h, r: 6 })).mask; let moved = 0; const mv = new Uint8Array(A);
+    for (const G of compLayers.filter(L => L.cm && L.kind !== 'absorbed' && (L.c.x1 - L.c.x0) * (L.c.y1 - L.c.y0) > A * 0.25)) for (let i = 0; i < A; i++) if (G.cm[i] && pd[i]) { G.cm[i] = 0; person[i] = 1; moved++; mv[i] = 1; }
+    if (moved) { const cl = (await wcall('close', { mask: person.slice(), w, h, r: 3 })).mask, md = (await wcall('dilate', { mask: mv.slice(), w, h, r: 5 })).mask; for (let i = 0; i < A; i++) if (cl[i] && md[i] && !person[i]) { person[i] = 1; mv[i] = 1; } }
+    if (moved) { for (const L of compLayers) if (L.cm) for (let i = 0; i < A; i++) if (mv[i]) L.cm[i] = 0; for (const sb of stBoxes) if (sb.part) for (let i = 0; i < A; i++) if (mv[i]) sb.part[i] = 0; }
+    if (moved) { const inv = new Uint8Array(A); for (let i = 0; i < A; i++) inv[i] = person[i] ? 0 : 1; const H = await wcall('label', { mask: inv, w, h }); const ids = new Set(H.comps.filter(c => c.n < A * 0.004 && c.x0 > 0 && c.y0 > 0 && c.x1 < w - 1 && c.y1 < h - 1).map(c => c.id)); for (let i = 0; i < A; i++) if (ids.has(H.lab[i]) && !compLayers.some(L => L.kind !== 'graphic' && L.cm && L.cm[i])) person[i] = 1;
+      const b = R.personBox; for (let i = 0; i < A; i++) if (person[i]) { const x = i % w, y = (i / w) | 0; if (x < b.x0) b.x0 = x; if (x > b.x1) b.x1 = x; if (y < b.y0) b.y0 = y; if (y > b.y1) b.y1 = y; } } }
   // 6. build layer list
   let n = 0; const addL = o => { o.id = 'L' + (++n); o.on = o.on !== false; R.layers.push(o); return o; };
   if (person) {
@@ -15183,6 +15202,20 @@ SV.analyzeFlyer2 = async function (file, opts) {
       if (best && best.conf >= Math.max(70, (T.conf || 0) - 5)) { T.paddle = best.t; T.text = best.t; T.conf = best.conf; if (best.conf >= 80) T.guess = false; }
     }
   }
+  // multi-line Arabic blocks (calligraphy read as one box): split at the row gap and read each line separately
+  if (SV.paddleRec && !opts.noPaddle) { let okA = false; try { okA = await SV.paddleAvailable('arabic'); } catch (e) {}
+    if (okA) for (let i = textItems.length - 1; i >= 0; i--) { const T = textItems[i], I = T.ink; if (!I || !I.mask || !isAr(T.text)) continue; const b = T.bbox, bh = b.y1 - b.y0; if (bh < h * 0.05 || (b.x1 - b.x0) < bh * 1.8) continue;
+      const rows = new Array(I.bh).fill(0); for (let y = 0; y < I.bh; y++) for (let x = 0; x < I.bw; x++) if (I.mask[y * I.bw + x]) rows[y]++;
+      const r0 = Math.max(0, b.y0 - I.y0), r1 = Math.min(I.bh - 1, b.y1 - I.y0); const mx = Math.max(...rows.slice(r0, r1 + 1)); const sm = y => (rows[y - 1] || 0) + rows[y] + (rows[y + 1] || 0);
+      let cut = -1, cv0 = 1e9; for (let y = r0 + Math.round((r1 - r0) * 0.3); y <= r0 + Math.round((r1 - r0) * 0.7); y++) { const v = sm(y); if (v < cv0) { cv0 = v; cut = y; } }
+      if (cut < 0 || cv0 / 3 > mx * 0.25) continue; const cy = cut + I.y0; const parts = [];
+      for (const [ya, yb] of [[b.y0, cy], [cy, b.y1]]) { const pad = Math.round((yb - ya) * 0.1), x0 = Math.max(0, b.x0 - pad), y0 = Math.max(0, ya - pad), x1 = Math.min(w - 1, b.x1 + pad), y1 = Math.min(h - 1, yb + pad);
+        let r = null; try { r = await SV.paddleRec(cropCanvas(cv, x0, y0, x1 - x0 + 1, y1 - y0 + 1), 'arabic'); } catch (e) { if (CANCEL) throw e; }
+        if (!r) { parts.length = 0; break; } const t = [...r.text].reverse().join('').replace(/\s+/g, ' ').trim(); if ((t.match(/[\u0600-\u06FF]/g) || []).length < 3) { parts.length = 0; break; }
+        const sy0 = Math.max(0, ya - I.y0), sy1 = Math.min(I.bh, yb - I.y0); const sub = Object.assign({}, I, { y0: I.y0 + sy0, bh: sy1 - sy0, mask: I.mask.slice(sy0 * I.bw, sy1 * I.bw), dbg: null });
+        let part = null; if (T.part) { part = new Uint8Array(A); for (let y = ya; y < yb; y++) for (let x = Math.max(0, b.x0 - 4); x <= Math.min(w - 1, b.x1 + 4); x++) if (T.part[y * w + x]) part[y * w + x] = 1; }
+        parts.push(Object.assign({}, T, { text: t, conf: Math.round(r.conf), bbox: { x0: b.x0, y0: ya, x1: b.x1, y1: yb }, ink: sub, part, guess: r.conf < 85, paddle: t })); await yieldUI(); }
+      if (parts.length === 2) { if (window.__anDebug) console.log('[arsplit] ' + parts.map(p => p.text + '@' + p.conf).join(' | ')); textItems.splice(i, 1, ...parts); } } }
   textItems.forEach(T => { if (!isAr(T.text)) { const f = fixWords(T.text); if (f !== T.text) { T.text = f; T.fixed = true; if (f.split(/\s+/).every(x => DICT.some(d => d.toLowerCase() === x.toLowerCase()))) { T.guess = false; T.conf = Math.max(T.conf, 80); } } } });
   // drop plain lines that sit inside a stylised text block (fragments of the same calligraphy / title)
   for (let i = textItems.length - 1; i >= 0; i--) { const T = textItems[i]; if (T.styl) continue; const b = T.bbox, a = (b.x1 - b.x0) * (b.y1 - b.y0);
@@ -15246,7 +15279,7 @@ SV.analyzeFlyer2 = async function (file, opts) {
     if (I.extrude && bigT) { const d = Math.round(Math.hypot(I.extrude.dx, I.extrude.dy)); if (d >= 2 && d <= gH * 0.09) st.extrude = { d, c: hex(I.extrude.c) }; }
     else if (bigT) { const lum = (I.fill[0] * 299 + I.fill[1] * 587 + I.fill[2] * 114) / 1000, rl = (I.ring[0] * 299 + I.ring[1] * 587 + I.ring[2] * 114) / 1000; if (Math.abs(lum - rl) < 60) st.shadow = { c: 'rgba(0,0,0,0.45)', b: Math.round(gH * 0.15), x: 0, y: Math.round(gH * 0.05) }; }
     const backdrop = T.styl && Im.back > 0.8; // text printed on a sticker / splash: keep the backdrop in the background, erase only the letters
-    if (backdrop) { delete st.stroke; delete st.extrude; delete st.shadow; if (T.comp) T.comp.backdrop = true; }
+    if (backdrop) { const sc = I.stroke && I.stroke.c; delete st.stroke; delete st.extrude; delete st.shadow; if (T.comp) T.comp.backdrop = true; if (sc) st.stroke = { c: hex(sc), w: Math.max(2, Math.round(gH * 0.06)) }; } // outline in the sticker colour: edited words keep the sticker look
     // per-text original cut-out (for "Originale" layer / image mode)
     const pad = 3, bx = Math.max(0, T.bbox.x0 - pad), by = Math.max(0, T.bbox.y0 - pad), bw2 = Math.min(w - 1, T.bbox.x1 + pad) - bx + 1, bh2 = Math.min(h - 1, T.bbox.y1 + pad) - by + 1;
     const tm = new Uint8Array(A); for (let y = 0; y < I.bh; y++) for (let x = 0; x < I.bw; x++) if (I.mask[y * I.bw + x]) tm[(y + I.y0) * w + x + I.x0] = 1;
@@ -15258,14 +15291,14 @@ SV.analyzeFlyer2 = async function (file, opts) {
     T._L = addL({ kind: 'text', name: T.styl ? 'Titolo' : 'Testo', text: T.text, conf: T.conf, bbox: T.bbox, st, mask: mm, cv: ocv, thumb: thumb(ocv, 160), mode: ((T.styl || T.big) && (T.guess || T.conf < 75 || isAr(T.text))) ? 'image' : 'text', styl: T.styl, fm, ar: isAr(T.text), guess: T.guess, backdrop });
   }
   // stylised lines of the same title block share one font (best summed match)
-  { const S = textItems.filter(T => T._L && T._L.fm && T._L.fm.all && !isAr(T.text) && (T.styl || T.big)), par = S.map((_, i) => i), fd = i => par[i] === i ? i : (par[i] = fd(par[i]));
+  { const S = textItems.filter(T => T._L && T._L.fm && T._L.fm.all && (T.styl || T.big)), par = S.map((_, i) => i), fd = i => par[i] === i ? i : (par[i] = fd(par[i]));
     const hx = c => [1, 3, 5].map(k => parseInt(c.slice(k, k + 2), 16));
     for (let i = 0; i < S.length; i++) for (let j = i + 1; j < S.length; j++) { const a = S[i]._L, b = S[j]._L, A0 = a.bbox, B0 = b.bbox, ha = A0.y1 - A0.y0, hb = B0.y1 - B0.y0;
       const ca = hx(a.st.color), cb = hx(b.st.color), cd = Math.abs(ca[0] - cb[0]) + Math.abs(ca[1] - cb[1]) + Math.abs(ca[2] - cb[2]);
       const gap = Math.max(A0.y0, B0.y0) - Math.min(A0.y1, B0.y1), ix = Math.min(A0.x1, B0.x1) - Math.max(A0.x0, B0.x0);
-      if ((cd < 90 && gap < Math.min(ha, hb) * 0.5 && ix > Math.min(A0.x1 - A0.x0, B0.x1 - B0.x0) * 0.4 && Math.max(ha, hb) < Math.min(ha, hb) * 1.8)) par[fd(i)] = fd(j); }
+      if (isAr(S[i].text) === isAr(S[j].text) && (cd < 90 && gap < Math.min(ha, hb) * 0.5 && ix > Math.min(A0.x1 - A0.x0, B0.x1 - B0.x0) * 0.4 && Math.max(ha, hb) < Math.min(ha, hb) * 1.8)) par[fd(i)] = fd(j); }
     const groups = new Map(); S.forEach((T, i) => { const r = fd(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(T); });
-    for (const G of groups.values()) { if (G.length < 2) continue; if (window.__anDebug) G.forEach(T => console.log('[font] ' + T.text + ' ' + T._L.fm.all.slice().sort((a, b) => b.score - a.score).slice(0, 6).map(c => c.font + c.weight + ':' + c.score.toFixed(3) + '/' + c.iou.toFixed(2)).join(' '))); const sum = new Map(); G.forEach(T => T._L.fm.all.forEach(c => { const k = c.font + '|' + c.weight; sum.set(k, (sum.get(k) || 0) + c.score); }));
+    for (const G of groups.values()) { if (G.length < 2) continue; { const sr = G.find(T => T._L.backdrop && T._L.st.stroke); if (sr) G.forEach(T => { if (T._L.backdrop && !T._L.st.stroke) T._L.st.stroke = { c: sr._L.st.stroke.c, w: Math.max(2, Math.round((T._L.bbox.y1 - T._L.bbox.y0) * 0.06)) }; }); } if (window.__anDebug) G.forEach(T => console.log('[font] ' + T.text + ' ' + T._L.fm.all.slice().sort((a, b) => b.score - a.score).slice(0, 6).map(c => c.font + c.weight + ':' + c.score.toFixed(3) + '/' + c.iou.toFixed(2)).join(' '))); const sum = new Map(); G.forEach(T => T._L.fm.all.forEach(c => { const k = c.font + '|' + c.weight; sum.set(k, (sum.get(k) || 0) + c.score); }));
       const bestK = [...sum.entries()].sort((a, b) => b[1] - a[1])[0][0];
       G.forEach(T => { const L = T._L, c = L.fm.all.find(c => c.font + '|' + c.weight === bestK); if (!c || L.st.font + '|' + L.st.weight === bestK) return; const gH = L.bbox.y1 - L.bbox.y0;
         L.st.font = c.font; L.st.weight = c.weight; L.st.bold = c.weight >= 600; L.st.size = gH / c.glyphH; if (Math.abs(c.widthK - 1) > 0.06) L.st.lsFit = c.widthK; else delete L.st.lsFit; L.fm = Object.assign({}, L.fm, c); }); } }
@@ -15287,10 +15320,15 @@ SV.composeAnalyzed = async function (R, opt) {
   const on = R.layers.filter(L => L.on);
   // background mask: all extracted layers that are "on" (text in text-mode or image-mode both removed from bg)
   const bm = new Uint8Array(A);
-  for (const L of on) { if (L.kind === 'orig' && !L.bgMask) continue; if (L.kind === 'people' && L.asFrame === 'keep') continue; let m = L.mask; if (((L.kind === 'text' && L.styl && L.mode === 'text') || L.kind === 'orig') && !L.backdrop) { if (!L._mD) L._mD = (await wcall('dilate', { mask: m.slice(), w: R.w, h: R.h, r: Math.max(3, Math.round((L.bbox.y1 - L.bbox.y0) * 0.05)) })).mask; m = L._mD; } for (let i = 0; i < A; i++) if (m[i]) bm[i] = 1; }
+  for (const L of on) { if (L.kind === 'orig' && !L.bgMask) continue; if (L.kind === 'people' && L.asFrame === 'keep') continue; let m = L.mask; if (((L.kind === 'text' && L.styl && L.mode === 'text') || L.kind === 'orig') && !L.backdrop) { if (!L._mD) L._mD = (await wcall('dilate', { mask: m.slice(), w: R.w, h: R.h, r: Math.max(3, Math.round((L.bbox.y1 - L.bbox.y0) * 0.05)) })).mask; m = L._mD; } else if (L.kind === 'text' && !L.styl && L.mode === 'text') { if (!L._mD) L._mD = (await wcall('dilate', { mask: m.slice(), w: R.w, h: R.h, r: Math.max(1, Math.round((L.bbox.y1 - L.bbox.y0) * 0.08)) })).mask; m = L._mD; } for (let i = 0; i < A; i++) if (m[i]) bm[i] = 1; }
   const key = on.map(L => L.id).join(',');
   if (R._bgKey !== key) {
-    const d = await wcall('inpaint', { data: imgData(R.cv).data, w, h, mask: (await wcall('dilate', { mask: bm, w, h, r: 1 })).mask });
+    const bmD = (await wcall('dilate', { mask: bm, w, h, r: 1 })).mask;
+    { // seams where two cut-out layers touch: keep the original pixels underneath, so feathered edges don't reveal smeared inpainting
+      const P = on.filter(L => L.kind === 'people' && L.asFrame !== 'keep'), G = on.filter(L => L.kind === 'graphic');
+      if (P.length && G.length) { const gu = new Uint8Array(A); G.forEach(L => { for (let i = 0; i < A; i++) if (L.mask[i]) gu[i] = 1; }); const pu = new Uint8Array(A); P.forEach(L => { for (let i = 0; i < A; i++) if (L.mask[i]) pu[i] = 1; });
+        const gd = (await wcall('dilate', { mask: gu, w, h, r: 2 })).mask, pd = (await wcall('dilate', { mask: pu, w, h, r: 2 })).mask; for (let i = 0; i < A; i++) if (gd[i] && pd[i]) bmD[i] = 0; } }
+    const d = await wcall('inpaint', { data: imgData(R.cv).data, w, h, mask: bmD });
     const bg = mk(w, h); bg.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(d.data), w, h), 0, 0); R._bg = bg; R._bgKey = key;
   }
   const reg = opt.temp ? ((cv, name) => { const id = 'tmp' + Math.random().toString(36).slice(2); SV.registerImg(id, cv); (R._tmp = R._tmp || []).push(id); return { id }; }) : ((cv, name) => SV.addAsset(cv, 'tpl', name, { jpeg: false }));
@@ -15317,8 +15355,8 @@ SV.composeAnalyzed = async function (R, opt) {
     const L0 = SV.textLayout(Object.assign({}, e, { w: 99999 }));
     const natural = L0.maxLine;
     if (natural > 0) { const chars = Math.max(1, L.text.length - 1); let extra = (b.w - natural) / chars;
-      if (extra / e.st.size < -0.06) { const k = Math.max(0.55, b.w / natural / 0.96); e.st.size = Math.max(8, Math.round(e.st.size * k)); const Ln = SV.textLayout(Object.assign({}, e, { w: 99999 })); extra = (b.w - Ln.maxLine) / chars; } // font wider than the original: shrink instead of overflowing
-      e.st.ls = Math.max(-6, Math.min(40, Math.round(extra / e.st.size * 100))); if (Math.abs(e.st.ls) < 2) delete e.st.ls; }
+      if (extra / e.st.size < -0.015) { const k = Math.max(0.55, b.w / natural); e.st.size = Math.max(8, Math.round(e.st.size * k)); const Ln = SV.textLayout(Object.assign({}, e, { w: 99999 })); extra = (b.w - Ln.maxLine) / chars; } // font wider than the original: shrink instead of overflowing
+      e.st.ls = Math.max(-2, Math.min(40, Math.round(extra / e.st.size * 100))); if (Math.abs(e.st.ls) < 2) delete e.st.ls; }
     const L1 = SV.textLayout(Object.assign({}, e, { w: 99999 }));
     e.w = Math.min(PW, L1.maxLine + L1.pad * 2 + e.st.size * 0.3); SV.fitTextH(e); e.x = cx - e.w / 2; e.y = cy - e.h / 2;
     e.ana = { conf: L.conf, font: L.st.font };
@@ -15699,7 +15737,7 @@ SV.paddleDet = async function (src, opt) {
       if (xx > 0 && m[j - 1] && !lab[j - 1]) { lab[j - 1] = n; st[sp++] = j - 1; } if (xx < W - 1 && m[j + 1] && !lab[j + 1]) { lab[j + 1] = n; st[sp++] = j + 1; } if (yy > 0 && m[j - W] && !lab[j - W]) { lab[j - W] = n; st[sp++] = j - W; } if (yy < H - 1 && m[j + W] && !lab[j + W]) { lab[j + W] = n; st[sp++] = j + W; } }
     if (cnt < 6) continue; const score = sc / cnt; if (score < (opt.boxThresh || 0.55)) continue;
     const bw = x1 - x0 + 1, bh = y1 - y0 + 1, dist = bw * bh * (opt.unclip || 1.15) / (2 * (bw + bh)); // unclip
-    boxes.push({ x0: Math.max(0, (x0 - dist) * iw / W), y0: Math.max(0, (y0 - dist) * ih / H), x1: Math.min(iw - 1, (x1 + 1 + dist) * iw / W), y1: Math.min(ih - 1, (y1 + 1 + dist) * ih / H), score }); }
+    boxes.push({ x0: Math.max(0, (x0 - dist) * iw / W), y0: Math.max(0, (y0 - dist) * ih / H), x1: Math.min(iw - 1, (x1 + 1 + dist) * iw / W), y1: Math.min(ih - 1, (y1 + 1 + dist) * ih / H), score, fill: cnt / (bw * bh) }); }
   return boxes;
 };
 })();
