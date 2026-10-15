@@ -878,6 +878,11 @@ textarea.sv-in{height:auto;padding:8px 10px;min-height:70px}
 .cp-row{flex-wrap:wrap}.cp-row .cp-nm{display:block;width:100%;font-size:11px;opacity:.75;order:3}
 .cp-all{display:flex;gap:6px;align-items:center;font-size:12px;margin:4px 0}.cp-tip{font-size:11px;opacity:.6}
 .sv-fonts button{content-visibility:auto;contain-intrinsic-size:auto 42px}
+#svAnalyze .an-out{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}
+#svAnalyze .an-out button{border:1px solid #3a3d43;background:#1d1f23;color:#e8e9eb;border-radius:10px;padding:8px 8px;text-align:left;display:flex;flex-direction:column;gap:2px;font-size:13px}
+#svAnalyze .an-out button small{font-size:10.5px;color:#9aa0a6;line-height:1.25}
+#svAnalyze .an-out button.on{border-color:#7d2ae8;background:#2a1d40;box-shadow:0 0 0 1px #7d2ae8 inset}
+#svAnalyze .an-cl{margin-bottom:8px}
 
 </style>
 </head>
@@ -7463,6 +7468,7 @@ function drawShapeInto(c, kind, x, y, w, h, o) {
   const finish = (rule) => { if (fill) { c.fillStyle = fill; c.fill(rule || 'nonzero'); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = sw; c.stroke(); } };
   const cx = x + w / 2, cy = y + h / 2;
   switch (kind) {
+    case 'path': { const P = o.pts || []; c.beginPath(); if (P.length > 2) { const pt = i => { const q = P[(i + P.length) % P.length]; return [x + q[0] * w, y + q[1] * h]; }; const m0 = pt(0), m1 = pt(1); c.moveTo((m0[0] + m1[0]) / 2, (m0[1] + m1[1]) / 2); for (let i = 1; i <= P.length; i++) { const a = pt(i), b = pt(i + 1); c.quadraticCurveTo(a[0], a[1], (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); } c.closePath(); } else c.rect(x, y, w, h); finish(); break; }
     case 'rect': c.beginPath(); c.rect(x, y, w, h); finish(); break;
     case 'rounded': c.beginPath(); roundRect(c, x, y, w, h, Math.min(w, h) * ((o.radius != null ? o.radius : 20) / 100)); finish(); break;
     case 'circle': c.beginPath(); c.ellipse(cx, cy, w / 2, h / 2, 0, 0, Math.PI * 2); finish(); break;
@@ -11335,7 +11341,7 @@ function drawShape(c, el, w, h) {
     case 'speech': c.beginPath(); roundRect(c, x, y, w, h * 0.78, Math.min(w, h) * 0.15); fin(); c.beginPath(); c.moveTo(x + w * 0.2, y + h * 0.76); c.lineTo(x + w * 0.18, y + h); c.lineTo(x + w * 0.42, y + h * 0.76); c.closePath(); fin(); break;
     case 'ring': c.beginPath(); c.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2); c.ellipse(0, 0, w / 2 * 0.7, h / 2 * 0.7, 0, 0, Math.PI * 2, true); if (fill) { c.fillStyle = fill; c.fill('evenodd'); } break;
     case 'halfcircle': c.beginPath(); c.ellipse(0, h / 2, w / 2, h, 0, Math.PI, 0); c.closePath(); fin(); break;
-    default: drawShapeInto(c, el.shape, x, y, w, h, { fill: el.fill, grad: el.grad, stroke: el.stroke, sw: el.sw, radius: el.radius });
+    default: drawShapeInto(c, el.shape, x, y, w, h, { fill: el.fill, grad: el.grad, stroke: el.stroke, sw: el.sw, radius: el.radius, pts: el.pts });
   }
 }
 function drawLine(c, el, w, h) {
@@ -14991,9 +14997,9 @@ SV.analyzeFlyer2 = async function (file, opts) {
   opts = opts || {}; CANCEL = false;
   prog('Leggo l’immagine…');
   const im = await SV.blobToImg(file);
-  const iw = im.naturalWidth, ih = im.naturalHeight, k = Math.min(1, 1400 / Math.max(iw, ih));
+  const iw = im.naturalWidth, ih = im.naturalHeight, M0 = Math.max(iw, ih), k = M0 < 900 ? Math.min(2.2, 1100 / M0) : Math.min(1, 1400 / M0); // small photos are upscaled: OCR/cut-out work much better
   const w = Math.round(iw * k), h = Math.round(ih * k), A = w * h;
-  const cv = mk(w, h); cv.getContext('2d').drawImage(im, 0, 0, w, h);
+  const cv = mk(w, h); { const g = cv.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(im, 0, 0, w, h); }
   const id0 = imgData(cv);
   const R = { w, h, cv, file, layers: [], palette: [], ocr: true, warnings: [] };
   // palette
@@ -15015,8 +15021,9 @@ SV.analyzeFlyer2 = async function (file, opts) {
   if (opts.people !== false) {
     try {
       prog('Riconosco le persone (AI)…');
-      const blob = await SV.runBgRemoval(cv); chk();
-      const cut = await SV.blobToImg(blob); const pc = mk(w, h); pc.getContext('2d').drawImage(cut, 0, 0, w, h);
+      let src = cv; if (k > 1) { src = mk(iw, ih); src.getContext('2d').drawImage(im, 0, 0); } // cut-out model behaves better at native size
+      const blob = await SV.runBgRemoval(src); chk();
+      const cut = await SV.blobToImg(blob); const pc = mk(w, h); { const g = pc.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(cut, 0, 0, w, h); }
       const pa = imgData(pc).data; const pm = new Uint8Array(A); for (let i = 0; i < A; i++) pm[i] = pa[i * 4 + 3] > 140 ? 1 : 0;
       const L = await wcall('label', { mask: pm, w, h });
       const keep = new Set(L.comps.filter(c => c.n > A * 0.012).map(c => c.id));
@@ -15342,11 +15349,11 @@ SV.composeAnalyzed = async function (R, opt) {
   const box = b => ({ x: b.x0 * sx, y: b.y0 * sy, w: (b.x1 - b.x0 + 1) * sx, h: (b.y1 - b.y0 + 1) * sy });
   for (const L of on.filter(L => L.kind === 'people')) {
     const r = await reg(L.cv, 'Persone'); const b = box(L.bbox);
-    pg.els.push(Object.assign({ id: SV.uid(), type: 'image', name: L.name, asset: r.id, rot: 0, op: 1, fit: 'contain' }, b, L.asFrame === true ? { asset: null, frame: true, ph: 'Tocca e aggiungi la foto', mask: 'none' } : {}));
+    pg.els.push(Object.assign({ id: SV.uid(), src: L.id, type: 'image', name: L.name, asset: r.id, rot: 0, op: 1, fit: 'contain' }, b, L.asFrame === true ? { asset: null, frame: true, ph: 'Tocca e aggiungi la foto', mask: 'none' } : {}));
   }
-  for (const L of on.filter(L => L.kind === 'graphic')) { const r = await reg(L.cv, L.name); pg.els.push(Object.assign({ id: SV.uid(), type: 'image', name: L.name, asset: r.id, rot: 0, op: 1, fit: 'contain' }, box(L.bbox))); }
+  for (const L of on.filter(L => L.kind === 'graphic')) { const r = await reg(L.cv, L.name); pg.els.push(Object.assign({ id: SV.uid(), src: L.id, type: 'image', name: L.name, asset: r.id, rot: 0, op: 1, fit: 'contain' }, box(L.bbox))); }
   for (const L of on.filter(L => L.kind === 'text')) {
-    if (L.mode === 'image') { const r = await reg(L.cv, L.name); const pad = 3; pg.els.push(Object.assign({ id: SV.uid(), type: 'image', name: L.name + ' (immagine)', asset: r.id, rot: 0, op: 1, fit: 'contain' }, box({ x0: Math.max(0, L.bbox.x0 - pad), y0: Math.max(0, L.bbox.y0 - pad), x1: Math.min(w - 1, L.bbox.x1 + pad), y1: Math.min(h - 1, L.bbox.y1 + pad) }))); continue; }
+    if (L.mode === 'image') { const r = await reg(L.cv, L.name); const pad = 3; pg.els.push(Object.assign({ id: SV.uid(), src: L.id, type: 'image', name: L.name + ' (immagine)', asset: r.id, rot: 0, op: 1, fit: 'contain' }, box({ x0: Math.max(0, L.bbox.x0 - pad), y0: Math.max(0, L.bbox.y0 - pad), x1: Math.min(w - 1, L.bbox.x1 + pad), y1: Math.min(h - 1, L.bbox.y1 + pad) }))); continue; }
     const st = Object.assign({}, L.st); const lsFit = st.lsFit; delete st.lsFit; delete st.weight;
     st.weight = L.st.weight; st.size = Math.max(8, st.size * sy); st.align = 'center';
     // effect sizes are stored by the renderer as % of the font size (stroke: w%·size, extrude: d%·size·0.3, shadow: %·size)
@@ -15365,9 +15372,9 @@ SV.composeAnalyzed = async function (R, opt) {
     const L1 = SV.textLayout(Object.assign({}, e, { w: 99999 }));
     e.w = Math.min(PW, L1.maxLine + L1.pad * 2 + e.st.size * 0.3); SV.fitTextH(e); e.x = cx - e.w / 2; e.y = cy - e.h / 2;
     e.ana = { conf: L.conf, font: L.st.font };
-    pg.els.push(e);
+    e.src = L.id; pg.els.push(e);
   }
-  for (const L of on.filter(L => L.kind === 'orig')) { const r = await reg(L.cv, 'Originale'); pg.els.push(Object.assign({ id: SV.uid(), type: 'image', name: 'Originale – confronto', asset: r.id, rot: 0, op: 1, fit: 'contain', hidden: true, locked: true }, box(L.bbox))); }
+  for (const L of on.filter(L => L.kind === 'orig')) { const r = await reg(L.cv, 'Originale'); pg.els.push(Object.assign({ id: SV.uid(), src: L.id, type: 'image', name: 'Originale – confronto', asset: r.id, rot: 0, op: 1, fit: 'contain', hidden: true, locked: true }, box(L.bbox))); }
   return { pg, PW, PH, sizeId };
 };
 SV.freeAnalyzedTemps = R => { (R._tmp || []).forEach(id => SV.unregisterImg(id)); R._tmp = []; };
@@ -15380,7 +15387,8 @@ SV.openAnalyzer = async function (file) {
   catch (e) { done(); if (e.message === 'Annullato') return SV.toast('Analisi annullata'); console.error(e); SV.toast('Analisi non riuscita: uso l’immagine come sfondo'); const t = await SV.imageToTemplate(file); if (t) SV.useMyTpl(t.id); return; }
   SV._lastAnalysis = R;
   let root = $('svAnalyze'); if (!root) { root = document.createElement('div'); root.id = 'svAnalyze'; $('sv').appendChild(root); }
-  const st = { view: 'compare', busy: false };
+  const st = { view: 'compare', busy: false, out: 'clean', orig: false, backdrop: true, logos: true };
+  const compose = o => st.out === 'clean' && SV.composeClean ? SV.composeClean(R, Object.assign({ origTexts: st.orig, backdrop: st.backdrop, logos: st.logos }, o)) : SV.composeAnalyzed(R, o);
   const list = () => R.layers.filter(L => L.kind !== 'orig');
   const render = () => {
     root.style.display = 'flex';
@@ -15389,6 +15397,9 @@ SV.openAnalyzer = async function (file) {
     <div class="an-body"><div class="an-prev"><div class="an-cvs" id="anCvs"></div><div class="an-seg">${[['orig', 'Originale'], ['layers', 'Livelli'], ['clean', 'Sfondo pulito'], ['result', 'Risultato'], ['compare', 'Confronto']].map(([v, l]) => `<button data-an="v" data-v="${v}" class="${st.view === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
     <div class="an-side">
       ${R.warnings.map(x => `<div class="an-warn">⚠️ ${esc(x)}</div>`).join('')}
+      <div class="an-h">Tipo di modello</div>
+      <div class="an-out"><button data-an="out" data-m="clean" class="${st.out === 'clean' ? 'on' : ''}"><b>✨ Modello pulito</b><small>forme, cornici foto e testi di esempio</small></button><button data-an="out" data-m="faithful" class="${st.out !== 'clean' ? 'on' : ''}"><b>🖼️ Copia fedele</b><small>uguale all’originale</small></button></div>
+      ${st.out === 'clean' ? `<div class="an-opts an-cl"><button data-an="copt" data-k="orig" class="${st.orig ? 'on' : ''}">${st.orig ? '✓ ' : ''}Testi originali</button><button data-an="copt" data-k="backdrop" class="${st.backdrop ? 'on' : ''}">${st.backdrop ? '✓ ' : ''}Sfondo originale sfumato</button><button data-an="copt" data-k="logos" class="${st.logos ? 'on' : ''}">${st.logos ? '✓ ' : ''}Spazi logo</button></div>` : ''}
       <div class="an-h">Livelli trovati (${ls.length}) <small>tocca il testo per correggerlo</small></div>
       <div class="an-list">${ls.map(L => `<div class="an-it2 ${L.on ? '' : 'off'}" data-id="${L.id}">
         <input type="checkbox" data-an="tog" data-id="${L.id}" ${L.on ? 'checked' : ''}>
@@ -15412,9 +15423,9 @@ SV.openAnalyzer = async function (file) {
     const make = () => { const c = mk(Math.round(R.w * s * 2), Math.round(R.h * s * 2)); c.style.width = R.w * s + 'px'; c.style.height = R.h * s + 'px'; return c; };
     const paintOrig = (c, boxes) => { const x = c.getContext('2d'); x.drawImage(R.cv, 0, 0, c.width, c.height); if (!boxes) return; const k = c.width / R.w; list().forEach((L, i) => { if (!L.on) return; const b = L.bbox, col = L.kind === 'text' ? '#7d2ae8' : L.kind === 'people' ? '#e67e22' : '#00a3a3'; x.strokeStyle = col; x.lineWidth = 3; x.strokeRect(b.x0 * k, b.y0 * k, (b.x1 - b.x0) * k, (b.y1 - b.y0) * k); }); };
     const paintRes = async (c, clean) => {
-      const out = await SV.composeAnalyzed(R, { temp: true }); if (my !== drawSeq) return;
+      const out = await compose({ temp: true }); if (my !== drawSeq) return;
       await SV.ensureFonts && SV.ensureFonts([out.pg]);
-      const x = c.getContext('2d'); if (clean) { x.drawImage(R._bg, 0, 0, c.width, c.height); } else { const pc = SV.renderToCanvas(out.pg, out.PW, out.PH, c.width / out.PW, { res: c.width / out.PW, placeholders: true }); x.drawImage(pc, 0, 0); }
+      const x = c.getContext('2d'); if (clean && st.out !== 'clean') { x.drawImage(R._bg, 0, 0, c.width, c.height); } else if (clean) { const pg = Object.assign({}, out.pg, { els: out.pg.els.filter(e => e.type === 'shape') }); x.drawImage(SV.renderToCanvas(pg, out.PW, out.PH, c.width / out.PW, { res: c.width / out.PW }), 0, 0); } else { const pc = SV.renderToCanvas(out.pg, out.PW, out.PH, c.width / out.PW, { res: c.width / out.PW, placeholders: true }); x.drawImage(pc, 0, 0); }
       SV.freeAnalyzedTemps(R);
     };
     const nodes = [];
@@ -15433,9 +15444,9 @@ SV.openAnalyzer = async function (file) {
   async function save() {
     SV.busy(true, 'Creo il modello…');
     try {
-      const out = await SV.composeAnalyzed(R, {}); await SV.ensureAssets([out.pg]);
+      const out = await compose({}); await SV.ensureAssets([out.pg]);
       const k = 360 / out.PW;
-      const t = { id: SV.uid('ut'), name: ($('anName') && $('anName').value.trim()) || 'Volantino analizzato', cat: $('anCat') ? $('anCat').value : 'altro', w: out.PW, h: out.PH, sizeId: out.sizeId, pages: [out.pg], created: Date.now(), analyzed: true, palette: R.palette.slice(0, 6) };
+      const t = { id: SV.uid('ut'), name: ($('anName') && $('anName').value.trim()) || 'Volantino analizzato', cat: $('anCat') ? $('anCat').value : 'altro', w: out.PW, h: out.PH, sizeId: out.sizeId, pages: [out.pg], created: Date.now(), analyzed: true, clean: st.out === 'clean', palette: (out.palette && out.palette.length >= 2 ? out.palette : R.palette).slice(0, 6) };
       await SV.ensureFonts && SV.ensureFonts([out.pg]);
       t.thumb = SV.renderToCanvas(out.pg, out.PW, out.PH, k, { res: k, placeholders: true }).toDataURL('image/jpeg', 0.75);
       await SV.myTpls(); U.myTpls.unshift(t); await SV.kvSet('mytpl', U.myTpls);
@@ -15454,6 +15465,8 @@ SV.openAnalyzer = async function (file) {
     if (a === 'cancel') return close();
     if (a === 'save') return save();
     if (a === 'v') { st.view = b.dataset.v; render(); return; }
+    if (a === 'out') { st.out = b.dataset.m; render(); return; }
+    if (a === 'copt') { st[b.dataset.k] = !st[b.dataset.k]; render(); return; }
     if (a === 'tog') { L.on = b.checked; render(); return; }
     if (a === 'mode') { L.mode = b.dataset.m; render(); return; }
     if (a === 'pf') { L.asFrame = [false, true, 'keep'][+b.dataset.m]; render(); return; }
@@ -15476,6 +15489,232 @@ SV.analyzeScore = async function (R) {
   SV.freeAnalyzedTemps(R);
   const T = R.layers.filter(L => L.kind === 'text');
   return { sim: +(1 - s / (W * H) / 255).toFixed(4), badPx: +(bad / (W * H)).toFixed(4), texts: T.length, editable: T.filter(L => L.mode === 'text').length, flagged: T.filter(L => L.guess || L.conf < 60).length, graphics: R.layers.filter(L => L.kind === 'graphic').length, people: R.layers.some(L => L.kind === 'people'), allText: T.map(L => L.text).join(' | ') };
+};
+})();
+
+/* Analizza → "Modello pulito": turn an analysed flyer into a tidy template (clean vector-like base, photo frames, placeholder texts) */
+(function () {
+const SV = window.SV;
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+const hex = c => '#' + c.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+const d2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
+const isAr = s => /[\u0600-\u06FF]/.test(s || '');
+const yieldUI = () => new Promise(r => setTimeout(r, 0));
+
+function kmeans(px, n, K) {
+  const cs = [[px[0], px[1], px[2]]];
+  while (cs.length < K) { let bi = 0, bd = -1; for (let i = 0; i < n; i += 3) { let m = 1e12; for (const c of cs) m = Math.min(m, d2([px[i * 3], px[i * 3 + 1], px[i * 3 + 2]], c)); if (m > bd) { bd = m; bi = i; } } if (bd < 400) break; cs.push([px[bi * 3], px[bi * 3 + 1], px[bi * 3 + 2]]); }
+  const as = new Uint8Array(n);
+  for (let it = 0; it < 8; it++) { const acc = cs.map(() => [0, 0, 0, 0]);
+    for (let i = 0; i < n; i++) { const p = [px[i * 3], px[i * 3 + 1], px[i * 3 + 2]]; let bj = 0, bd = 1e12; cs.forEach((c, j) => { const d = d2(p, c); if (d < bd) { bd = d; bj = j; } }); as[i] = bj; const a = acc[bj]; a[0] += p[0]; a[1] += p[1]; a[2] += p[2]; a[3]++; }
+    acc.forEach((a, j) => { if (a[3]) cs[j] = [a[0] / a[3], a[1] / a[3], a[2] / a[3]]; }); }
+  // merge near clusters
+  const map = cs.map((_, j) => j); for (let i = 0; i < cs.length; i++) for (let j = i + 1; j < cs.length; j++) if (map[j] === j && d2(cs[i], cs[j]) < 46 * 46) map[j] = map[i];
+  for (let i = 0; i < n; i++) as[i] = map[as[i]];
+  return { cs, as };
+}
+function label(m, w, h) { const lab = new Int32Array(w * h), comps = []; let n = 0; const st = [];
+  for (let i = 0; i < w * h; i++) { if (!m[i] || lab[i]) continue; n++; lab[i] = n; st.push(i); let c = 0, x0 = w, y0 = h, x1 = 0, y1 = 0;
+    while (st.length) { const j = st.pop(), x = j % w, y = (j / w) | 0; c++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      for (const k of [x > 0 ? j - 1 : -1, x < w - 1 ? j + 1 : -1, y > 0 ? j - w : -1, y < h - 1 ? j + w : -1]) if (k >= 0 && m[k] && !lab[k]) { lab[k] = n; st.push(k); } }
+    comps.push({ id: n, n: c, x0, y0, x1, y1 }); }
+  return { lab, comps }; }
+function smooth(m, w, h, r) { const o = new Float32Array(w * h); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { let s = 0, k = 0; for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const X = x + dx, Y = y + dy; if (X < 0 || Y < 0 || X >= w || Y >= h) { s += m[Math.min(h - 1, Math.max(0, Y)) * w + Math.min(w - 1, Math.max(0, X))]; k++; continue; } s += m[Y * w + X]; k++; } o[y * w + x] = s / k; }
+  const r2 = new Uint8Array(w * h); for (let i = 0; i < w * h; i++) r2[i] = o[i] >= 0.5 ? 1 : 0; return r2; }
+// outer contour (Moore neighbour) of the component containing pixel s
+function contour(m, w, h, s) {
+  const at = (x, y) => x >= 0 && y >= 0 && x < w && y < h && m[y * w + x];
+  const D = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
+  let x = s % w, y = (s / w) | 0; const sx = x, sy = y, pts = [[x, y]]; let dir = 6;
+  for (let guard = 0; guard < w * h * 4; guard++) { let found = false;
+    for (let k = 0; k < 8; k++) { const d = (dir + 6 + k) % 8, nx = x + D[d][0], ny = y + D[d][1]; if (at(nx, ny)) { x = nx; y = ny; dir = d; found = true; break; } }
+    if (!found || (x === sx && y === sy)) break; pts.push([x, y]); }
+  return pts; }
+function rdp(P, eps) { if (P.length < 4) return P; let md = 0, mi = 0; const a = P[0], b = P[P.length - 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+  for (let i = 1; i < P.length - 1; i++) { const d = Math.abs((b[0] - a[0]) * (a[1] - P[i][1]) - (a[0] - P[i][0]) * (b[1] - a[1])) / L; if (d > md) { md = d; mi = i; } }
+  if (md <= eps) return [a, b]; const l = rdp(P.slice(0, mi + 1), eps), r = rdp(P.slice(mi), eps); return l.slice(0, -1).concat(r); }
+function rdpClosed(P, eps) { let fi = 0, fd = -1; for (let i = 1; i < P.length; i++) { const d = (P[i][0] - P[0][0]) ** 2 + (P[i][1] - P[0][1]) ** 2; if (d > fd) { fd = d; fi = i; } }
+  const a = rdp(P.slice(0, fi + 1), eps), b = rdp(P.slice(fi).concat([P[0]]), eps); return a.slice(0, -1).concat(b.slice(0, -1)); }
+
+/* clean base: gradient + big flat shapes from the text/people-free background */
+function cleanBase(bgCv, PW, PH) {
+  const sw = 96, sh = Math.max(16, Math.round(96 * bgCv.height / bgCv.width)), n = sw * sh;
+  const c = mk(sw, sh), x = c.getContext('2d'); x.filter = 'blur(1px)'; x.drawImage(bgCv, 0, 0, sw, sh);
+  const d = x.getImageData(0, 0, sw, sh).data, px = new Float32Array(n * 3); for (let i = 0; i < n; i++) { px[i * 3] = d[i * 4]; px[i * 3 + 1] = d[i * 4 + 1]; px[i * 3 + 2] = d[i * 4 + 2]; }
+  const { cs, as } = kmeans(px, n, 6);
+  const border = new Array(cs.length).fill(0), cnt = new Array(cs.length).fill(0);
+  for (let i = 0; i < n; i++) { cnt[as[i]]++; const X = i % sw, Y = (i / sw) | 0; if (X === 0 || Y === 0 || X === sw - 1 || Y === sh - 1) border[as[i]]++; }
+  let bgJ = 0; border.forEach((b, j) => { if (b + cnt[j] * 0.05 > border[bgJ] + cnt[bgJ] * 0.05) bgJ = j; });
+  const avg = (y0, y1) => { let r = 0, g = 0, b = 0, k = 0; for (let y = y0; y < y1; y++) for (let X = 0; X < sw; X++) { const i = y * sw + X; if (as[i] !== bgJ) continue; r += px[i * 3]; g += px[i * 3 + 1]; b += px[i * 3 + 2]; k++; } return k > 10 ? [r / k, g / k, b / k] : cs[bgJ]; };
+  const top = avg(0, Math.round(sh * 0.3)), bot = avg(Math.round(sh * 0.7), sh);
+  const bg = d2(top, bot) > 18 * 18 ? { g: { c1: hex(top), c2: hex(bot), ang: 180 }, color: hex(cs[bgJ]) } : { color: hex(cs[bgJ]) };
+  const shapes = [];
+  cs.forEach((cc, j) => { if (j === bgJ || !cnt[j]) return; const m = new Uint8Array(n); for (let i = 0; i < n; i++) if (as[i] === j) m[i] = 1;
+    const ms = smooth(m, sw, sh, 3); const L = label(ms, sw, sh);
+    L.comps.forEach(cp => { if (cp.n < n * 0.025) return; const bw = cp.x1 - cp.x0 + 1, bh = cp.y1 - cp.y0 + 1; if (bw < 4 || bh < 3) return;
+      let start = -1; for (let i = 0; i < n && start < 0; i++) if (L.lab[i] === cp.id) start = i;
+      const one = new Uint8Array(n); for (let i = 0; i < n; i++) if (L.lab[i] === cp.id) one[i] = 1;
+      const P = contour(one, sw, sh, start); if (P.length < 8) return;
+      const per = P.length, comp = per / (2 * (bw + bh)) / Math.sqrt(Math.max(0.25, cp.n / (bw * bh))); if (comp > 1.5) return; // textured / spiky region: left to the soft backdrop
+      const fillR = cp.n / (bw * bh), Q = rdpClosed(P, 1.8);
+      const ex = 0.5, X0 = cp.x0 - ex, Y0 = cp.y0 - ex, W0 = bw + ex * 2, H0 = bh + ex * 2;
+      // clamp regions touching the page edge to the edge (bleed)
+      const el = { id: SV.uid(), type: 'shape', name: 'Forma di sfondo', x: X0 / sw * PW, y: Y0 / sh * PH, w: W0 / sw * PW, h: H0 / sh * PH, rot: 0, op: 1, fill: hex(cc) };
+      if (fillR > 0.93) { el.shape = 'rect'; } else { el.shape = 'path'; el.pts = Q.map(([qx, qy]) => [+((qx + 0.5 - X0) / W0).toFixed(3), +((qy + 0.5 - Y0) / H0).toFixed(3)]); }
+      if (cp.x0 === 0) { el.w += el.x + 2; el.x = -2; } if (cp.y0 === 0) { el.h += el.y + 2; el.y = -2; } if (cp.x1 === sw - 1) el.w = PW + 2 - el.x; if (cp.y1 === sh - 1) el.h = PH + 2 - el.y;
+      if (el.pts) el.pts = Q.map(([qx, qy]) => { const X = qx === 0 ? -2 : qx === sw - 1 ? PW + 2 : (qx + 0.5) / sw * PW, Y = qy === 0 ? -2 : qy === sh - 1 ? PH + 2 : (qy + 0.5) / sh * PH; return [+((X - el.x) / el.w).toFixed(3), +((Y - el.y) / el.h).toFixed(3)]; }); // edge-touching points bleed off the page
+      shapes.push({ el, n: cp.n }); }); });
+  shapes.sort((a, b) => b.n - a.n);
+  return { bg, shapes: shapes.slice(0, 6).map(s => s.el), palette: [hex(cs[bgJ])].concat(cs.filter((_, j) => j !== bgJ && cnt[j] > n * 0.02).map(hex)) };
+}
+
+const MONTH = /(janv|f[ée]vr|mars|avril|mai\b|juin|juil|ao[uû]t|sept|octo|nov|d[ée]c|gennai|febbr|marzo|aprile|maggio|giugno|luglio|agosto|settem|ottob|novem|dicem|safar|rajab|muharr|rabi|ramadan|shaww|cha[ae]bane?|dhul|zul)/i;
+const DAY = /(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|luned|marted|mercoled|gioved|venerd|sabato|domenica)/i;
+function roleOf(t) {
+  if (isAr(t)) return 'quote'; if (/^\s*\d{1,2}\s*$/.test(t)) return 'date';
+  if (/(t[ée]l|tel\.?|whatsapp|\+\d{2,3}\s?\d|\b\d{2}\s\d{2,3}\s\d{2}\s\d{2}\b|@|www\.|\.com)/i.test(t)) return 'contact';
+  if (MONTH.test(t) || DAY.test(t) || /\b1[34]\d\dH\b|\b20\d\d\b|\b\d{1,2}[\/.]\d{1,2}[\/.]\d{2,4}\b/i.test(t) && t.length < 40) return 'date';
+  if (/(lieu|adresse|place|mosqu[ée]e|rue\b|via\b|salle|stade|keur|touba|darou|kmf|à\s[A-Z])/i.test(t) && t.length < 60) return 'place';
+  return 'text'; }
+const SAMPLE = { title: 'Titolo evento', subtitle: 'Sottotitolo dell’evento', date: '18 Safar 1448H', place: 'Luogo dell’evento', body: 'Breve descrizione dell’evento, programma e ospiti', quote: 'بسم الله الرحمن الرحيم', contact: 'Tel. +39 000 000 0000', small: 'Testo' };
+function sampleFor(role, orig) {
+  let s = SAMPLE[role] || SAMPLE.body;
+  if (role === 'body') { const n = orig.length; s = n < 30 ? 'Testo dell’evento' : n < 60 ? 'Breve descrizione dell’evento e del programma' : 'Breve descrizione dell’evento, del programma, degli ospiti e delle attività previste'; }
+  if (role === 'date' && /^\d{1,2}$/.test(orig.trim())) s = '18';
+  if (role === 'date' && /^[^\d]+$/.test(orig.trim())) s = DAY.test(orig) ? 'Domenica' : 'Safar';
+  const letters = orig.replace(/[^\p{L}]/gu, ''); if (letters.length > 2 && letters === letters.toUpperCase() && !isAr(orig)) s = s.toUpperCase();
+  return s; }
+
+SV.composeClean = async function (R, opt) {
+  opt = opt || {};
+  // texts in image mode become editable placeholders too
+  const R2 = Object.assign({}, R, { layers: R.layers.map(L => L.kind === 'text' && L.mode === 'image' ? Object.assign({}, L, { mode: 'text' }) : L) });
+  const out = await SV.composeAnalyzed(R2, opt); R._bg = R2._bg; R._bgKey = R2._bgKey; R._tmp = R2._tmp;
+  const { pg, PW, PH } = out, sx = PW / R.w, sy = PH / R.h; const byId = id => R.layers.find(L => L.id === id);
+  const base = cleanBase(R._bg, PW, PH); await yieldUI();
+  const bgId = pg.bg.img; pg.bg = Object.assign({}, base.bg); if (opt.backdrop !== false && bgId) Object.assign(pg.bg, { img: bgId, op: 0.16, blur: 90 });
+  const els = []; const area = e => e.w * e.h;
+  // graphics: find rows of 3+ similar small items (sponsor logos / social icons) = clutter
+  const gr = pg.els.filter(e => e.type === 'image' && byId(e.src) && byId(e.src).kind === 'graphic');
+  const clutter = new Set();
+  gr.forEach(a => { const row = gr.filter(b => Math.abs((b.y + b.h / 2) - (a.y + a.h / 2)) < PH * 0.035 && Math.max(a.h, b.h) < Math.min(a.h, b.h) * 1.8 && area(b) < PW * PH * 0.04); if (row.length >= 3) row.forEach(b => clutter.add(b)); });
+  let logos = 0; const lettering = [];
+  const domColor = bb => { const bw0 = bb.x1 - bb.x0 + 1, bh0 = bb.y1 - bb.y0 + 1, k = Math.max(1, Math.round(Math.max(bw0, bh0) / 60)), t = mk(Math.ceil(bw0 / k), Math.ceil(bh0 / k)); t.getContext('2d').drawImage(R.cv, bb.x0, bb.y0, bw0, bh0, 0, 0, t.width, t.height); const dd = t.getContext('2d').getImageData(0, 0, t.width, t.height).data;
+    const bins = new Map(); for (let i = 0; i < dd.length; i += 4) { const key = (dd[i] >> 4) + ',' + (dd[i + 1] >> 4) + ',' + (dd[i + 2] >> 4); const b = bins.get(key) || [0, 0, 0, 0]; b[0] += dd[i]; b[1] += dd[i + 1]; b[2] += dd[i + 2]; b[3]++; bins.set(key, b); }
+    const n = dd.length / 4, sat = b => { const v = [b[0] / b[3], b[1] / b[3], b[2] / b[3]], mx = Math.max(...v), mn = Math.min(...v); return mx ? (mx - mn) / mx : 0; };
+    const b = [...bins.values()].filter(b => b[3] > n * 0.04).sort((p, q) => (sat(q) + 0.1) * Math.sqrt(q[3]) - (sat(p) + 0.1) * Math.sqrt(p[3]))[0]; return b ? hex([b[0] / b[3], b[1] / b[3], b[2] / b[3]]) : null; };
+  const edgeDens = bb => { const bw0 = bb.x1 - bb.x0 + 1, bh0 = bb.y1 - bb.y0 + 1, k = Math.max(bw0, bh0) / 120, W = Math.max(8, Math.round(bw0 / k)), H = Math.max(8, Math.round(bh0 / k)), t = mk(W, H); t.getContext('2d').drawImage(R.cv, bb.x0, bb.y0, bw0, bh0, 0, 0, W, H); const d = t.getContext('2d').getImageData(0, 0, W, H).data; let n = 0;
+    const g = i => d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11; for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const i = y * W + x; if (Math.abs(g(i + 1) - g(i - 1)) + Math.abs(g(i + W) - g(i - W)) > 90) n++; } return n / ((W - 2) * (H - 2)); };
+  for (const e of pg.els) { const L = byId(e.src); if (!L) continue;
+    if (L.kind === 'orig') continue;
+    if (L.kind === 'people') { // one empty frame per person
+      const lab = label(L.mask, R.w, R.h); let ps = lab.comps.filter(c => c.n > R.w * R.h * 0.012).sort((a, b) => a.x0 - b.x0);
+      const od = R.cv.getContext('2d').getImageData(0, 0, R.w, R.h).data;
+      ps = ps.filter(c => { const bw = c.x1 - c.x0 + 1, bh = c.y1 - c.y0 + 1; if (bh > R.h * 0.12 && bw < bh * 2.6) return true;
+        if (bh < R.h * 0.14 && bw > bh * 2.2) { // a pill / band the cut-out model took as foreground: clean shape in its main colour
+          const bins = new Map(); for (let y = c.y0; y <= c.y1; y += 2) for (let x = c.x0; x <= c.x1; x += 2) { const q = y * R.w + x; if (lab.lab[q] !== c.id) continue; const i = q * 4, key = (od[i] >> 4) + ',' + (od[i + 1] >> 4) + ',' + (od[i + 2] >> 4); const b = bins.get(key) || [0, 0, 0, 0]; b[0] += od[i]; b[1] += od[i + 1]; b[2] += od[i + 2]; b[3]++; bins.set(key, b); }
+          const t = [...bins.values()].sort((p, q) => q[3] - p[3])[0]; if (t) els.push({ id: SV.uid(), type: 'shape', name: 'Riquadro', shape: 'rounded', radius: 50, fill: hex([t[0] / t[3], t[1] / t[3], t[2] / t[3]]), x: c.x0 * sx, y: c.y0 * sy, w: bw * sx, h: bh * sy, rot: 0, op: 1, z: 2 }); }
+        return false; });
+      (ps.length ? ps : [{ x0: L.bbox.x0, y0: L.bbox.y0, x1: L.bbox.x1, y1: L.bbox.y1 }]).forEach((c, i) => { const w = (c.x1 - c.x0 + 1) * sx, h = (c.y1 - c.y0 + 1) * sy;
+        els.push({ id: SV.uid(), type: 'image', name: 'Foto ' + (i + 1), asset: null, frame: true, ph: 'Tocca e aggiungi la foto', mask: h > w * 1.15 ? 'arch' : 'rounded', radius: 12, x: c.x0 * sx, y: c.y0 * sy, w, h, rot: 0, op: 1, fade: { side: 'bottom', amt: 25 }, z: 1 }); });
+      continue; }
+    if (L.kind === 'graphic') {
+      { const a = area(e) / (PW * PH); if (!clutter.has(e) && /Grafica|Etichetta/.test(L.name) && a > 0.02 && a < 0.25 && e.w > e.h * 1.2 && e.y + e.h < PH * 0.8) { const ed = edgeDens(L.bbox); if (window.__anDebug) console.log('[letter] ' + L.name + ' a=' + a.toFixed(3) + ' ed=' + ed.toFixed(3) + ' ' + JSON.stringify(L.bbox)); lettering.push({ e, L, a, ed }); } }
+      if (clutter.has(e)) continue; const a = area(e) / (PW * PH); if (a > 0.2) continue; // big backdrop pieces: the clean base replaces them
+      const P = R.layers.find(Q => Q.kind === 'people'); if (P && L.name !== 'Logo / badge') { const b = L.bbox, pb = P.bbox, ix = Math.max(0, Math.min(b.x1, pb.x1) - Math.max(b.x0, pb.x0)) * Math.max(0, Math.min(b.y1, pb.y1) - Math.max(b.y0, pb.y0)); if (ix > (b.x1 - b.x0) * (b.y1 - b.y0) * 0.5 && L.name !== 'Ornamento / divisore') continue; }
+      if (L.name === 'Icone / social') continue;
+      if (L.name === 'Logo / badge') { if (logos >= 2 || a < 0.004) continue; logos++; if (opt.logos === false) continue; const s = Math.max(e.w, e.h);
+        els.push({ id: SV.uid(), type: 'image', name: 'Logo', asset: null, frame: true, ph: 'Logo', mask: 'circle', x: e.x + (e.w - s) / 2, y: e.y + (e.h - s) / 2, w: s, h: s, rot: 0, op: 1, z: 3 }); continue; }
+      if (L.name === 'Etichetta / forma') { // label panel / pill -> clean shape in its dominant colour
+        const bb = L.bbox, bw0 = bb.x1 - bb.x0 + 1, bh0 = bb.y1 - bb.y0 + 1, k = Math.max(1, Math.round(Math.max(bw0, bh0) / 60)), t = mk(Math.ceil(bw0 / k), Math.ceil(bh0 / k)); t.getContext('2d').drawImage(R.cv, bb.x0, bb.y0, bw0, bh0, 0, 0, t.width, t.height); /* colours from the original pixels */ const dd = t.getContext('2d').getImageData(0, 0, t.width, t.height).data;
+        const bins = new Map(); let op = 0; for (let i = 0; i < dd.length; i += 4) { if (dd[i + 3] < 200) continue; op++; const key = (dd[i] >> 4) + ',' + (dd[i + 1] >> 4) + ',' + (dd[i + 2] >> 4); const b = bins.get(key) || [0, 0, 0, 0]; b[0] += dd[i]; b[1] += dd[i + 1]; b[2] += dd[i + 2]; b[3]++; bins.set(key, b); }
+        const srt = [...bins.values()].sort((p, q) => q[3] - p[3]); if (!srt.length || op < t.width * t.height * 0.35) continue;
+        const sat = b => { const r = b[0] / b[3], g = b[1] / b[3], bl = b[2] / b[3], mx = Math.max(r, g, bl), mn = Math.min(r, g, bl); return mx ? (mx - mn) / mx : 0; };
+        const top = srt.slice(0, 4).filter(b => b[3] > op * 0.15).sort((p, q) => (sat(q) + 0.15) * Math.sqrt(q[3]) - (sat(p) + 0.15) * Math.sqrt(p[3]))[0] || srt[0]; // badges: the brand colour, not the washed mix
+        const fr = op / (t.width * t.height); els.push({ id: SV.uid(), type: 'shape', name: 'Riquadro', shape: fr > 0.9 ? 'rect' : 'rounded', radius: e.h < e.w * 0.35 ? 50 : 12, fill: hex([top[0] / top[3], top[1] / top[3], top[2] / top[3]]), x: e.x, y: e.y, w: e.w, h: e.h, rot: 0, op: 1, z: 2 }); continue; }
+      if (L.name === 'Ornamento / divisore') { if (e.w / e.h >= 7 || a > 0.006) els.push(Object.assign({}, e, { z: 2 })); continue; } // thin dividers; small blobs are usually leftover text bits
+      if (a > 0.012 && a < 0.08) els.push(Object.assign({}, e, { z: 2 })); // mid-size decorative graphic
+      continue; }
+  }
+  // texts
+  const T = pg.els.filter(e => e.type === 'text' && byId(e.src));
+  const gh = e => { const L = byId(e.src); return (L.bbox.y1 - L.bbox.y0) / R.h; };
+  let cand = T.map(e => ({ e, L: byId(e.src), h: gh(e), role: roleOf(byId(e.src).text) }));
+  cand = cand.filter(c => !(c.L.conf < 55 || (c.L.guess && !isAr(c.L.text)))); // unreliable reads are usually clutter
+  cand = cand.filter(c => !(c.role === 'quote' && c.h > 0.09)); // giant "Arabic" = misread graphic
+  // drop text sitting in clutter rows (sponsor logos)
+  cand = cand.filter(c => ![...clutter].filter(g => g.y > PH * 0.65).some(g => c.e.x + c.e.w / 2 > g.x && c.e.x + c.e.w / 2 < g.x + g.w && c.e.y + c.e.h / 2 > g.y - g.h * 0.3 && c.e.y + c.e.h / 2 < g.y + g.h * 1.3));
+  // brand lettering in a top corner (event logo) → logo slot
+  const brand = cand.filter(c => c.role !== 'date' && c.role !== 'quote' && c.e.y + c.e.h < PH * 0.22 && c.h > 0.026 && c.e.w < PW * 0.4 && Math.abs(c.e.x + c.e.w / 2 - PW / 2) > PW * 0.18);
+  if (brand.length) { cand = cand.filter(c => !brand.includes(c)); if (opt.logos !== false) { const x0 = Math.min(...brand.map(c => c.e.x)), y0 = Math.min(...brand.map(c => c.e.y)), x1 = Math.max(...brand.map(c => c.e.x + c.e.w)), y1 = Math.max(...brand.map(c => c.e.y + c.e.h)), sz = Math.max(x1 - x0, y1 - y0) * 1.05;
+      if (!els.some(e => e.name === 'Logo' && Math.abs(e.x + e.w / 2 - (x0 + x1) / 2) < sz && Math.abs(e.y + e.h / 2 - (y0 + y1) / 2) < sz)) els.push({ id: SV.uid(), type: 'image', name: 'Logo', asset: null, frame: true, ph: 'Logo', mask: 'rounded', radius: 30, x: (x0 + x1) / 2 - sz / 2, y: (y0 + y1) / 2 - sz * 0.6 / 2, w: sz, h: sz * 0.6, rot: 0, op: 1, z: 4 }); } }
+  // day number + month on one row → one date
+  for (const c of cand.filter(c => c.role === 'date')) { if (c.gone) continue; for (const d of cand) { if (d === c || d.gone || d.role !== 'date') continue; const vo = Math.min(c.e.y + c.e.h, d.e.y + d.e.h) - Math.max(c.e.y, d.e.y), gx = Math.max(c.e.x, d.e.x) - Math.min(c.e.x + c.e.w, d.e.x + d.e.w);
+      if (vo > Math.min(c.e.h, d.e.h) * 0.4 && gx < Math.max(c.e.h, d.e.h) * 1.5) { const x0 = Math.min(c.e.x, d.e.x), y0 = Math.min(c.e.y, d.e.y), x1 = Math.max(c.e.x + c.e.w, d.e.x + d.e.w), y1 = Math.max(c.e.y + c.e.h, d.e.y + d.e.h); if (d.h > c.h) { c.e = Object.assign({}, c.e, { st: d.e.st }); c.h = d.h; } c.e = Object.assign({}, c.e, { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }); c.merged = true; d.gone = true; } } }
+  cand = cand.filter(c => !c.gone);
+  const lat = cand.filter(c => c.role === 'text' && /\p{L}{2}/u.test(c.L.text)).map(c => c.h).sort((a, b) => b - a); const titleH = lat[0] || 0;
+  let artT = false;
+  const letter = lettering.filter(g => g.ed > 0.2 && g.e.h / PH > titleH * 1.3);
+  if (titleH < 0.045 && letter.length) { artT = true; // the headline is artwork (no OCR): a clean title placeholder where it was
+    const g = letter.sort((p, q) => q.a - p.a)[0], b = g.e; const gi = els.findIndex(x => x.src === g.L.id || (x.type === 'image' && !x.frame && Math.abs(x.x - b.x) < 2 && Math.abs(x.y - b.y) < 2)); if (gi >= 0) els.splice(gi, 1);
+    const t = SV.newText('TITOLO EVENTO', { size: 80 }, PW, PH); Object.assign(t.st, { font: 'Anton', size: Math.round(b.h * 0.5), color: domColor(g.L.bbox) || '#222222', align: 'center' }); delete t.st.ls;
+    const L1 = SV.textLayout(Object.assign({}, t, { w: 99999 })); if (L1.maxLine + L1.pad * 2 > b.w * 0.95) t.st.size = Math.max(16, Math.round(t.st.size * b.w * 0.95 / (L1.maxLine + L1.pad * 2)));
+    const L2 = SV.textLayout(Object.assign({}, t, { w: 99999 })); t.w = Math.min(PW * 0.96, L2.maxLine + L2.pad * 2 + t.st.size * 0.3); SV.fitTextH(t); t.x = Math.max(PW * 0.02, b.x + b.w / 2 - t.w / 2); t.y = b.y + b.h / 2 - t.h / 2; t.name = 'Titolo'; t.z = 5; els.push(t); }
+  cand.forEach(c => { if (c.role === 'text') c.role = c.h >= titleH * 0.8 && c.h > 0.03 && !artT ? 'title' : c.h >= titleH * 0.42 && c.h > 0.02 ? 'subtitle' : 'body'; });
+  // paragraphs: stacked lines of the same size → one text block
+  cand.sort((p, q) => p.e.y - q.e.y); const used = new Set(), blocks = [];
+  for (const c of cand) { if (used.has(c)) continue; used.add(c); const B = [c];
+    if (c.role === 'body' || c.role === 'quote' || c.role === 'contact') for (const d of cand) { if (used.has(d) || d.role !== c.role && !(c.role !== 'quote' && d.role === 'body')) continue; const l = B[B.length - 1];
+      const gap = d.e.y - (l.e.y + l.e.h), hx = Math.min(l.e.x + l.e.w, d.e.x + d.e.w) - Math.max(l.e.x, d.e.x);
+      if (Math.abs(d.h - l.h) < Math.max(d.h, l.h) * 0.3 && gap < l.e.h * 0.9 && gap > -l.e.h * 0.6 && hx > Math.min(l.e.w, d.e.w) * 0.3) { B.push(d); used.add(d); } }
+    blocks.push(B); }
+  let titleSeen = 0;
+  { const tl = cand.filter(c => c.role === 'title').sort((p, q) => q.h - p.h), main = tl[0];
+    if (main) { const stack = [main]; let grow = true; while (grow) { grow = false; for (const c of tl) { if (stack.includes(c)) continue; if (stack.some(m => { const gap = Math.max(c.e.y - (m.e.y + m.e.h), m.e.y - (c.e.y + c.e.h)), hx = Math.min(m.e.x + m.e.w, c.e.x + c.e.w) - Math.max(m.e.x, c.e.x); return gap < Math.max(m.e.h, c.e.h) * 1.6 && hx > Math.min(m.e.w, c.e.w) * 0.3; })) { stack.push(c); grow = true; } } }
+      tl.forEach(c => { if (!stack.includes(c)) c.role = 'subtitle'; }); stack.sort((p, q) => p.e.y - q.e.y); stack.forEach(c => { c.order = c === main ? 0 : 1; }); } }
+  for (const B of blocks) { const c = B[0]; const bottomAd = c.e.y > PH * 0.82 && c.h < 0.02;
+    const sideAd = c.e.y > PH * 0.72 && c.h < 0.018 && (Math.max(...B.map(b => b.e.x + b.e.w)) - Math.min(...B.map(b => b.e.x))) < PW * 0.36;
+    if (c.role === 'contact' && c.h < 0.016 || sideAd || bottomAd && B.length < 3 || (c.h < 0.012 && B.length < 2 && c.role !== 'date')) continue;
+    const e = Object.assign({}, c.e, { st: Object.assign({}, c.e.st), z: 5 }); delete e.ana;
+    const X0 = Math.min(...B.map(b => b.e.x)), X1 = Math.max(...B.map(b => b.e.x + b.e.w)), Y0 = B[0].e.y, Y1 = B[B.length - 1].e.y + B[B.length - 1].e.h;
+    const origTxt = B.map(b => b.L.text).join('\n');
+    if (!opt.origTexts) { e.text = B.length > 1 && c.role !== 'quote' ? B.map((b, i) => i === B.length - 1 && B.length > 2 ? 'del programma e degli ospiti.' : i % 2 ? 'Breve descrizione dell’evento,' : 'Testo descrittivo dell’evento,').join('\n') : c.merged ? (c.L.text === c.L.text.toUpperCase() ? '18 SAFAR 1448H' : '18 Safar 1448H') : c.role === 'title' && c.order ? (c.L.text === c.L.text.toUpperCase() ? 'SU PIÙ RIGHE' : 'su più righe') : sampleFor(c.role, c.L.text);
+      if (c.role === 'quote') e.st.font = /Amiri|Aref|Reem|Cairo|Lateef|Lalezar|Scheher/.test(e.st.font) ? e.st.font : 'Amiri'; }
+    else e.text = origTxt;
+    delete e.st.ls; if (B.length > 1) e.st.lh = Math.max(1, Math.min(1.6, (Y1 - Y0) / B.length / e.st.size));
+    const cx = (X0 + X1) / 2, cy = (Y0 + Y1) / 2, L1 = SV.textLayout(Object.assign({}, e, { w: 99999 })), maxW = Math.min(PW * 0.94, Math.max((X1 - X0) * 1.1, PW * 0.3));
+    if (L1.maxLine + L1.pad * 2 > maxW) e.st.size = Math.max(10, Math.round(e.st.size * maxW / (L1.maxLine + L1.pad * 2)));
+    const L2 = SV.textLayout(Object.assign({}, e, { w: 99999 })); e.w = Math.min(PW * 0.96, L2.maxLine + L2.pad * 2 + e.st.size * 0.3); SV.fitTextH(e); e.x = Math.max(PW * 0.02, Math.min(PW * 0.98 - e.w, cx - e.w / 2)); e.y = cy - e.h / 2;
+    e.name = { title: 'Titolo', subtitle: 'Sottotitolo', date: 'Data', place: 'Luogo', body: 'Testo', quote: 'Citazione', contact: 'Contatti' }[c.role] || 'Testo';
+    els.push(e); }
+  // photo frames: drop ones sitting on the headline (cut-out model picked a building / text), then make sure the template has a real photo slot
+  const ovA = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+  const heads = els.filter(e => e.type === 'text' && /Titolo|Sottotitolo/.test(e.name));
+  for (let i = els.length - 1; i >= 0; i--) { const f = els[i]; if (f.type !== 'image' || !f.frame || f.name === 'Logo') continue; const hit = heads.reduce((s, t) => s + ovA(f, t), 0); if (hit > f.w * f.h * 0.12 || f.w * f.h < PW * PH * 0.025 || f.w * f.h > PW * PH * 0.42) els.splice(i, 1); }
+  if (!els.some(e => e.type === 'image' && e.frame && e.name !== 'Logo' && e.w * e.h > PW * PH * 0.06)) {
+    const GX = 24, GY = Math.round(24 * PH / PW), cw = PW / GX, ch = PH / GY, occ = new Uint8Array(GX * GY);
+    els.forEach(e => { if (e.type === 'shape' || (e.type === 'image' && !e.frame && e.w * e.h > PW * PH * 0.15)) return; for (let y = Math.max(0, Math.floor(e.y / ch)); y < Math.min(GY, Math.ceil((e.y + e.h) / ch)); y++) for (let x = Math.max(0, Math.floor(e.x / cw)); x < Math.min(GX, Math.ceil((e.x + e.w) / cw)); x++) occ[y * GX + x] = 1; });
+    const S = new Int32Array((GX + 1) * (GY + 1)); for (let y = 0; y < GY; y++) for (let x = 0; x < GX; x++) S[(y + 1) * (GX + 1) + x + 1] = occ[y * GX + x] + S[y * (GX + 1) + x + 1] + S[(y + 1) * (GX + 1) + x] - S[y * (GX + 1) + x];
+    let best = null; for (let y0 = 0; y0 < GY; y0++) for (let y1 = y0 + 3; y1 <= GY; y1++) for (let x0 = 0; x0 < GX; x0++) for (let x1 = x0 + 3; x1 <= GX; x1++) {
+      const w = (x1 - x0) * cw, h = (y1 - y0) * ch; if (w / h > 1.5 || h / w > 1.6) continue; if (S[y1 * (GX + 1) + x1] - S[y0 * (GX + 1) + x1] - S[y1 * (GX + 1) + x0] + S[y0 * (GX + 1) + x0]) continue;
+      const sc = w * h * (1 - Math.abs((x0 + x1) / 2 / GX - 0.5) * 0.6); if (!best || sc > best.sc) best = { sc, x: x0 * cw, y: y0 * ch, w, h }; }
+    if (best && best.w * best.h > PW * PH * 0.07) { const m = Math.min(best.w, best.h) * 0.06, w = best.w - m * 2, h = best.h - m; els.push({ id: SV.uid(), type: 'image', name: 'Foto 1', asset: null, frame: true, ph: 'Tocca e aggiungi la foto', mask: h > w * 1.1 ? 'arch' : 'rounded', radius: 12, x: best.x + m, y: best.y + m, w, h, rot: 0, op: 1, fade: { side: 'bottom', amt: 25 }, z: 3 }); }
+  }
+  // leftover graphic pieces under a text placeholder (calligraphy / lettering bits) go away
+  const txt = els.filter(e => e.type === 'text');
+  for (let i = els.length - 1; i >= 0; i--) { const g = els[i]; if (g.type !== 'image' || g.frame) continue; if (txt.reduce((s, t) => s + ovA(g, t), 0) > g.w * g.h * 0.25) els.splice(i, 1); }
+  const shapes = opt.shapes === false ? [] : base.shapes.map(s => Object.assign(s, { z: 0 }));
+  // readable text: if a placeholder lands on a fill of similar brightness, switch to the best palette colour
+  { const lum = h => { const v = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(c => c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
+    const cr = (a, b) => { const A = lum(a), B = lum(b); return (Math.max(A, B) + 0.05) / (Math.min(A, B) + 0.05); };
+    const under = shapes.concat(els.filter(e => e.type === 'shape')).sort((a, b) => a.z - b.z);
+    const ok = h => typeof h === 'string' && /^#[0-9a-f]{6}$/i.test(h);
+    for (const t of els.filter(e => e.type === 'text')) { if (!ok(t.st.color)) continue; const cx = t.x + t.w / 2, cy = t.y + t.h / 2; let bgc = ok(pg.bg.color) ? pg.bg.color : '#ffffff';
+      for (const u of under) if (ok(u.fill) && cx > u.x && cx < u.x + u.w && cy > u.y && cy < u.y + u.h && (u.shape !== 'path' || u.w * u.h < PW * PH * 0.7)) bgc = u.fill;
+      if (cr(t.st.color, bgc) >= 2.4) continue; const opts = base.palette.concat(['#ffffff', '#1e1e1e']).filter(ok).sort((a, b) => cr(b, bgc) - cr(a, bgc)); t.st.color = opts[0]; if (t.st.stroke && cr(t.st.stroke.c || '#000000', opts[0]) < 2) delete t.st.stroke; } }
+  pg.els = shapes.concat(els).sort((a, b) => a.z - b.z).map(e => { delete e.z; delete e.src; return e; });
+  pg.clean = true;
+  return { pg, PW, PH, sizeId: out.sizeId, palette: base.palette };
 };
 })();
 
