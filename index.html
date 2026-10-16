@@ -11455,7 +11455,7 @@ function drawElement(c, el, opt) {
           }
         } else if (!el.asset && opt.placeholders) {
           c.shadowColor = 'transparent'; let hintY = null;
-          if (el.autoCut) hintY = personFigure(c, w, h, el.phTint); else {
+          if (el.autoCut) { if (el.mask && el.mask !== 'none') { c.save(); SV.maskPath(c, el.mask, -w / 2, -h / 2, w, h, el.radius); c.fillStyle = 'rgba(255,255,255,0.35)'; c.fill(); c.clip(); hintY = personFigure(c, w, h, el.phTint); c.restore(); } else hintY = personFigure(c, w, h, el.phTint); } else {
           const shp = () => SV.maskPath(c, el.mask || 'none', -w / 2, -h / 2, w, h, el.radius); shp();
           const g = c.createLinearGradient(0, -h / 2, 0, h / 2); g.addColorStop(0, 'rgba(214,220,226,0.92)'); g.addColorStop(1, 'rgba(178,188,198,0.92)');
           c.fillStyle = g; c.fill();
@@ -11882,6 +11882,649 @@ SV.hueRotateCtx = function (c, w, h, deg) {
 
 </script>
 <script>
+/* ===== Layer templates (inspired by Mouride flyer layouts; fully editable Studio layers, no copied artwork) ===== */
+(function () {
+const uid = SV.uid;
+try { Object.assign(TEXT_GRADIENTS, {
+  goldlux: ['#fff7cf', '#f8dc83', '#e0b04a', '#a8701a', '#e9bd55', '#fff0b0'],
+  goldflat: ['#f9e39a', '#e7bd52', '#c08a26'],
+  navyg: ['#2c5fd6', '#123a9a', '#0a1f5c'],
+  greeng: ['#5fd16f', '#1f9a3a', '#0c5c22'],
+  redg: ['#ff6a5a', '#d4201c', '#8a0c0c'],
+  tealg: ['#e8fff9', '#ffffff', '#c7f3e9'],
+}); } catch (e) {}
+try { Object.assign(ICON_PATHS, {
+  fb: 'M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20zm1.6 5.2h1.9V4.6h-2.3c-2.6 0-3.4 1.6-3.4 3.6v1.6H8v2.7h1.8V19h3v-6.5h2.2l.4-2.7h-2.6V8.5c0-.8.2-1.3.8-1.3z',
+  ig: 'M7.5 2h9A5.5 5.5 0 0 1 22 7.5v9a5.5 5.5 0 0 1-5.5 5.5h-9A5.5 5.5 0 0 1 2 16.5v-9A5.5 5.5 0 0 1 7.5 2zm0 2A3.5 3.5 0 0 0 4 7.5v9A3.5 3.5 0 0 0 7.5 20h9a3.5 3.5 0 0 0 3.5-3.5v-9A3.5 3.5 0 0 0 16.5 4h-9zM12 7a5 5 0 1 1 0 10a5 5 0 0 1 0-10zm0 2a3 3 0 1 0 0 6a3 3 0 0 0 0-6zm5.3-3.3a1.2 1.2 0 1 1 0 2.4a1.2 1.2 0 0 1 0-2.4z',
+  yt: 'M21.6 7.2a2.6 2.6 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.6 2.6 0 0 0 2.4 7.2C2 8.8 2 12 2 12s0 3.2.4 4.8a2.6 2.6 0 0 0 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4a2.6 2.6 0 0 0 1.8-1.8c.4-1.6.4-4.8.4-4.8s0-3.2-.4-4.8zM10 15V9l5.2 3L10 15z',
+  tt: 'M16.6 2c.3 2.3 1.7 3.8 4 4v3.1c-1.4.1-2.7-.3-4-1.1v6.2c0 3.9-3.2 6.3-6.5 5.7-3.6-.6-5.3-4.7-3.4-7.8 1.2-1.9 3.4-2.9 5.6-2.5v3.3c-.9-.3-1.9-.2-2.6.4-1.3 1-1 3.3.6 3.8 1.3.4 2.9-.4 2.9-2.3V2h3.4z',
+}); } catch (e) {}
+
+/* ---------- vector ornaments ---------- */
+const EXT = {};
+const rnd = s => () => ((s = (s * 9301 + 49297) % 233280) / 233280);
+const shade = (h, k) => { const v = String(h || '#cccccc').replace('#', ''); const n = parseInt(v.length === 3 ? v.split('').map(x => x + x).join('') : v.slice(0, 6), 16) || 0; const f = c => Math.max(0, Math.min(255, Math.round(k < 0 ? c * (1 + k) : c + (255 - c) * k))); return '#' + [n >> 16, (n >> 8) & 255, n & 255].map(f).map(x => x.toString(16).padStart(2, '0')).join(''); };
+const flipT = (c, el) => { if (el.flip) c.scale(/h/.test(el.flip) ? -1 : 1, /v/.test(el.flip) ? -1 : 1); };
+// Lamp-Fall-like minaret: tapered shaft, balconies, lantern, dome, crescent
+EXT.minaret = (c, el, w, h) => {
+  const F = el.fill || '#e8d3a8', S = el.fill2 || '#6b4c2a', x0 = -w / 2, y0 = -h / 2, cx = 0;
+  const g = c.createLinearGradient(-w / 2, 0, w / 2, 0); g.addColorStop(0, shade(F, 0.35)); g.addColorStop(0.45, F); g.addColorStop(1, shade(F, -0.28));
+  const sec = (yt, yb, wt, wb) => { c.beginPath(); c.moveTo(cx - wt / 2, y0 + yt * h); c.lineTo(cx + wt / 2, y0 + yt * h); c.lineTo(cx + wb / 2, y0 + yb * h); c.lineTo(cx - wb / 2, y0 + yb * h); c.closePath(); c.fillStyle = g; c.fill(); c.strokeStyle = shade(S, 0.2); c.lineWidth = Math.max(1, w * 0.006); c.stroke(); };
+  const balc = (y, ww) => { c.fillStyle = shade(F, -0.12); c.fillRect(cx - ww / 2, y0 + y * h, ww, h * 0.012); c.fillStyle = shade(S, 0.1); for (let i = 0; i < 9; i++) c.fillRect(cx - ww / 2 + ww * (i + 0.3) / 9, y0 + (y + 0.012) * h, ww / 30, h * 0.018); c.fillStyle = shade(F, -0.2); c.fillRect(cx - ww / 2, y0 + (y + 0.03) * h, ww, h * 0.008); };
+  const win = (y, ww, n, hh) => { c.fillStyle = S; for (let i = 0; i < n; i++) { const wx = cx - ww / 2 + ww * (i + 0.5) / n - ww / n * 0.18, wy = y0 + y * h, wwd = ww / n * 0.36, wh = hh * h; c.beginPath(); c.moveTo(wx, wy + wh); c.lineTo(wx, wy + wwd / 2); c.arc(wx + wwd / 2, wy + wwd / 2, wwd / 2, Math.PI, 0); c.lineTo(wx + wwd, wy + wh); c.closePath(); c.fill(); } };
+  // shaft (bottom → top)
+  sec(0.36, 1, w * 0.36, w * 0.44); for (const y of [0.45, 0.58, 0.71, 0.84]) win(y, w * 0.34, 3, 0.05);
+  balc(0.33, w * 0.6); sec(0.22, 0.33, w * 0.34, w * 0.38); win(0.25, w * 0.32, 4, 0.045);
+  balc(0.19, w * 0.54); sec(0.12, 0.19, w * 0.26, w * 0.3); win(0.135, w * 0.24, 3, 0.04);
+  balc(0.1, w * 0.4); sec(0.065, 0.1, w * 0.16, w * 0.2);
+  // dome + finial + crescent
+  c.beginPath(); c.ellipse(cx, y0 + 0.065 * h, w * 0.1, h * 0.03, 0, Math.PI, 0); c.fillStyle = g; c.fill(); c.stroke();
+  c.fillStyle = el.fill3 || '#d4af37'; c.fillRect(cx - w * 0.008, y0 + 0.012 * h, w * 0.016, h * 0.025);
+  c.beginPath(); c.arc(cx, y0 + 0.012 * h, w * 0.035, 0, Math.PI * 2); c.arc(cx + w * 0.014, y0 + 0.008 * h, w * 0.03, 0, Math.PI * 2, true); c.fill('evenodd');
+};
+EXT.clouds = (c, el, w, h) => { const r = rnd(el.seed || 7); const n = el.n || 14; for (let i = 0; i < n; i++) { const cx = -w / 2 + r() * w, cy = -h / 2 + (0.25 + r() * 0.6) * h, rr = (0.08 + r() * 0.16) * Math.min(w, h * 2); const g = c.createRadialGradient(cx, cy, 0, cx, cy, rr); const a = (el.alpha || 0.85) * (0.5 + r() * 0.5); g.addColorStop(0, `rgba(255,255,255,${a})`); g.addColorStop(0.55, `rgba(255,255,255,${a * 0.55})`); g.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = g; c.fillRect(cx - rr, cy - rr, rr * 2, rr * 2); } };
+EXT.bokeh = (c, el, w, h) => { const r = rnd(el.seed || 3); const col = el.fill || '#ffffff'; for (let i = 0; i < (el.n || 18); i++) { const cx = -w / 2 + r() * w, cy = -h / 2 + r() * h, rr = (0.02 + r() * 0.07) * w; c.globalAlpha = 0.12 + r() * 0.25; c.fillStyle = col; c.beginPath(); c.arc(cx, cy, rr, 0, 7); c.fill(); } c.globalAlpha = 1; };
+EXT.birds = (c, el, w, h) => { const r = rnd(el.seed || 5); c.strokeStyle = el.fill || '#2a2a2a'; c.lineCap = 'round'; for (let i = 0; i < (el.n || 7); i++) { const cx = -w / 2 + r() * w, cy = -h / 2 + r() * h, s = (0.03 + r() * 0.04) * w; c.lineWidth = Math.max(1, s * 0.18); c.beginPath(); c.moveTo(cx - s, cy - s * 0.2); c.quadraticCurveTo(cx - s * 0.45, cy - s * 0.55, cx, cy); c.quadraticCurveTo(cx + s * 0.45, cy - s * 0.55, cx + s, cy - s * 0.2); c.stroke(); } };
+EXT.rays = (c, el, w, h) => { const n = el.n || 18, R = Math.hypot(w, h); c.save(); c.beginPath(); c.rect(-w / 2, -h / 2, w, h); c.clip(); for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; const g = c.createRadialGradient(0, 0, 0, 0, 0, R / 2); g.addColorStop(0, el.fill || 'rgba(255,240,180,0.35)'); g.addColorStop(1, 'rgba(255,240,180,0)'); c.fillStyle = g; c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, R / 2, a, a + Math.PI / n * 0.8); c.closePath(); c.fill(); } c.restore(); };
+EXT.wave = (c, el, w, h) => { flipT(c, el); const x = -w / 2, y = -h / 2; const L = (col, k, off) => { c.beginPath(); c.moveTo(x, y + h * off); c.bezierCurveTo(x + w * 0.3, y + h * (off - 0.5 * k), x + w * 0.62, y + h * (off + 0.45 * k), x + w, y + h * (off - 0.3 * k)); c.lineTo(x + w, y + h); c.lineTo(x, y + h); c.closePath(); c.fillStyle = col; c.fill(); }; if (el.fill3) L(el.fill3, 0.7, 0.2); L(el.fill || '#f4c400', 0.6, 0.35); L(el.fill2 || '#0d7a43', 0.5, 0.55); };
+EXT.palm = (c, el, w, h) => { flipT(c, el); const col = el.fill || '#2f4a2a'; c.strokeStyle = col; c.fillStyle = col; c.lineCap = 'round'; c.lineWidth = w * 0.05; c.beginPath(); c.moveTo(w * 0.05, h / 2); c.quadraticCurveTo(-w * 0.08, 0, w * 0.02, -h * 0.3); c.stroke(); const tx = w * 0.02, ty = -h * 0.3; for (let i = 0; i < 9; i++) { const a = -Math.PI + i / 8 * Math.PI + (i % 2) * 0.1; const L = w * (0.42 + (i % 3) * 0.06); c.beginPath(); c.moveTo(tx, ty); const ex = tx + Math.cos(a) * L, ey = ty + Math.sin(a) * L * 0.55 + L * 0.35; c.quadraticCurveTo(tx + Math.cos(a) * L * 0.5, ty + Math.sin(a) * L * 0.7 - L * 0.1, ex, ey); c.quadraticCurveTo(tx + Math.cos(a) * L * 0.55, ty + Math.sin(a) * L * 0.4, tx, ty + w * 0.02); c.fill(); } };
+EXT.flagSN = (c, el, w, h) => { const x = -w / 2, y = -h / 2; [['#00853f', 0], ['#fdef42', 1], ['#e31b23', 2]].forEach(([col, i]) => { c.fillStyle = col; c.fillRect(x + w * i / 3, y, w / 3 + 0.5, h); }); c.fillStyle = '#00853f'; c.beginPath(); const R = Math.min(w / 3, h) * 0.32; for (let i = 0; i < 10; i++) { const a = i * Math.PI / 5 - Math.PI / 2, r = i % 2 ? R * 0.4 : R; c.lineTo(Math.cos(a) * r, Math.sin(a) * r); } c.closePath(); c.fill(); };
+// arabesque corner band (draws for top-left; use flip h/v/hv for other corners)
+EXT.arabesque = (c, el, w, h) => {
+  flipT(c, el); const x = -w / 2, y = -h / 2, F = el.fill || '#0d2a6e', G = el.fill2 || '#d4af37';
+  const path = () => { c.beginPath(); c.moveTo(x, y); c.lineTo(x + w, y); c.bezierCurveTo(x + w * 0.78, y + h * 0.05, x + w * 0.62, y + h * 0.12, x + w * 0.5, y + h * 0.2); c.bezierCurveTo(x + w * 0.38, y + h * 0.3, x + w * 0.34, y + h * 0.42, x + w * 0.22, y + h * 0.52); c.bezierCurveTo(x + w * 0.12, y + h * 0.62, x + w * 0.05, y + h * 0.8, x, y + h); c.closePath(); };
+  path(); const g = c.createLinearGradient(x, y, x + w * 0.6, y + h * 0.6); g.addColorStop(0, shade(F, 0.15)); g.addColorStop(1, shade(F, -0.25)); c.fillStyle = g; c.fill();
+  c.save(); path(); c.clip(); c.strokeStyle = shade(F, 0.32); c.lineWidth = Math.max(1, w * 0.006); const s = w * 0.11;
+  for (let i = -2; i < 12; i++) for (let j = -2; j < 12; j++) { const cx = x + i * s, cy = y + j * s; c.beginPath(); for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, r = k % 2 ? s * 0.3 : s * 0.5; c.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); } c.closePath(); c.stroke(); }
+  c.restore();
+  c.beginPath(); c.moveTo(x + w, y); c.bezierCurveTo(x + w * 0.78, y + h * 0.05, x + w * 0.62, y + h * 0.12, x + w * 0.5, y + h * 0.2); c.bezierCurveTo(x + w * 0.38, y + h * 0.3, x + w * 0.34, y + h * 0.42, x + w * 0.22, y + h * 0.52); c.bezierCurveTo(x + w * 0.12, y + h * 0.62, x + w * 0.05, y + h * 0.8, x, y + h);
+  const gg = c.createLinearGradient(x, y, x + w, y + h); TEXT_GRADIENTS.goldlux.forEach((s0, i, a) => gg.addColorStop(i / (a.length - 1), s0)); c.strokeStyle = gg; c.lineWidth = Math.max(2, w * 0.022); c.stroke();
+};
+// shield medallion with a mosque icon
+EXT.mosqueBadge = (c, el, w, h) => {
+  const F = el.fill || '#0d2a6e', x = -w / 2, y = -h / 2;
+  const sh = () => { c.beginPath(); c.moveTo(x + w * 0.5, y); c.bezierCurveTo(x + w * 0.85, y, x + w, y + h * 0.15, x + w, y + h * 0.42); c.lineTo(x + w, y + h); c.lineTo(x, y + h); c.lineTo(x, y + h * 0.42); c.bezierCurveTo(x, y + h * 0.15, x + w * 0.15, y, x + w * 0.5, y); c.closePath(); };
+  sh(); const g = c.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, shade(F, 0.2)); g.addColorStop(1, shade(F, -0.3)); c.fillStyle = g; c.fill();
+  const gg = c.createLinearGradient(x, y, x + w, y + h); TEXT_GRADIENTS.goldlux.forEach((s0, i, a) => gg.addColorStop(i / (a.length - 1), s0)); c.strokeStyle = gg; c.lineWidth = Math.max(2, w * 0.05); sh(); c.stroke();
+  try { drawIconInto(c, 'mosque', x + w * 0.16, y + h * 0.18, w * 0.68, h * 0.68, { grad: 'goldlux' }); } catch (e) {}
+};
+EXT.lanternRow = (c, el, w, h) => { const n = el.n || 3; for (let i = 0; i < n; i++) { const cx = -w / 2 + w * (i + 0.5) / n, L = h * (0.45 + (i % 2) * 0.25); c.strokeStyle = el.fill2 || '#c9a227'; c.lineWidth = Math.max(1, w * 0.004); c.beginPath(); c.moveTo(cx, -h / 2); c.lineTo(cx, -h / 2 + L - h * 0.2); c.stroke(); const lw = Math.min(w / n * 0.4, h * 0.14), ly = -h / 2 + L - h * 0.2; const g = c.createRadialGradient(cx, ly + lw, 0, cx, ly + lw, lw * 2.6); g.addColorStop(0, 'rgba(255,214,120,0.75)'); g.addColorStop(1, 'rgba(255,214,120,0)'); c.fillStyle = g; c.fillRect(cx - lw * 2.6, ly - lw * 1.6, lw * 5.2, lw * 5.2); c.fillStyle = el.fill2 || '#c9a227'; c.beginPath(); c.moveTo(cx - lw * 0.3, ly); c.lineTo(cx + lw * 0.3, ly); c.lineTo(cx + lw * 0.55, ly + lw * 0.4); c.lineTo(cx - lw * 0.55, ly + lw * 0.4); c.closePath(); c.fill(); c.fillStyle = el.fill || '#ffcf6a'; c.beginPath(); c.moveTo(cx - lw * 0.5, ly + lw * 0.45); c.lineTo(cx + lw * 0.5, ly + lw * 0.45); c.lineTo(cx + lw * 0.35, ly + lw * 1.6); c.lineTo(cx - lw * 0.35, ly + lw * 1.6); c.closePath(); c.fill(); c.fillStyle = el.fill2 || '#c9a227'; c.fillRect(cx - lw * 0.45, ly + lw * 1.6, lw * 0.9, lw * 0.18); c.beginPath(); c.moveTo(cx - lw * 0.2, ly + lw * 1.78); c.lineTo(cx + lw * 0.2, ly + lw * 1.78); c.lineTo(cx, ly + lw * 2.1); c.fill(); } };
+EXT.domes = (c, el, w, h) => { // simple mosque skyline silhouette
+  const col = el.fill || '#ffffff'; c.fillStyle = col; const x = -w / 2, y = -h / 2;
+  const dome = (cx, by, r) => { c.beginPath(); c.moveTo(cx - r, by); c.bezierCurveTo(cx - r, by - r * 1.1, cx - r * 0.2, by - r * 1.25, cx, by - r * 1.6); c.bezierCurveTo(cx + r * 0.2, by - r * 1.25, cx + r, by - r * 1.1, cx + r, by); c.closePath(); c.fill(); c.fillRect(cx - r * 0.03, by - r * 1.9, r * 0.06, r * 0.32); };
+  const tower = (cx, wd, top) => { c.fillRect(cx - wd / 2, y + h * top, wd, h * (1 - top)); c.beginPath(); c.moveTo(cx - wd * 0.7, y + h * top); c.lineTo(cx, y + h * (top - 0.12)); c.lineTo(cx + wd * 0.7, y + h * top); c.fill(); c.fillRect(cx - wd * 0.75, y + h * (top + 0.12), wd * 1.5, h * 0.015); };
+  c.fillRect(x + w * 0.12, y + h * 0.62, w * 0.76, h * 0.38);
+  dome(0, y + h * 0.64, w * 0.17); dome(-w * 0.24, y + h * 0.7, w * 0.08); dome(w * 0.24, y + h * 0.7, w * 0.08);
+  tower(-w * 0.42, w * 0.05, 0.12); tower(w * 0.42, w * 0.05, 0.2); tower(-w * 0.33, w * 0.035, 0.38); tower(w * 0.33, w * 0.035, 0.38);
+};
+SV.ORN_EXT = SV.ORN_EXT || {}; Object.keys(EXT).forEach(k => { SV.ORN_EXT[k] = (c, x, y, w, h, el) => { c.save(); try { EXT[k](c, el, w, h); } finally { c.restore(); } }; });
+[['minaret', 'Minareto Lamp Fall', 0.28], ['clouds', 'Nuvole', 2], ['bokeh', 'Luci bokeh', 1], ['birds', 'Uccelli', 2], ['rays', 'Raggi di luce', 1], ['wave', 'Onda', 3], ['palm', 'Palma', 0.7], ['flagSN', 'Bandiera Senegal', 1.5], ['arabesque', 'Angolo arabesco', 1], ['mosqueBadge', 'Medaglione moschea', 0.85], ['lanternRow', 'Lanterne appese', 2], ['domes', 'Profilo moschea', 1.6]].forEach(o => { if (!SV.ORNAMENTS.some(x => x[0] === o[0])) SV.ORNAMENTS.push(o); });
+
+/* ---------- helpers ---------- */
+const JR = ['DIMANCHE', 'LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI'], MO = ['JANVIER', 'FÉVRIER', 'MARS', 'AVRIL', 'MAI', 'JUIN', 'JUILLET', 'AOÛT', 'SEPTEMBRE', 'OCTOBRE', 'NOVEMBRE', 'DÉCEMBRE'];
+const MOS = ['JANV.', 'FÉVR.', 'MARS', 'AVRIL', 'MAI', 'JUIN', 'JUIL.', 'AOÛT', 'SEPT.', 'OCT.', 'NOV.', 'DÉC.'];
+function dparts(v) { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v || ''); if (!m) return null; const dt = new Date(+m[1], +m[2] - 1, +m[3]); return { day: JR[dt.getDay()], dd: String(+m[3]).padStart(2, '0'), d: +m[3], month: MO[+m[2] - 1], mshort: MOS[+m[2] - 1], year: m[1], dshort: JR[dt.getDay()].slice(0, 3) }; }
+function tfmt(v) { const m = /(\d{1,2})(?:[:hH.](\d{2}))?/.exec(v || ''); if (!m) return (v || '').toUpperCase(); return (+m[1]) + 'H' + (m[2] && m[2] !== '00' ? m[2] : ''); }
+const tc = s => String(s || '').toLowerCase().replace(/(^|[\s'’-])(\p{L})/gu, (a, b, c) => b + c.toUpperCase());
+
+function mk(d, post, tplId) {
+  const W = 1080, H = post ? 1350 : 1920, ky = H / 1920, kr = post ? 0.78 : 1, kt = post ? 0.8 : 1;
+  const els = [], skip = new Set();
+  const B = { W, H, post, ky, kr, d, els, dp: dparts(d.data), time: d.ora ? tfmt(d.ora) : '' };
+  const base = (o, extra) => Object.assign({ id: uid(), rot: 0, op: 1 }, extra || {}, o || {});
+  B.has = f => !!String(d[f] || '').trim();
+  B.rect = (x, y, w, h, o) => { const e = base(o, { type: 'shape', shape: 'rect', x, y: y * ky, w, h: h * ky }); els.push(e); return e; };
+  B.shape = (shape, x, y, w, h, o) => { const e = base(o, { type: 'shape', shape, x, y: y * ky, w, h: h * ky }); els.push(e); return e; };
+  B.round = (x, y, w, h, o) => B.shape('rounded', x, y, w, h, o);
+  B.circle = (cx, cy, r, o) => { const rr = r * kr; const e = base(o, { type: 'shape', shape: 'circle', x: cx - rr, y: cy * ky - rr, w: rr * 2, h: rr * 2 }); els.push(e); return e; };
+  B.orn = (kind, x, y, w, h, o, keep) => { let e; if (keep) { const ww = w * kr, hh = h * kr, cx = x + w / 2, cy = (y + h / 2) * ky; e = base(o, { type: 'orn', kind, x: cx - ww / 2, y: cy - hh / 2, w: ww, h: hh }); } else e = base(o, { type: 'orn', kind, x, y: y * ky, w, h: h * ky }); els.push(e); return e; };
+  B.icon = (icon, cx, cy, s, o) => { const ss = s * kr; const e = base(o, { type: 'icon', icon, x: cx - ss / 2, y: cy * ky - ss / 2, w: ss, h: ss }); els.push(e); return e; };
+  // person cut-out frame with realistic boubou placeholder; anchor bottom-center
+  B.person = (cx, bottom, w, h, o) => { const ww = w * kr, hh = h * (post ? ky * 1.03 : 1); const e = base(o, { type: 'image', asset: null, frame: true, autoCut: true, ph: 'Foto', name: 'Foto persona', x: cx - ww / 2, y: bottom * ky - hh, w: ww, h: hh, fade: { side: 'bottom', amt: 14 } }); els.push(e); return e; };
+  B.photo = (x, y, w, h, o) => { const e = base(o, { type: 'image', asset: null, frame: true, ph: 'Foto', name: 'Foto', x, y: y * ky, w, h: h * ky, mask: 'rounded' }); els.push(e); return e; };
+  B.guest = (cx, cy, r, o) => { const rr = r * kr; const e = base(o, { type: 'image', asset: null, frame: true, autoCut: true, mask: 'circle', ph: 'Ospite', name: 'Foto ospite', x: cx - rr, y: cy * ky - rr, w: rr * 2, h: rr * 2 }); els.push(e); return e; };
+  // text: fit into the box (story coords), shrink only
+  B.text = (role, text, x, y, w, h, st, maxLines, o) => {
+    if (text == null || !String(text).trim()) return null;
+    const e = base(o, { type: 'text', text: String(text), x, y: y * ky, w, h: h * ky, st: Object.assign({ font: 'Montserrat', size: 60, color: '#ffffff', align: 'center' }, st) });
+    if (role) e.role = role; e.name = (o && o.name) || ({ title: 'Titolo', subtitle: 'Sottotitolo', name: 'Nome', date: 'Data', time: 'Ora', place: 'Luogo', arabic: 'Scritta araba', honor: 'Dedica', org: 'Organizzazione', phone: 'Telefono', body: 'Testo', theme: 'Tema', prog: 'Programma', badge: 'Etichetta' })[role] || 'Testo';
+    e.st.size = Math.round(e.st.size * kt); fitBox(e, { x, y: y * ky, w, h: h * ky }, maxLines || 1);
+    els.push(e); return e;
+  };
+  B.field = (f, role, x, y, w, h, st, maxLines, o) => B.text(role, d[f], x, y, w, h, st, maxLines, o);
+  B.logo = (cx, cy, r, o) => { const rr = r * kr; els.push(base({ fill: '#ffffff', stroke: (o && o.ring) || '#d4af37', sw: Math.max(3, rr * 0.08) }, { type: 'shape', shape: 'circle', name: 'Cerchio logo', x: cx - rr * 1.08, y: cy * ky - rr * 1.08, w: rr * 2.16, h: rr * 2.16 })); const e = base(o, { type: 'image', asset: null, frame: true, mask: 'circle', ph: 'Logo', name: 'Logo', x: cx - rr, y: cy * ky - rr, w: rr * 2, h: rr * 2 }); delete e.ring; els.push(e); return e; };
+  B.lines = f => String(d[f] || '').split(/\n+/).map(x => x.trim()).filter(Boolean);
+  B.dateTxt = (fmt) => { const p = B.dp; if (!p) return d.data || ''; return fmt.replace(/DAY/g, p.day).replace(/Day/g, tc(p.day)).replace(/DS/g, p.dshort).replace(/DD/g, p.dd).replace(/MONTH/g, p.month).replace(/Month/g, tc(p.month)).replace(/MS/g, p.mshort).replace(/YYYY/g, p.year); };
+  B.page = (bg) => ({ id: uid('p'), bg, els });
+  return B;
+}
+function fitBox(e, box, maxLines) {
+  const base = e.st.size; let sz = base;
+  for (let i = 0; i < 40; i++) { e.st.size = Math.round(sz); let L; try { L = SV.textLayout(e); } catch (er) { break; } if (L.lines.length <= maxLines && L.maxLine <= e.w - 2 * L.pad + 0.5 && L.h <= box.h + Math.round(sz) * 0.5) break; if (sz <= base * 0.3) break; sz *= 0.95; }
+  SV.fitTextH(e); const va = e._va || 'middle'; e.y = Math.round(va === 'top' ? box.y : box.y + (box.h - e.h) / 2);
+}
+SV.ltplFit = fitBox;
+
+/* ---------- registry ---------- */
+const GOLD = (sz, o) => Object.assign({ font: 'Montserrat', size: sz, bold: true, weight: 900, grad: 'goldlux', extrude: { d: 12, c: '#7a5410' }, stroke: { w: 1.6, c: '#5a3a08' }, shadow: { c: 'rgba(0,0,0,0.35)', b: 16, x: 0, y: 8 } }, o || {});
+const L = SV.LTPL = [];
+const def = (t) => { L.push(t); return t; };
+const AR = 'بسم الله الرحمن الرحيم';
+const KR = 'خادم الرسول';
+
+/* 1 ─ Magal 2 (flagship): royal blue + gold, sky, minaret, two cut-outs, 3D 18 SAFAR, beveled MAGAL */
+def({ id: 'px_magal2', name: 'Magal 2', desc: 'Blu reale + oro · 18 Safar', ev: ['magal', 'safar'], only: ['magal', 'safar'], tags: ['grand magal', 'touba', '18 safar', 'blu', 'oro', 'cielo', 'minareto', 'lamp fall'], layout: 'px-flag-duo', prio: 0,
+  sample: { titolo: 'MAGAL', sotto: 'TOUBA', arabo: AR, footer: 'UNE NATION · UNE FOI · UN HÉRITAGE · UNE DESTINATION : TOUBA', luogo: 'TOUBA, CŒUR SPIRITUEL DU SÉNÉGAL', annoHijri: '1448', org: '' },
+  build(B) {
+    const { d } = B, NAVY = '#0d2a6e';
+    B.rect(0, 0, 1080, 1250, { g: { c1: '#1f5fc4', c2: '#a9cdf2', ang: 180 }, name: 'Cielo' });
+    B.orn('clouds', 0, 40, 1080, 1100, { seed: 11, n: 22, alpha: 1, name: 'Nuvole' });
+    B.circle(560, 560, 360, { g: { c1: 'rgba(255,255,255,0.85)', c2: 'rgba(255,255,255,0)', radial: true }, name: 'Luce' });
+    B.orn('domes', 330, 760, 420, 270, { fill: '#d8c39a', op: 0.9, name: 'Moschea' });
+    B.orn('minaret', 405, 40, 270, 960, { fill: '#e6cf9f', fill2: '#5b4326', name: 'Minareto Lamp Fall' });
+    B.orn('birds', 640, 160, 260, 160, { seed: 4, n: 6, fill: '#3a4a66', name: 'Uccelli' });
+    B.orn('arabesque', 0, 0, 240, 360, { fill: NAVY, name: 'Angolo arabesco' }); B.orn('arabesque', 840, 0, 240, 360, { fill: NAVY, flip: 'h', name: 'Angolo arabesco' });
+    B.field('arabo', 'arabic', 330, 70, 420, 80, { font: 'Aref Ruqaa', size: 54, bold: true, color: NAVY });
+    B.text(null, 'BISMILLAH · AR-RAHMAN AR-RAHIM', 330, 150, 420, 40, { size: 22, bold: true, weight: 700, color: NAVY, ls: 8 }, 1, { name: 'Basmala' });
+    B.person(255, 1130, 540, 1000, { role: 'photoSlot', phTint: '#3d5f9a', name: 'Foto principale' });
+    B.person(850, 1160, 440, 960, { phTint: '#3d5f9a', name: 'Foto ospite' });
+    B.rect(0, 1000, 1080, 302, { g: { c1: 'rgba(240,246,255,0)', c2: 'rgba(240,246,255,0.97)', ang: 180 }, name: 'Velo chiaro' });
+    B.rect(0, 1300, 1080, 360, { fill: 'rgba(240,246,255,0.97)', name: 'Fondo chiaro' });
+    // 18 badge
+    B.circle(540, 1000, 170, { g: { c1: 'rgba(255,236,170,0.75)', c2: 'rgba(255,236,170,0)', radial: true }, name: 'Bagliore' });
+    B.text('badge', '18', 380, 820, 320, 290, { font: 'Anton', size: 330, grad: 'navyg', stroke: { w: 3, c: '#f2cf6a' }, extrude: { d: 16, c: '#071538' }, shadow: { c: 'rgba(0,0,0,0.45)', b: 14, x: 0, y: 8 } }, 1, { name: 'Numero 18' });
+    B.shape('banner', 410, 1092, 260, 64, { fill: NAVY, stroke: '#e9c160', sw: 3, name: 'Nastro SAFAR' });
+    B.text('badge', 'SAFAR', 430, 1096, 220, 56, { size: 40, bold: true, weight: 900, grad: 'goldflat', ls: 6 }, 1, { name: 'SAFAR' });
+    B.text(null, 'GRANDE', 60, 1160, 480, 84, { size: 76, bold: true, weight: 900, color: NAVY, align: 'left', ls: 1 }, 1, { name: 'Sopratitolo' });
+    B.field('titolo', 'title', 30, 1236, 1020, 240, GOLD(250, { ls: 1 }), 1);
+    if (B.has('sotto')) { B.shape('diamond', 92, 1478, 132, 118, { fill: NAVY, stroke: '#e9c160', sw: 5, name: 'Rombo DE' }); B.text(null, 'DE', 100, 1500, 116, 74, { size: 52, bold: true, weight: 900, color: '#ffffff' }, 1, { name: 'DE' }); }
+    B.field('sotto', 'subtitle', 250, 1470, 800, 140, { size: 170, bold: true, weight: 900, grad: 'navyg', align: 'left', ls: 2, shadow: { c: 'rgba(0,0,0,0.25)', b: 10, x: 0, y: 5 } }, 1);
+    B.text(null, KR + '  |  ' + 'صلى الله عليه وسلم', 60, 1606, 960, 64, { font: 'Aref Ruqaa', size: 50, bold: true, color: NAVY }, 1, { name: 'Riga araba' });
+    // navy bottom
+    B.rect(0, 1650, 1080, 270, { g: { c1: '#173f9a', c2: '#0a1f55', ang: 180 }, name: 'Fondo blu' });
+    B.orn('pattern', 0, 1650, 1080, 270, { fill: '#5d86d8', alpha: 0.12, name: 'Motivo' });
+    B.orn('mosqueBadge', 34, 1660, 112, 124, { fill: '#123a8a', name: 'Medaglione sinistro' }, true);
+    B.text(null, 'FOI\nUNITÉ\nDÉVOUEMENT', 6, 1782, 170, 66, { size: 18, bold: true, weight: 800, color: '#f2d27a', lh: 1.05 }, 3, { name: 'Motto sinistro' });
+    B.orn('mosqueBadge', 934, 1660, 112, 124, { fill: '#123a8a', name: 'Medaglione destro' }, true);
+    B.text(null, 'MOURIDISME\nPAIX · SPIRITUALITÉ\nSERVICE', 896, 1782, 184, 66, { size: 18, bold: true, weight: 800, color: '#f2d27a', lh: 1.05 }, 3, { name: 'Motto destro' });
+    const dp = B.dp;
+    B.round(196, 1664, 688, 108, { fill: '#0b2260', stroke: '#e9c160', sw: 5, radius: 30, name: 'Pillola data' });
+    B.text('date', dp ? `${dp.dd} ${dp.month} ${dp.year}` : (d.data || ''), 216, 1670, 648, 96, { size: 84, bold: true, weight: 900, color: '#ffffff', ls: 1 }, 1);
+    const hij = [d.annoHijri, B.time ? 'DÈS ' + B.time : ''].filter(Boolean).join('  ·  ');
+    if (hij) { B.rect(300, 1800, 100, 4, { fill: '#e9c160', name: 'Filetto' }); B.rect(680, 1800, 100, 4, { fill: '#e9c160', name: 'Filetto' }); B.text('time', hij, 400, 1776, 280, 50, { size: 38, bold: true, weight: 900, grad: 'goldflat', ls: 3 }, 1, { name: 'Anno Hijri / ora' }); }
+    const motto = d.footer || d.org;
+    if (motto) { B.shape('banner', 180, 1828, 720, 38, { fill: '#0a1a47', stroke: '#c9a227', sw: 2, name: 'Fascia motto' }); B.text('honor', motto, 210, 1830, 660, 34, { size: 22, bold: true, weight: 700, color: '#ffffff', ls: 3 }, 1, { name: 'Motto' }); }
+    B.rect(0, 1872, 1080, 48, { fill: '#f6efe0', name: 'Barra piè di pagina' });
+    ['fb', 'ig', 'yt', 'tt'].forEach((ic, i) => B.icon(ic, 36 + i * 44, 1896, 32, { fill: '#0b1f4d', name: 'Social' }));
+    B.field('luogo', 'place', 220, 1876, 690, 40, { size: 25, bold: true, weight: 800, color: '#0b1f4d', align: 'right', ls: 2 }, 1);
+    B.orn('flagSN', 935, 1882, 110, 30, { name: 'Bandiera' });
+    return B.page({ color: '#eaf3fc' });
+  } });
+
+const PROG = 'Jàng Alxuraan\nDurus\nRadiass\nKureel\nThème\nWaxtaane';
+const W9 = { bold: true, weight: 900 };
+const st = (o) => Object.assign({ font: 'Montserrat' }, W9, o);
+const pill = (B, x, y, w, h, fill, o) => B.round(x, y, w, h, Object.assign({ fill, radius: 50 }, o || {}));
+
+/* 2 ─ Jotaayu Xassida: green, hero top, big outlined title, red date + green time */
+def({ id: 'px_kassida', name: 'Xassida Verde', desc: 'Verde · titolo grande', ev: ['kassida', 'programme', 'magal'], tags: ['xassida', 'kassida', 'jotaayu', 'kourel', 'verde'], layout: 'px-hero-top-script', prio: 1,
+  sample: { badgeTesto: 'Jotaayu', titolo: 'XASSIDA', sotto: 'Serigne Moustapha MBACKÉ', org: 'FÉDÉRATION DES KOURELS', libero: 'Prestation des kourels de la fédération', arabo: AR, luogo: 'Touba Attaba, Thiès', footer: 'Biis bii ❤', ora: '15:00' },
+  build(B) { const { d } = B;
+    B.orn('pattern', 0, 0, 1080, 1920, { fill: '#ffffff', alpha: 0.06, name: 'Motivo' });
+    B.orn('rays', 90, 60, 900, 900, { fill: 'rgba(255,255,210,0.28)', name: 'Raggi' }, true);
+    B.field('arabo', 'arabic', 100, 30, 880, 80, { font: 'Aref Ruqaa', size: 54, bold: true, grad: 'goldflat' });
+    B.logo(960, 170, 66, { ring: '#f2c94c' });
+    B.person(540, 1060, 780, 940, { role: 'photoSlot', phTint: '#1e7a3a', name: 'Foto principale' });
+    B.rect(0, 900, 1080, 220, { g: { c1: 'rgba(11,77,32,0)', c2: '#0b4d20', ang: 180 }, name: 'Sfumatura' }); B.rect(0, 1118, 1080, 802, { fill: '#0b4d20', name: 'Fondo' });
+    B.field('badgeTesto', 'badge', 300, 1000, 480, 100, { font: 'Kaushan Script', size: 86, color: '#ffd23f', shadow: { c: 'rgba(0,0,0,0.5)', b: 10, x: 0, y: 4 } });
+    B.field('titolo', 'title', 50, 1080, 980, 210, { font: 'Archivo Black', size: 210, color: '#ffffff', stroke: { w: 2.4, c: '#0a3d18' }, extrude: { d: 12, c: '#062a10' }, shadow: { c: 'rgba(0,0,0,0.45)', b: 16, x: 0, y: 8 } });
+    B.field('sotto', 'name', 60, 1300, 960, 70, st({ size: 58, color: '#ffd23f' }));
+    B.field('org', 'org', 60, 1372, 960, 52, st({ size: 34, color: '#ffffff', ls: 2 }));
+    B.photo(90, 1440, 430, 210, { border: { w: 6, c: '#ffffff' }, name: 'Foto gruppo 1' }); B.photo(560, 1440, 430, 210, { border: { w: 6, c: '#ffffff' }, name: 'Foto gruppo 2' });
+    B.field('libero', 'body', 80, 1660, 920, 46, st({ size: 28, weight: 700, color: '#e8f5e9' }));
+    const p = B.dp;
+    if (p) { B.round(70, 1720, 300, 140, { fill: '#d4201c', radius: 18, name: 'Riquadro data' }); B.text('date', p.dd, 80, 1726, 120, 128, st({ size: 110, color: '#ffffff' }), 1, { name: 'Giorno' }); B.text('date', p.month, 200, 1736, 160, 56, st({ size: 40, color: '#ffffff' }), 1, { name: 'Mese' }); B.text('date', p.year, 200, 1792, 160, 52, st({ size: 40, color: '#ffd23f' }), 1, { name: 'Anno' }); }
+    if (B.time) { B.round(390, 1720, 250, 140, { fill: '#27b04a', radius: 18, name: 'Riquadro ora' }); B.text('time', B.time, 400, 1726, 230, 90, st({ size: 86, color: '#ffffff' })); B.text(null, 'PRÉCISES', 400, 1812, 230, 40, st({ size: 26, color: '#0b4d20', ls: 4 }), 1, { name: 'Precises' }); }
+    if (B.has('luogo')) B.icon('pin', 690, 1760, 50, { fill: '#ffd23f', name: 'Icona luogo' });
+    B.field('luogo', 'place', 722, 1720, 330, 84, st({ size: 34, color: '#ffffff', align: 'left' }), 2);
+    B.field('footer', 'honor', 690, 1806, 360, 60, { font: 'Satisfy', size: 46, color: '#ffffff', align: 'left' });
+    return B.page({ color: '#1e8a3c', g: { c1: '#26a24a', c2: '#0b4d20', ang: 180 } });
+  } });
+
+/* 3 ─ Arch invitation: white/green, hero left, arch guest frame, minaret */
+def({ id: 'px_arcinvite', name: 'Invito Arco Verde', desc: 'Bianco + verde · arco ospite', ev: ['kassida', 'dahira', 'magal', 'ziar'], tags: ['invito', 'arco', 'ospite', 'minareto', 'bianco', 'verde'], layout: 'px-arch-guest', prio: 2,
+  sample: { org: 'DAARA MADJMAHOUN NOURAYNI\nTOUBA KEUR MASSAR', badgeTesto: 'Serigne', titolo: 'SALIOU KHASSIDA', luogo: 'Keur Massar, Unité 01', telefoni: '77 385 54 77 · 77 312 79 04', footer: 'Siège social Keur Massar', ora: '17:00' },
+  build(B) { const { d } = B, G = '#0d6b35';
+    B.circle(200, 260, 520, { g: { c1: 'rgba(120,190,120,0.35)', c2: 'rgba(120,190,120,0)', radial: true }, name: 'Alone verde' });
+    B.orn('minaret', 20, 880, 250, 1000, { fill: '#dfe3d4', fill2: '#6f7a63', name: 'Minareto' });
+    B.logo(540, 100, 58, { ring: G }); B.field('org', 'org', 260, 168, 560, 84, st({ size: 28, color: G }), 2);
+    B.person(360, 960, 700, 900, { role: 'photoSlot', phTint: '#2f6b3f', name: 'Foto principale' });
+    B.rect(0, 760, 1080, 240, { g: { c1: 'rgba(247,246,239,0)', c2: '#f7f6ef', ang: 180 }, name: 'Sfumatura' });
+    B.shape('arch', 560, 560, 440, 720, { fill: '#127a3c', stroke: '#d4af37', sw: 8, name: 'Arco' });
+    B.photo(590, 610, 380, 650, { autoCut: true, mask: 'arch', ph: 'Ospite', name: 'Foto ospite', phTint: '#1b8a46' });
+    B.field('badgeTesto', 'badge', 300, 1300, 700, 90, { font: 'Parisienne', size: 84, color: G });
+    B.field('titolo', 'title', 260, 1380, 780, 150, st({ size: 92, color: G, ls: 1 }), 2);
+    const p = B.dp;
+    if (p) { B.text('date', `${tc(p.month)}\n${p.year}`, 280, 1555, 260, 140, { font: 'Playfair Display', size: 56, italic: true, bold: true, color: G, lh: 1.0, align: 'right' }, 2, { name: 'Mese e anno' });
+      B.round(570, 1550, 160, 160, { fill: G, radius: 14, stroke: '#d4af37', sw: 4, name: 'Riquadro giorno' }); B.text('date', p.dshort, 580, 1556, 140, 46, st({ size: 38, color: '#ffffff', ls: 3 }), 1, { name: 'Giorno sett.' }); B.text('date', p.dd, 580, 1598, 140, 106, st({ size: 100, color: '#ffffff' }), 1, { name: 'Giorno' }); }
+    if (B.has('luogo')) B.icon('pin', 775, 1580, 46, { fill: G }); B.field('luogo', 'place', 800, 1550, 260, 160, st({ size: 34, weight: 800, color: '#1d2b1f', align: 'left' }), 3);
+    if (B.time) B.text('time', 'À PARTIR DE ' + B.time.replace('H', ' H'), 260, 1725, 780, 60, st({ size: 44, color: G, ls: 2 }));
+    if (B.has('telefoni')) { pill(B, 300, 1795, 700, 60, G, { name: 'Pillola telefono' }); B.field('telefoni', 'phone', 320, 1799, 660, 52, st({ size: 34, color: '#ffffff' })); }
+    B.rect(0, 1872, 1080, 48, { fill: '#0b4d26', name: 'Barra piè di pagina' }); B.field('footer', 'honor', 40, 1876, 1000, 40, st({ size: 22, weight: 700, color: '#ffffff', ls: 2 }));
+    return B.page({ color: '#f7f6ef' });
+  } });
+
+/* 4 ─ Programme board: schedule panel + theme box with guest medallion */
+def({ id: 'px_programme', name: 'Programma Orari', desc: 'Lista orari + tema', ev: ['programme', 'kassida', 'waxtaan', 'dahira'], tags: ['programme', 'programma', 'orari', 'thème', 'conférence'], layout: 'px-schedule', prio: 2,
+  sample: { titolo: 'PROGRAMME', org: 'Fédération Taysiiroul Hansir', ora: '16:30', programma: '16H30 · Mise en place\n17H15 · Prestation Kourel Khitmatoul Khadim\n17H50 · Prestation Kourel Fédéral\n19H00 · Kaddu Conservatoire\n19H15 · Zikroulah\n19H45 · Thème culturel\n20H10 · Kaddu Administration\n20H30 · Kaddu Dieuwrigne', tema: '« Lan moy taxawaayu Fédération ci boolé ndiabotu Sérigne bi »', ospite: 'Pape Ndiaye', luogo: 'Keur Serigne Touba' },
+  build(B) { const { d } = B, G = '#0d6b35';
+    B.orn('pattern', 0, 0, 1080, 1920, { fill: '#2f8f4f', alpha: 0.08, name: 'Motivo' });
+    B.person(300, 790, 560, 760, { role: 'photoSlot', phTint: '#2f6b3f', name: 'Foto principale' });
+    const p = B.dp;
+    if (p) { B.text('date', p.day, 600, 60, 300, 80, st({ size: 68, color: G, align: 'left' }), 1, { name: 'Giorno sett.' }); B.circle(965, 100, 70, { fill: '#d4201c', name: 'Cerchio giorno' }); B.text('date', p.dd, 905, 60, 120, 84, st({ size: 72, color: '#ffffff' }), 1, { name: 'Giorno' }); B.text('date', tc(p.month), 640, 140, 400, 60, { font: 'Kaushan Script', size: 54, color: '#d4201c', align: 'right' }, 1, { name: 'Mese' }); }
+    if (B.time) { pill(B, 600, 220, 440, 70, G, { name: 'Pillola ora' }); B.text('time', 'À PARTIR DE ' + B.time, 610, 226, 420, 58, st({ size: 38, color: '#ffffff' })); }
+    B.logo(820, 470, 120, { ring: G });
+    B.shape('banner', 20, 790, 1040, 170, { fill: G, stroke: '#d4af37', sw: 5, name: 'Nastro titolo' });
+    B.field('titolo', 'title', 80, 800, 920, 150, st({ size: 140, color: '#ffffff', ls: 3, shadow: { c: 'rgba(0,0,0,0.35)', b: 10, x: 0, y: 5 } }));
+    B.field('org', 'org', 80, 965, 920, 64, st({ size: 44, color: G }));
+    const items = B.lines('programma');
+    if (items.length) { B.round(30, 1050, 640, 820, { fill: G, radius: 24, name: 'Pannello programma' }); B.text('prog', items.join('\n'), 54, 1076, 594, 770, st({ size: 34, weight: 800, color: '#ffffff', align: 'left', lh: 1.55 }), 12, { name: 'Programma' }); }
+    const rx = items.length ? 690 : 230, rw = items.length ? 360 : 620;
+    if (B.has('tema')) { B.round(rx, 1050, rw, 250, { fill: '#ffffff', radius: 20, stroke: G, sw: 4, name: 'Riquadro tema' }); B.round(rx, 1050, rw, 60, { fill: G, radius: 20, name: 'Etichetta tema' }); B.text(null, 'THÈME CULTURELLE', rx + 10, 1054, rw - 20, 52, st({ size: 30, color: '#ffffff' }), 1, { name: 'Etichetta' }); B.field('tema', 'theme', rx + 16, 1118, rw - 32, 170, { font: 'Playfair Display', size: 34, italic: true, bold: true, color: G }, 4); }
+    B.circle(rx + rw / 2, 1480, 158, { fill: '#d4af37', name: 'Anello ospite' }); B.guest(rx + rw / 2, 1480, 146, { phTint: '#1b8a46' });
+    if (B.has('ospite')) { B.text(null, 'Dieuwrigne', rx, 1640, rw, 50, { font: 'Kaushan Script', size: 44, color: G }, 1, { name: 'Etichetta ospite' }); B.field('ospite', 'name', rx, 1690, rw, 70, st({ size: 50, color: '#1d2b1f' })); }
+    if (B.has('luogo')) B.icon('pin', rx + 30, 1800, 42, { fill: G }); B.field('luogo', 'place', rx + 56, 1770, rw - 60, 70, st({ size: 30, color: G, align: 'left' }), 2);
+    return B.page({ color: '#ffffff' });
+  } });
+
+/* 5 ─ Laylatoul Qadr gold: two cut-outs, 3D gold title, red script, gold date strip */
+def({ id: 'px_qadrgold', name: 'Laylatoul Qadr Oro', desc: 'Bianco + oro · striscia data', ev: ['qadr', 'ramadan'], only: ['qadr', 'ramadan'], tags: ['laylatoul qadr', 'khadr', 'nuit du destin', 'ramadan', 'oro', 'palme'], layout: 'px-qadr-title-mid', prio: 1,
+  sample: { titolo: 'LAYLATOUL', badgeTesto: 'khadr', org: 'AHIBA-OU CHEIKHOUL KHADIM', luogo: 'KMF / Toll Diaz', ora: '21:00', sotto: '', telefoni: '' },
+  build(B) { const { d } = B;
+    B.orn('palm', -40, 220, 320, 520, { fill: '#6d7b4a', op: 0.55, name: 'Palma' }); B.orn('palm', 760, 300, 300, 480, { fill: '#6d7b4a', op: 0.45, flip: 'h', name: 'Palma' });
+    B.orn('minaret', 800, 0, 240, 860, { fill: '#ead6a8', fill2: '#6b4c2a', name: 'Minareto' });
+    B.logo(150, 150, 100, { ring: '#c9a227' });
+    B.person(380, 1080, 620, 900, { role: 'photoSlot', phTint: '#9a7a3a', name: 'Foto principale' }); B.person(760, 1040, 470, 860, { phTint: '#9a7a3a', name: 'Foto ospite' });
+    B.rect(0, 860, 1080, 260, { g: { c1: 'rgba(255,250,236,0)', c2: '#fffaec', ang: 180 }, name: 'Sfumatura' }); B.rect(0, 1118, 1080, 520, { fill: '#fffaec', name: 'Fondo' });
+    B.field('titolo', 'title', 30, 1110, 1020, 200, GOLD(190, { font: 'Archivo Black', extrude: { d: 14, c: '#6b3d08' } }));
+    B.field('badgeTesto', 'badge', 260, 1290, 560, 140, { font: 'Lobster', size: 130, color: '#c4161c', stroke: { w: 2, c: '#ffffff' }, shadow: { c: 'rgba(0,0,0,0.3)', b: 10, x: 0, y: 5 } });
+    if (B.has('org')) { pill(B, 190, 1450, 700, 76, '#1a1208', { stroke: '#c9a227', sw: 3, name: 'Pillola organizzazione' }); B.field('org', 'org', 210, 1456, 660, 64, st({ size: 36, color: '#ffffff', ls: 2 })); }
+    B.field('sotto', 'name', 100, 1540, 880, 60, { font: 'Playfair Display', size: 44, italic: true, bold: true, color: '#5a3a08' });
+    B.rect(0, 1630, 1080, 200, { g: { c1: '#f6d77a', c2: '#c8952e', ang: 180 }, name: 'Striscia oro' });
+    const p = B.dp;
+    if (p) { B.text('date', p.day, 40, 1644, 170, 44, st({ size: 34, color: '#3a2405' }), 1, { name: 'Giorno sett.' }); B.text('date', p.dd, 40, 1686, 170, 120, st({ size: 116, color: '#ffffff', extrude: { d: 10, c: '#7a4b10' } }), 1, { name: 'Giorno' }); B.text('date', p.month, 220, 1644, 300, 44, st({ size: 34, color: '#3a2405' }), 1, { name: 'Mese' }); B.text('date', p.year, 220, 1686, 300, 120, st({ size: 116, color: '#ffffff', extrude: { d: 10, c: '#7a4b10' } }), 1, { name: 'Anno' }); }
+    if (B.has('luogo')) B.icon('pin', 585, 1690, 56, { fill: '#c4161c' }); B.field('luogo', 'place', 620, 1650, 430, 90, st({ size: 52, color: '#2a1a04', align: 'left' }), 2);
+    if (B.time) B.text('time', 'À PARTIR DE ' + B.time, 590, 1748, 460, 56, st({ size: 40, color: '#c4161c', align: 'left' }));
+    B.field('telefoni', 'phone', 60, 1850, 960, 50, st({ size: 30, weight: 700, color: '#5a3a08' }));
+    return B.page({ color: '#fffaec', g: { c1: '#ffffff', c2: '#f5e7c4', ang: 180 } });
+  } });
+
+/* 6 ─ Kourel trio: lanterns, three arches with singers, Kourel columns */
+def({ id: 'px_kourel', name: 'Kourel Trio', desc: 'Verde · 3 kourel + orari', ev: ['kassida', 'programme', 'safar'], only: ['kassida', 'programme', 'safar', 'magal'], tags: ['kourel', 'prestation', 'xassida', 'lanterne', '1er safar'], layout: 'px-trio', prio: 2,
+  sample: { titolo: '1ER SAFAR', org: 'DAARA MAFATIHOUL BICHRI', badgeTesto: 'PRESTATION', programma: 'KOUREL 1 · 21H00\nKOUREL 2 · 22H00\nKOUREL 3 · 23H00', luogo: 'MBAAR MOURIDE', telefoni: '' },
+  build(B) { const { d } = B;
+    B.orn('pattern', 0, 0, 1080, 1920, { fill: '#ffffff', alpha: 0.06, name: 'Motivo' });
+    B.orn('lanternRow', 0, 0, 1080, 330, { n: 4, name: 'Lanterne' });
+    B.field('titolo', 'title', 60, 80, 960, 150, st({ size: 140, color: '#ffffff', extrude: { d: 10, c: '#06381a' }, shadow: { c: 'rgba(0,0,0,0.4)', b: 12, x: 0, y: 6 } }));
+    B.field('org', 'org', 60, 228, 960, 100, st({ size: 64, color: '#ffd23f' }), 2);
+    const p = B.dp; if (p) B.text('date', B.dateTxt('DAY DD MONTH'), 240, 334, 600, 64, { font: 'Montserrat', size: 46, bold: true, italic: true, weight: 900, color: '#ffffff' }, 1);
+    [[40, 0], [380, 1], [720, 2]].forEach(([x, i]) => { B.shape('arch', x, 430, 320, 860, { fill: '#0b5a26', stroke: '#d4af37', sw: 6, name: 'Arco ' + (i + 1) }); B.person(x + 160, 1290, 300, 800, Object.assign({ phTint: '#1e7a3a', name: 'Foto kourel ' + (i + 1) }, i === 1 ? { role: 'photoSlot' } : {})); });
+    B.field('badgeTesto', 'badge', 140, 1310, 800, 110, st({ size: 100, color: '#ffffff', ls: 4, shadow: { c: 'rgba(0,0,0,0.4)', b: 10, x: 0, y: 5 } }));
+    B.lines('programma').slice(0, 3).forEach((ln, i) => { const [a, b] = ln.split(/\s*·\s*/); const x = 40 + i * 340; B.text('prog', a, x, 1440, 320, 70, st({ size: 50, color: '#ffffff' }), 1, { name: 'Kourel ' + (i + 1) }); if (b) { B.round(x + 50, 1520, 220, 64, { fill: '#ffd23f', radius: 12, name: 'Orario' }); B.text('prog', b, x + 50, 1524, 220, 56, st({ size: 40, color: '#0b4d20' }), 1, { name: 'Orario ' + (i + 1) }); } });
+    if (B.has('luogo')) B.icon('pin', 540, 1650, 60, { fill: '#ffd23f' }); B.field('luogo', 'place', 120, 1690, 840, 90, st({ size: 64, color: '#ffffff' }));
+    B.field('telefoni', 'phone', 120, 1790, 840, 50, st({ size: 32, color: '#d6f5dd' }));
+    return B.page({ color: '#13782f', g: { c1: '#1f9a40', c2: '#0a4a1c', ang: 180 } });
+  } });
+
+/* 7 ─ Thiant split: dark green, person bottom-left, organiser + big yellow date right */
+def({ id: 'px_thiant', name: 'Thiant Notte', desc: 'Verde scuro · data gialla', ev: ['thiant', 'dahira', 'kassida'], tags: ['thiant annuel', 'thiant', 'édition', 'chanteurs', 'verde scuro'], layout: 'px-left-person-info', prio: 1,
+  sample: { badgeTesto: '2ème édition', titolo: 'THIANT ANNUEL', libero: 'Santé Serigne Touba', sotto: 'Delo Ndioukeul', org: 'Cheikh Ahmed Dieng\nNar Fall', luogo: 'BISSOUP GAMOU GUI', indirizzo: 'Keur Serigne Ablaye Yakhine', footer: 'Cet événement rassemblera tous les chanteurs religieux', ora: '16:00' },
+  build(B) { const { d } = B, Y = '#ffd400';
+    B.orn('pattern', 0, 0, 1080, 1920, { fill: '#9fd3a8', alpha: 0.06, name: 'Motivo' });
+    B.person(790, 900, 480, 640, { op: 0.35, phTint: '#2b5a3a', name: 'Foto sfondo' }); B.person(250, 760, 360, 520, { op: 0.25, phTint: '#2b5a3a', name: 'Foto sfondo 2' });
+    if (B.has('badgeTesto')) { B.round(780, 36, 260, 58, { fill: '#c4161c', radius: 10, name: 'Etichetta edizione' }); B.field('badgeTesto', 'badge', 790, 40, 240, 50, st({ size: 32, color: '#ffffff' })); }
+    B.field('titolo', 'title', 40, 104, 1000, 130, st({ size: 120, color: '#ffffff', ls: 2, shadow: { c: 'rgba(0,0,0,0.5)', b: 12, x: 0, y: 5 } }));
+    B.field('libero', 'body', 100, 236, 880, 50, { font: 'Kaushan Script', size: 40, color: '#e8f5e9' });
+    B.field('sotto', 'subtitle', 60, 286, 960, 120, { font: 'Kaushan Script', size: 104, color: Y, shadow: { c: 'rgba(0,0,0,0.5)', b: 10, x: 0, y: 4 } });
+    B.person(320, 1560, 640, 1120, { role: 'photoSlot', phTint: '#2b5a3a', name: 'Foto principale' });
+    if (B.has('org')) { B.text(null, 'Organisé par', 640, 930, 410, 60, { font: 'Kaushan Script', size: 50, color: '#ffffff' }, 1, { name: 'Etichetta organizzazione' }); B.field('org', 'org', 640, 990, 410, 120, st({ size: 44, color: Y }), 2); }
+    const p = B.dp;
+    if (p) { B.text('date', p.dshort, 590, 1140, 200, 140, st({ size: 130, color: Y }), 1, { name: 'Giorno sett.' }); B.text('date', `${p.d} ${p.mshort.replace('.', '')}`, 800, 1140, 260, 76, st({ size: 70, color: Y, align: 'left' }), 1, { name: 'Giorno e mese' }); B.text('date', p.year, 800, 1214, 150, 62, st({ size: 56, color: Y, align: 'left' }), 1, { name: 'Anno' }); }
+    if (B.time) B.text('time', B.time.toLowerCase(), 950, 1214, 110, 62, st({ size: 46, color: '#ffffff', align: 'left' }));
+    B.field('luogo', 'place', 600, 1310, 460, 130, st({ size: 64, color: Y }), 2);
+    if (B.has('indirizzo')) B.icon('pin', 620, 1478, 40, { fill: Y }); B.field('indirizzo', 'place', 645, 1452, 420, 54, st({ size: 30, weight: 700, color: '#ffffff', align: 'left' }));
+    B.rect(0, 1560, 1080, 6, { fill: Y, name: 'Filetto' }); B.rect(0, 1566, 1080, 354, { fill: '#06200f', name: 'Fondo' });
+    B.field('footer', 'honor', 60, 1600, 960, 100, st({ size: 40, weight: 800, color: Y }), 2);
+    B.field('telefoni', 'phone', 60, 1720, 960, 60, st({ size: 34, weight: 700, color: '#ffffff' }));
+    return B.page({ color: '#0f3d22', g: { c1: '#14502c', c2: '#06200f', ang: 180 } });
+  } });
+
+/* 8 ─ Anniversary quote: script title, quote, big group photo */
+def({ id: 'px_anni', name: 'Anniversario Citazione', desc: 'Bianco + verde · foto gruppo', ev: ['anni'], tags: ['anniversaire', 'anniversario', '1 an', 'citazione', 'foto gruppo'], layout: 'px-quote-group', prio: 2,
+  sample: { titolo: '1 an déjà', libero: '« Biss ni tay dji le 11 novembre la FÉDÉRATION diotton ndigël ci Seriñ Mountakha Mbacké »', sotto: 'Bourou Lal Souf', org: 'FÉDÉRATION TAYSIIROUL HANSIR' },
+  build(B) { const { d } = B, G = '#0d7a3a';
+    B.circle(980, 120, 420, { g: { c1: 'rgba(13,122,58,0.18)', c2: 'rgba(13,122,58,0)', radial: true }, name: 'Alone' });
+    B.shape('ring', -260, -260, 760, 760, { fill: 'rgba(13,122,58,0.10)', name: 'Anello decorativo' });
+    B.logo(160, 170, 110, { ring: G });
+    B.person(760, 880, 600, 840, { role: 'photoSlot', phTint: '#2f6b3f', name: 'Foto principale' });
+    B.rect(0, 700, 1080, 200, { g: { c1: 'rgba(248,251,246,0)', c2: '#f8fbf6', ang: 180 }, name: 'Sfumatura' });
+    B.field('titolo', 'title', 40, 880, 1000, 240, { font: 'Lobster', size: 210, grad: 'greeng', shadow: { c: 'rgba(0,0,0,0.25)', b: 12, x: 0, y: 6 } });
+    B.field('libero', 'body', 70, 1130, 940, 210, { font: 'Montserrat', size: 38, bold: true, italic: true, weight: 800, color: G }, 4);
+    B.photo(80, 1360, 920, 430, { border: { w: 8, c: G }, name: 'Foto gruppo' });
+    if (B.has('sotto')) { B.round(740, 1730, 250, 90, { fill: '#0a4d26', radius: 16, stroke: '#ffffff', sw: 4, name: 'Etichetta' }); B.field('sotto', 'name', 750, 1736, 230, 78, { font: 'Kaushan Script', size: 40, color: '#ffffff' }, 2); }
+    B.rect(0, 1850, 1080, 70, { fill: G, name: 'Barra' }); B.field('org', 'org', 40, 1856, 1000, 58, st({ size: 32, color: '#ffffff', ls: 2 }));
+    return B.page({ color: '#f8fbf6' });
+  } });
+
+/* 9 ─ Big 18 Safar: hero left, giant 18 right, yellow date pill */
+def({ id: 'px_safar18', name: '18 Safar Grande', desc: 'Bianco + verde · numero 18', ev: ['safar', 'magal'], only: ['safar', 'magal'], tags: ['18 safar', 'grand safar', 'magal', 'numero', 'verde', 'giallo'], layout: 'px-big-number', prio: 1,
+  sample: { titolo: 'GRAND SAFAR', badgeTesto: 'ÉDITION 2026 / 1448H', luogo: 'KMF / TOLL DIAZ', indirizzo: 'En face de la mosquée', org: 'AHIBA-OU CHEIKHOUL KHADIM', telefoni: 'Veuillez nous suivre sur nos plateformes' },
+  build(B) { const { d } = B, G = '#17913d';
+    B.circle(330, 900, 620, { g: { c1: 'rgba(23,145,61,0.16)', c2: 'rgba(23,145,61,0)', radial: true }, name: 'Alone' });
+    B.field('titolo', 'title', 40, 40, 620, 250, st({ size: 120, color: G, align: 'left', lh: 0.95, shadow: { c: 'rgba(0,0,0,0.2)', b: 8, x: 0, y: 4 } }), 2);
+    B.field('badgeTesto', 'badge', 40, 290, 620, 50, st({ size: 34, color: '#1a1a1a', align: 'left' }));
+    B.logo(930, 160, 110, { ring: G });
+    B.person(360, 1500, 760, 1150, { role: 'photoSlot', phTint: '#3a7a4a', name: 'Foto principale' });
+    B.text('badge', '18', 620, 640, 440, 430, { font: 'Anton', size: 430, color: '#111111', shadow: { c: 'rgba(0,0,0,0.25)', b: 10, x: 6, y: 8 } }, 1, { name: 'Numero 18' });
+    B.text(null, 'صفر', 760, 880, 260, 120, { font: 'Aref Ruqaa', size: 100, bold: true, grad: 'goldflat' }, 1, { name: 'Safar in arabo' });
+    B.text('badge', 'SAFAR', 620, 1060, 440, 140, st({ size: 130, color: G }), 1, { name: 'SAFAR' });
+    const p = B.dp;
+    B.round(30, 1520, 430, 170, { fill: '#f6c700', radius: 30, name: 'Pillola data' });
+    if (p) { B.text('date', tc(p.day), 50, 1528, 390, 64, { font: 'Kaushan Script', size: 56, color: '#1a1a1a' }, 1, { name: 'Giorno sett.' }); B.text('date', `${p.dd} ${p.month} ${p.year}`, 50, 1596, 390, 80, st({ size: 56, color: '#1a1a1a' }), 1); }
+    if (B.has('luogo')) B.icon('pin', 500, 1556, 60, { fill: G }); B.field('luogo', 'place', 540, 1520, 510, 80, st({ size: 58, color: G, align: 'left' }));
+    B.field('indirizzo', 'place', 540, 1604, 510, 60, { font: 'Kaushan Script', size: 40, color: '#1a1a1a', align: 'left' });
+    if (B.has('org')) { B.round(30, 1716, 1020, 84, { fill: G, radius: 14, name: 'Barra organizzazione' }); B.field('org', 'org', 50, 1722, 980, 72, st({ size: 50, color: '#ffffff' })); }
+    ['ig', 'yt', 'fb', 'whatsapp'].forEach((ic, i) => B.icon(ic, 70 + i * 70, 1856, 52, { fill: ['#c13584', '#e00', '#1877f2', '#25d366'][i], name: 'Social' }));
+    B.field('telefoni', 'phone', 360, 1830, 690, 56, st({ size: 26, weight: 800, color: G, align: 'left' }), 2);
+    return B.page({ color: '#ffffff' });
+  } });
+
+/* 10 ─ Laylatoul Qadr teal: birds, minaret right, yellow title, wave bottom */
+def({ id: 'px_qadrteal', name: 'Laylatoul Qadr Turchese', desc: 'Turchese + giallo · onda', ev: ['qadr', 'ramadan', 'dahira'], only: ['qadr', 'ramadan', 'dahira'], tags: ['laylatoul qadr', 'jumah', 'daara', 'turchese', 'onda'], layout: 'px-teal-wave', prio: 2,
+  sample: { titolo: 'LAYLATOUL QADR', org: 'DAARA MAFATIHOUL BICHRI', luogo: 'JUMAH MOURIDE', telefoni: '' },
+  build(B) { const { d } = B, Y = '#ffd400';
+    B.orn('birds', 40, 60, 640, 240, { seed: 9, n: 10, fill: '#0a2f33', name: 'Uccelli' });
+    B.orn('domes', 600, 640, 460, 300, { fill: '#0b4c52', op: 0.55, name: 'Moschea' }); B.orn('minaret', 820, 220, 220, 800, { fill: '#c8b48a', fill2: '#3b3020', name: 'Minareto' });
+    B.logo(800, 110, 62, { ring: '#ffffff' }); B.logo(960, 110, 62, { ring: '#ffffff' });
+    B.person(300, 1060, 560, 880, { role: 'photoSlot', phTint: '#1f6f73', name: 'Foto principale' }); B.person(600, 960, 380, 720, { phTint: '#1f6f73', name: 'Foto ospite' });
+    B.rect(0, 860, 1080, 240, { g: { c1: 'rgba(10,92,102,0)', c2: '#0a5c66', ang: 180 }, name: 'Sfumatura' }); B.rect(0, 1098, 1080, 500, { fill: '#0a5c66', name: 'Fondo' });
+    B.field('titolo', 'title', 40, 1070, 1000, 150, st({ size: 120, color: Y, shadow: { c: 'rgba(0,0,0,0.45)', b: 12, x: 0, y: 6 } }));
+    if (B.has('org')) { B.round(140, 1226, 800, 86, { fill: '#ffffff', radius: 10, name: 'Nastro organizzazione' }); B.field('org', 'org', 160, 1232, 760, 74, st({ size: 46, color: '#0a3f46' })); }
+    const p = B.dp; if (p) B.text('date', B.dateTxt('DAY DD MONTH YYYY'), 60, 1330, 960, 80, st({ size: 64, color: Y }), 1);
+    if (B.time) B.text('time', 'À PARTIR DE ' + B.time, 60, 1408, 960, 54, st({ size: 40, color: '#ffffff' }));
+    if (B.has('luogo')) B.icon('pin', 180, 1520, 70, { fill: Y }); B.field('luogo', 'place', 220, 1470, 780, 110, st({ size: 92, color: '#ffffff', align: 'left' }));
+    B.orn('wave', 0, 1560, 1080, 360, { fill: Y, fill2: '#0d7a43', fill3: '#ffffff', name: 'Onda' });
+    B.field('telefoni', 'phone', 60, 1840, 960, 56, st({ size: 32, color: '#ffffff' }));
+    return B.page({ color: '#0f8f8a', g: { c1: '#13a39b', c2: '#0a5c66', ang: 180 } });
+  } });
+
+/* 11 ─ Grand Magal gold-top: centred title, gold pill, minaret right, green footer band */
+def({ id: 'px_magalgold', name: 'Grand Magal Oro', desc: 'Bianco + oro · banda verde', ev: ['magal', 'safar'], only: ['magal', 'safar'], tags: ['grand magal', 'touba', '18 safar', 'oro', 'comité', 'bon magal'], layout: 'px-magal-top', prio: 1,
+  sample: { titolo: 'Grand Magal', sotto: 'TOUBA', badgeTesto: '18 Safar 1448H / 2026', footer: 'LE COMITÉ D’ORGANISATION VOUS SOUHAITE UN BON MAGAL', luogo: 'Touba', telefoni: '+221 33 975 43 10 · +221 77 652 50 63' },
+  build(B) { const { d } = B, G = '#0d6b35';
+    B.orn('pattern', 0, 0, 1080, 1560, { fill: '#c9a227', alpha: 0.09, name: 'Motivo' });
+    B.circle(540, 1000, 560, { g: { c1: 'rgba(212,175,55,0.22)', c2: 'rgba(212,175,55,0)', radial: true }, name: 'Alone oro' });
+    B.field('titolo', 'title', 60, 60, 960, 150, st({ size: 130, color: G, shadow: { c: 'rgba(0,0,0,0.15)', b: 8, x: 0, y: 4 } }));
+    if (B.has('sotto')) { B.circle(255, 300, 54, { g: { c1: '#f6d77a', c2: '#b88a2a', ang: 180 }, name: 'Cerchio de' }); B.text(null, 'de', 205, 266, 100, 70, { font: 'Kaushan Script', size: 56, color: '#ffffff' }, 1, { name: 'de' }); }
+    B.field('sotto', 'subtitle', 320, 210, 640, 180, GOLD(170, { align: 'left' }));
+    if (B.has('badgeTesto')) { pill(B, 250, 400, 580, 74, '#c8952e', { g: { c1: '#f2cf6a', c2: '#b8862a', ang: 180 }, name: 'Pillola oro' }); B.field('badgeTesto', 'badge', 270, 406, 540, 62, st({ size: 42, color: '#ffffff' })); }
+    B.orn('minaret', 810, 360, 230, 980, { fill: '#e9dbb6', fill2: '#6b5530', name: 'Minareto' });
+    B.person(300, 1440, 520, 900, { phTint: '#8a7a5a', name: 'Foto ospite' }); B.person(600, 1490, 620, 1000, { role: 'photoSlot', phTint: '#8a7a5a', name: 'Foto principale' });
+    B.logo(540, 1450, 92, { ring: '#c9a227' });
+    B.rect(0, 1560, 1080, 360, { g: { c1: '#13853f', c2: '#0a4d24', ang: 180 }, name: 'Banda verde' }); B.rect(0, 1556, 1080, 8, { fill: '#d4af37', name: 'Filetto oro' });
+    B.field('footer', 'honor', 40, 1586, 1000, 90, st({ size: 40, color: '#ffffff' }), 2);
+    const p = B.dp; if (p) B.text('date', B.dateTxt('DAY DD MONTH YYYY') + (B.time ? ' · DÈS ' + B.time : ''), 40, 1690, 1000, 64, st({ size: 48, color: '#ffd76a' }), 1);
+    B.field('luogo', 'place', 40, 1760, 1000, 54, st({ size: 38, weight: 800, color: '#ffffff' }));
+    B.field('telefoni', 'phone', 40, 1830, 1000, 50, st({ size: 26, weight: 700, color: '#d6f5dd' }));
+    return B.page({ color: '#fdfcf7' });
+  } });
+
+/* 12 ─ Thiant sky: three cut-outs, blue script title, body + calligraphy, date pill */
+def({ id: 'px_thiantciel', name: 'Thiant Cielo', desc: 'Azzurro · titolo corsivo', ev: ['thiant', 'ziar', 'dahira'], tags: ['thiant annuel', 'azzurro', 'calligrafia', 'khitmatoul khadim', 'nuvole'], layout: 'px-script-ciel', prio: 1,
+  sample: { org: 'DAHIRA KHITMATOUL KHADIM', badgeTesto: '18ème édition', titolo: 'Thiant\nAnnuel', sotto: 'Daara Khitmatoul Khadim', libero: 'Ahl seriñ bi ak taalibé yi ñu ngi leen di woo ci thiant bi. Ñëwleen ak seen mbokk ngir yokk barke.', arabo: 'قلبي يحبك يا خديم الرسول', luogo: '' },
+  build(B) { const { d } = B, N = '#103a8c';
+    B.orn('clouds', 0, 40, 1080, 900, { seed: 21, n: 14, alpha: 0.95, name: 'Nuvole' });
+    B.rect(0, 0, 1080, 50, { fill: N, name: 'Barra alta' }); B.field('org', 'org', 40, 6, 1000, 38, st({ size: 22, weight: 700, color: '#ffffff', ls: 3 }));
+    if (B.has('badgeTesto')) { B.round(40, 76, 230, 60, { fill: '#c4161c', radius: 8, name: 'Etichetta edizione' }); B.field('badgeTesto', 'badge', 48, 80, 214, 52, st({ size: 28, color: '#ffffff' })); }
+    B.logo(970, 130, 70, { ring: N });
+    B.person(300, 900, 440, 720, { phTint: '#4b6fb0', name: 'Foto ospite 1' }); B.person(780, 920, 440, 740, { phTint: '#4b6fb0', name: 'Foto ospite 2' }); B.person(540, 960, 500, 820, { role: 'photoSlot', phTint: '#4b6fb0', name: 'Foto principale' });
+    B.rect(0, 720, 1080, 260, { g: { c1: 'rgba(255,255,255,0)', c2: '#ffffff', ang: 180 }, name: 'Sfumatura' });
+    B.field('titolo', 'title', 80, 860, 920, 360, { font: 'Lobster', size: 190, grad: 'navyg', stroke: { w: 2, c: '#ffffff' }, lh: 0.92, shadow: { c: 'rgba(16,58,140,0.35)', b: 14, x: 0, y: 8 } }, 2);
+    B.field('sotto', 'subtitle', 200, 1220, 680, 56, { font: 'Playfair Display', size: 40, italic: true, bold: true, color: N });
+    B.field('libero', 'body', 100, 1290, 880, 180, st({ size: 30, weight: 600, color: '#21324f' }), 5);
+    B.field('arabo', 'arabic', 80, 1480, 920, 190, { font: 'Aref Ruqaa', size: 96, bold: true, color: N, lh: 1.1 }, 2);
+    const p = B.dp;
+    if (p) { B.round(110, 1700, 860, 116, { fill: N, radius: 58, stroke: '#ffd23f', sw: 6, name: 'Pillola data' }); B.text('date', B.dateTxt('DAY DD MONTH YYYY'), 140, 1708, 800, 100, st({ size: 64, color: '#ffffff' }), 1); }
+    if (B.time || B.has('luogo')) B.text('place', [d.luogo, B.time ? 'DÈS ' + B.time : ''].filter(Boolean).join(' · '), 80, 1830, 920, 56, st({ size: 32, color: N }), 1, { name: 'Luogo e ora' });
+    return B.page({ color: '#ffffff', g: { c1: '#bfe0fb', c2: '#ffffff', ang: 180 } });
+  } });
+
+/* 13 ─ Dahira brown panel: 3D title, date medallion, guest, theme + programme pills */
+def({ id: 'px_dahirabrown', name: 'Dahira Terra', desc: 'Crema + marrone · tema e programma', ev: ['dahira', 'thiant', 'kassida', 'programme'], tags: ['dahira', 'thème', 'programme', 'marrone', 'dieuwrigne'], layout: 'px-panel-brown', prio: 2,
+  sample: { titolo: 'DAHIRA', sotto: 'Ahiba-ou Cheikhoul Khadim', org: 'Keur Mbaye Fall', ospite: 'PAPE NDIAYE', tema: 'Déedu', programma: 'Drus\nPrestation Kurel\nRadiass\nJang Alhur an\nThème\nSoññé\nXatm', ora: '17:00', telefoni: 'Ack audiovisuel 70 721 44 91' },
+  build(B) { const { d } = B, BR = '#6b3f14', CR = '#f6ead7';
+    B.orn('pattern', 0, 0, 1080, 1300, { fill: '#b08850', alpha: 0.1, name: 'Motivo' });
+    B.person(300, 590, 440, 560, { role: 'photoSlot', phTint: '#7a5a3a', name: 'Foto principale' }); B.person(780, 590, 440, 560, { phTint: '#7a5a3a', name: 'Foto ospite' });
+    B.rect(0, 440, 1080, 160, { g: { c1: 'rgba(246,234,215,0)', c2: CR, ang: 180 }, name: 'Sfumatura' });
+    B.field('titolo', 'title', 40, 560, 1000, 200, { font: 'Archivo Black', size: 200, color: '#8a5320', stroke: { w: 2, c: '#fff4dd' }, extrude: { d: 14, c: '#3d2309' }, shadow: { c: 'rgba(0,0,0,0.3)', b: 12, x: 0, y: 8 } });
+    B.field('sotto', 'subtitle', 40, 760, 1000, 110, { font: 'Kaushan Script', size: 86, color: BR });
+    B.field('org', 'org', 40, 866, 1000, 60, st({ size: 42, color: '#2a1606' }));
+    const p = B.dp;
+    if (p) { B.circle(250, 1110, 175, { fill: '#fff8ec', stroke: BR, sw: 10, name: 'Medaglione data' }); B.text('date', tc(p.day), 110, 965, 280, 60, { font: 'Kaushan Script', size: 50, color: BR }, 1, { name: 'Giorno sett.' }); B.text('date', p.dd, 110, 1015, 280, 180, st({ size: 170, color: BR }), 1, { name: 'Giorno' }); B.text('date', tc(p.month), 110, 1190, 280, 60, { font: 'Kaushan Script', size: 50, color: BR }, 1, { name: 'Mese' }); }
+    B.person(790, 1300, 470, 420, { phTint: '#7a5a3a', name: 'Foto dieuwrigne' });
+    if (B.has('ospite')) { B.text(null, 'Dieuwrigne', 560, 1200, 470, 40, { font: 'Kaushan Script', size: 36, color: '#ffffff', shadow: { c: 'rgba(0,0,0,0.6)', b: 8, x: 0, y: 2 } }, 1, { name: 'Etichetta' }); B.field('ospite', 'name', 560, 1236, 470, 64, st({ size: 54, color: '#f2c94c', shadow: { c: 'rgba(0,0,0,0.6)', b: 8, x: 0, y: 3 } })); }
+    B.rect(0, 1300, 1080, 620, { g: { c1: '#8a5320', c2: '#4a2a0c', ang: 180 }, name: 'Pannello marrone' });
+    if (B.has('tema')) { B.text(null, 'THÈME', 40, 1330, 330, 64, st({ size: 56, color: '#ffd23f' }), 1, { name: 'Etichetta tema' }); B.field('tema', 'theme', 40, 1394, 330, 80, { font: 'Kaushan Script', size: 64, color: '#ffffff' }); B.photo(70, 1490, 270, 230, { mask: 'rounded', border: { w: 5, c: '#ffd23f' }, autoCut: true, phTint: '#7a5a3a', name: 'Foto tema' }); }
+    const items = B.lines('programma');
+    if (items.length) { B.text(null, 'PROGRAMME', 400, 1326, 640, 70, st({ size: 56, color: '#ffffff', ls: 3 }), 1, { name: 'Etichetta programma' });
+      items.slice(0, 8).forEach((it, i) => { const col = i % 2, row = Math.floor(i / 2), x = 410 + col * 320, y = 1410 + row * 84; B.round(x, y, 300, 68, { fill: '#fff4dd', radius: 50, name: 'Pillola programma' }); B.text('prog', it, x + 10, y + 6, 280, 56, st({ size: 34, weight: 800, color: BR }), 1, { name: 'Voce programma ' + (i + 1) }); }); }
+    if (B.time) { pill(B, 420, 1770, 600, 66, '#ffd23f', { name: 'Pillola ora' }); B.text('time', 'À partir de ' + B.time.toLowerCase(), 430, 1774, 580, 58, st({ size: 38, color: '#3d2309' })); }
+    B.field('telefoni', 'phone', 40, 1860, 1000, 48, st({ size: 26, weight: 700, color: '#f6ead7' }));
+    return B.page({ color: CR });
+  } });
+
+/* 14 ─ 18 Safar programme: guests row on a yellow arc, two-column programme */
+def({ id: 'px_safarprog', name: '18 Safar Programma', desc: 'Verde + giallo · fila ospiti', ev: ['safar', 'magal', 'programme'], only: ['safar', 'magal', 'programme'], tags: ['18 safar', 'programme', 'cérémonie officielle', 'ospiti', 'verde'], layout: 'px-guest-row', prio: 2,
+  sample: { org: 'DAHIRA AHIBA-OU CHEIKHOUL KHADIM', titolo: '18 Safar', libero: 'L’événement se déroulera de 16H00 jusqu’à 00H00', programma: 'Jàng Alxuraan\nDurus\nRadiass\nKureel\nThème\nWaxtaane\nNouha Dabo\nArame Ndiaye\nKilifë yi', luogo: 'Près de la mosquée d’Imame Sarr' },
+  build(B) { const { d } = B, G = '#0f7a37', Y = '#f6c700';
+    B.logo(540, 100, 72, { ring: G }); B.field('org', 'org', 240, 182, 600, 84, st({ size: 32, color: G }), 2);
+    B.person(200, 660, 380, 500, { role: 'photoSlot', phTint: '#3a7a4a', name: 'Foto principale' }); B.person(880, 660, 380, 500, { phTint: '#3a7a4a', name: 'Foto ospite' });
+    B.field('titolo', 'title', 300, 270, 480, 180, { font: 'Lobster', size: 150, color: Y, stroke: { w: 2.5, c: G }, shadow: { c: 'rgba(0,0,0,0.25)', b: 10, x: 0, y: 5 } });
+    B.shape('halfcircle', -60, 640, 1200, 300, { fill: Y, name: 'Arco giallo' });
+    [120, 330, 540, 750, 960].forEach((cx, i) => { B.circle(cx, 780, 102, { fill: '#ffffff', name: 'Anello ospite' }); B.guest(cx, 780, 94, { phTint: '#3a7a4a', name: 'Foto ospite ' + (i + 1) }); });
+    B.rect(0, 900, 1080, 1020, { g: { c1: '#13883f', c2: '#08501f', ang: 180 }, name: 'Pannello verde' });
+    B.shape('banner', 250, 930, 580, 84, { fill: Y, name: 'Nastro programma' }); B.text(null, 'PROGRAMME', 270, 936, 540, 72, st({ size: 54, color: G, ls: 3 }), 1, { name: 'Etichetta programma' });
+    B.field('libero', 'body', 60, 1030, 960, 50, st({ size: 28, weight: 700, color: '#e8f5e9' }));
+    const items = B.lines('programma'), half = Math.ceil(items.length / 2);
+    if (items.length) { B.icon('book', 100, 1130, 56, { fill: Y }); B.text(null, 'PROGRAMME', 140, 1104, 400, 54, st({ size: 38, color: Y, align: 'left' }), 1, { name: 'Colonna 1' }); B.icon('mic', 600, 1130, 56, { fill: Y }); B.text(null, 'CÉRÉMONIE OFFICIELLE', 640, 1104, 420, 54, st({ size: 34, color: Y, align: 'left' }), 1, { name: 'Colonna 2' });
+      B.text('prog', items.slice(0, half).map(x => '- ' + x).join('\n'), 90, 1180, 450, 420, st({ size: 40, weight: 700, color: '#ffffff', align: 'left', lh: 1.4 }), 8, { name: 'Programma 1' });
+      if (items.length > 1) B.text('prog', items.slice(half).map(x => '- ' + x).join('\n'), 590, 1180, 450, 420, st({ size: 40, weight: 700, color: '#ffffff', align: 'left', lh: 1.4 }), 8, { name: 'Programma 2' }); }
+    const p = B.dp;
+    if (p) { B.text('date', p.mshort.replace('.', ''), 330, 1630, 200, 60, st({ size: 50, color: '#ffffff' }), 1, { name: 'Mese' }); B.text('date', p.dd, 330, 1686, 200, 150, st({ size: 150, color: Y }), 1, { name: 'Giorno' }); B.text('date', p.year.slice(0, 2) + '\n' + p.year.slice(2), 550, 1630, 200, 210, st({ size: 100, color: '#ffffff', lh: 0.95 }), 2, { name: 'Anno' }); }
+    if (B.has('luogo')) B.icon('pin', 80, 1880, 46, { fill: Y }); B.field('luogo', 'place', 110, 1852, 940, 56, st({ size: 34, color: Y }));
+    return B.page({ color: '#ffffff' });
+  } });
+
+/* 15 ─ Album / tracklist: artists row, big title, tracklist + cover */
+def({ id: 'px_album', name: 'Album Xassida', desc: 'Verde + bianco · tracklist', ev: ['kassida', 'programme', 'magal'], tags: ['album', 'sortie', 'xassida', 'tracklist', 'kourel', 'magal'], layout: 'px-tracklist', prio: 3, only: ['album'],
+  sample: { badgeTesto: 'Spécial', titolo: 'MAGAL TOUBA', org: 'KOUREL FÉDÉRATION SAFINATOUL AMANE', annoHijri: '1448H-2026', programma: 'IKFINI · S. Moustapha Diop\nROUMNA · Serigne Cissé\nMADDALIYAL MADADTOU · Dadjou Daara Dji', arabo: 'إلهى أعنى بجاه خادم', footer: 'DISPONIBLE SUR TOUTES NOS PLATEFORMES DIGITALES' },
+  build(B) { const { d } = B, G = '#0f7a37';
+    [110, 325, 540, 755, 970].forEach((cx, i) => B.person(cx, 640, 240, 600, Object.assign({ phTint: '#3a6a4a', name: 'Foto artista ' + (i + 1) }, i === 2 ? { role: 'photoSlot' } : {})));
+    B.rect(0, 600, 1080, 720, { g: { c1: '#13883f', c2: '#085a26', ang: 180 }, name: 'Banda verde' });
+    B.orn('pattern', 0, 600, 1080, 720, { fill: '#ffffff', alpha: 0.06, name: 'Motivo' });
+    B.field('badgeTesto', 'badge', 60, 630, 440, 120, { font: 'Lobster', size: 100, color: '#ffffff', shadow: { c: 'rgba(0,0,0,0.35)', b: 8, x: 0, y: 4 } });
+    B.text(null, 'Album', 600, 630, 420, 120, { font: 'Lobster', size: 100, color: '#ffffff', shadow: { c: 'rgba(0,0,0,0.35)', b: 8, x: 0, y: 4 } }, 1, { name: 'Album' });
+    B.field('titolo', 'title', 30, 740, 1020, 260, { font: 'Anton', size: 240, color: '#ffffff', stroke: { w: 2, c: '#06381a' }, extrude: { d: 10, c: '#05301a' }, ls: 2 });
+    B.field('org', 'org', 100, 1010, 640, 90, st({ size: 34, color: '#ffffff', align: 'left' }), 2);
+    B.field('annoHijri', 'badge', 100, 1100, 600, 90, { font: 'Anton', size: 84, color: '#ffd23f' });
+    const p = B.dp; if (p) { B.round(820, 1050, 210, 230, { fill: '#ffffff', radius: 16, name: 'Riquadro uscita' }); B.text(null, 'SORTIE\nOFFICIELLE', 830, 1058, 190, 60, st({ size: 22, color: G, lh: 1.0 }), 2, { name: 'Etichetta uscita' }); B.text('date', p.dd, 830, 1120, 190, 110, st({ size: 110, color: G }), 1, { name: 'Giorno' }); B.text('date', p.month, 830, 1226, 190, 44, st({ size: 32, color: G }), 1, { name: 'Mese' }); }
+    const items = B.lines('programma');
+    if (items.length) B.text('prog', items.map(x => '▸ ' + x.replace(/\s*·\s*/, '\n     ')).join('\n'), 60, 1360, 600, 470, st({ size: 40, color: G, align: 'left', lh: 1.25 }), 9, { name: 'Tracklist' });
+    B.field('arabo', 'arabic', 660, 1350, 380, 240, { font: 'Aref Ruqaa', size: 60, bold: true, color: '#1d2b1f', lh: 1.3 }, 3);
+    B.photo(690, 1610, 340, 220, { border: { w: 4, c: G }, name: 'Copertina album' });
+    B.rect(0, 1860, 1080, 60, { fill: G, name: 'Barra' }); B.field('footer', 'honor', 40, 1866, 1000, 48, st({ size: 28, color: '#ffffff', ls: 2 }));
+    return B.page({ color: '#ffffff' });
+  } });
+
+/* 16 ─ Night stage: deep blue, lanterns, three singers, elder bottom-left, gold info */
+def({ id: 'px_animation', name: 'Animazione Notte', desc: 'Blu notte + oro · palco', ev: ['kassida', 'waxtaan', 'programme', 'gamou'], tags: ['animation culturelle', 'soirée', 'lanterne', 'blu notte', 'en direct', 'live'], layout: 'px-night-stage', prio: 2, only: ['kassida', 'waxtaan', 'programme', 'gamou'],
+  sample: { badgeTesto: 'Animation', titolo: 'CULTURELLE', org: 'daara ahlou khassida guédiawaye', luogo: 'Yeumbeul Asecna', indirizzo: 'chez Baye Serigne Ndiaye', telefoni: 'Info : 77 516 07 62 · 77 836 92 67', footer: 'DAARA AHLOU KHASSIDA TV', ora: '20:00' },
+  build(B) { const { d } = B;
+    B.orn('rays', 140, -260, 800, 800, { fill: 'rgba(255,214,120,0.30)', n: 22, name: 'Raggi' }, true);
+    B.orn('bokeh', 0, 0, 1080, 1100, { fill: '#ffd36a', seed: 8, n: 22, name: 'Luci' });
+    B.orn('lanternRow', 0, 0, 1080, 460, { n: 4, name: 'Lanterne' });
+    B.person(250, 820, 360, 620, { phTint: '#3a4fa0', name: 'Foto cantante 1' }); B.person(830, 820, 360, 620, { phTint: '#3a4fa0', name: 'Foto cantante 3' }); B.person(540, 780, 380, 640, { phTint: '#3a4fa0', name: 'Foto cantante 2' });
+    B.rect(0, 640, 1080, 220, { g: { c1: 'rgba(8,16,60,0)', c2: '#0b1650', ang: 180 }, name: 'Sfumatura' });
+    B.field('badgeTesto', 'badge', 100, 820, 880, 170, { font: 'Kaushan Script', size: 150, color: '#ffffff', shadow: { c: 'rgba(255,214,120,0.6)', b: 30, x: 0, y: 0 } });
+    B.field('titolo', 'title', 40, 980, 1000, 180, st({ size: 170, color: '#ffffff', extrude: { d: 12, c: '#091a66' }, ls: 3, shadow: { c: 'rgba(0,0,0,0.5)', b: 14, x: 0, y: 8 } }));
+    B.field('org', 'org', 100, 1160, 880, 60, { font: 'Playfair Display', size: 42, italic: true, bold: true, color: '#ffd76a' });
+    B.person(270, 1850, 560, 640, { role: 'photoSlot', phTint: '#3a4fa0', name: 'Foto principale' });
+    const p = B.dp;
+    if (p) { B.round(540, 1260, 500, 200, { fill: '#ffffff', radius: 20, stroke: '#e3b84f', sw: 5, name: 'Riquadro data' }); B.text('date', tc(p.day) + ' ' + p.d, 560, 1270, 460, 100, st({ size: 80, color: '#0b1650' }), 1); B.text('date', tc(p.month) + ' ' + p.year, 560, 1366, 460, 80, st({ size: 64, color: '#0b1650' }), 1, { name: 'Mese e anno' }); }
+    if (B.time) { B.circle(980, 1490, 78, { g: { c1: '#f6d77a', c2: '#b8862a', ang: 180 }, name: 'Cerchio ora' }); B.text('time', B.time, 912, 1450, 136, 80, st({ size: 56, color: '#0b1650' })); }
+    B.field('luogo', 'place', 560, 1480, 340, 110, st({ size: 50, color: '#ffffff', align: 'left' }), 2);
+    B.field('indirizzo', 'place', 560, 1590, 480, 50, { font: 'Playfair Display', size: 30, italic: true, color: '#ffd76a', align: 'left' });
+    B.field('telefoni', 'phone', 560, 1660, 480, 90, st({ size: 30, weight: 800, color: '#ffffff', align: 'left' }), 2);
+    B.rect(0, 1850, 1080, 70, { fill: '#0b1650', name: 'Barra' }); B.round(20, 1858, 260, 54, { fill: '#e3141c', radius: 10, name: 'Etichetta diretta' }); B.text(null, 'EN DIRECT', 30, 1862, 240, 46, st({ size: 32, color: '#ffffff' }), 1, { name: 'En direct' });
+    B.field('footer', 'honor', 300, 1858, 760, 54, st({ size: 32, color: '#ffffff', align: 'left' }));
+    return B.page({ color: '#0b1650', g: { c1: '#1e3bb0', c2: '#060d33', ang: 180 } });
+  } });
+
+/* 17 ─ Ahiba-ou yellow split: programme list left, script title + date boxes right */
+def({ id: 'px_ahiba', name: 'Dahira Giallo', desc: 'Giallo + bianco · programma', ev: ['dahira', 'programme', 'kassida'], tags: ['ahiba-ou', 'dahira', 'programme', 'giallo', 'ospite donna'], layout: 'px-yellow-split', prio: 2,
+  sample: { badgeTesto: 'Ahiba-ou', titolo: 'CHEIKHOUL KHADIM', ospite: 'Maïmouna Cissé', programma: 'Drus\nJang Alxuraan\nRajass\nKureel\nThème\nSonñé\nXatm', luogo: 'Diaxaw Saxna\nMaïmouna Cissé', ora: '17:00', telefoni: '#DAHIRAAHIBAOUCHEIKHOULKHADIM' },
+  build(B) { const { d } = B, Y = '#f5b800', D = '#3a2208';
+    B.orn('minaret', 30, 0, 220, 760, { fill: '#e9d5a0', fill2: '#6b4c2a', name: 'Minareto' });
+    B.logo(330, 110, 80, { ring: Y });
+    B.person(780, 900, 560, 860, { role: 'photoSlot', phTint: '#9a7a3a', name: 'Foto principale' });
+    B.shape('arch', 300, 380, 340, 480, { fill: '#ffffff', stroke: Y, sw: 8, name: 'Arco ospite' }); B.photo(318, 400, 304, 450, { autoCut: true, mask: 'arch', ph: 'Ospite', phTint: '#9a7a3a', name: 'Foto ospite' });
+    B.rect(0, 860, 1080, 1060, { g: { c1: '#ffcf3a', c2: '#f0a400', ang: 180 }, name: 'Pannello giallo' });
+    B.field('ospite', 'name', 280, 870, 380, 64, { font: 'Kaushan Script', size: 52, color: '#ffffff', shadow: { c: 'rgba(0,0,0,0.4)', b: 8, x: 0, y: 3 } });
+    const items = B.lines('programma');
+    if (items.length) { B.round(40, 960, 430, 780, { fill: '#ffffff', radius: 26, name: 'Pannello programma' }); B.round(40, 960, 430, 80, { fill: D, radius: 26, name: 'Etichetta programma' }); B.text(null, 'PROGRAMME', 50, 966, 410, 68, st({ size: 46, color: Y }), 1, { name: 'Etichetta' }); B.text('prog', items.map(x => '• ' + x).join('\n'), 70, 1060, 380, 660, st({ size: 46, color: D, align: 'left', lh: 1.4 }), 9, { name: 'Programma' }); }
+    B.field('badgeTesto', 'badge', 490, 940, 560, 160, { font: 'Lobster', size: 140, color: '#ffffff', stroke: { w: 2.5, c: '#8a5a12' }, shadow: { c: 'rgba(0,0,0,0.3)', b: 10, x: 0, y: 5 } });
+    if (B.has('titolo')) { pill(B, 500, 1100, 540, 84, '#ffffff', { name: 'Pillola titolo' }); B.field('titolo', 'title', 515, 1106, 510, 72, st({ size: 50, color: D })); }
+    const p = B.dp;
+    if (p) { B.text('date', p.day, 500, 1210, 260, 56, st({ size: 40, color: '#ffffff' }), 1, { name: 'Giorno sett.' }); B.text('date', p.month, 780, 1210, 260, 56, st({ size: 40, color: '#ffffff' }), 1, { name: 'Mese' }); B.round(500, 1270, 260, 140, { fill: D, radius: 14, name: 'Riquadro giorno' }); B.text('date', p.dd, 510, 1276, 240, 128, st({ size: 120, color: '#ffffff' }), 1, { name: 'Giorno' }); B.round(780, 1270, 260, 140, { fill: D, radius: 14, name: 'Riquadro anno' }); B.text('date', p.year, 790, 1276, 240, 128, st({ size: 96, color: '#ffffff' }), 1, { name: 'Anno' }); }
+    if (B.time) { B.circle(580, 1540, 86, { fill: D, stroke: '#ffffff', sw: 6, name: 'Cerchio ora' }); B.text(null, 'À partir de', 510, 1494, 140, 34, st({ size: 22, color: '#ffffff' }), 1, { name: 'Etichetta ora' }); B.text('time', B.time, 505, 1526, 150, 64, st({ size: 54, color: '#ffffff' })); }
+    if (B.has('luogo')) B.icon('pin', 700, 1500, 50, { fill: D }); B.field('luogo', 'place', 730, 1460, 320, 160, st({ size: 40, color: D, align: 'left' }), 3);
+    B.field('telefoni', 'phone', 40, 1840, 1000, 50, st({ size: 26, weight: 700, color: D }));
+    return B.page({ color: '#ffffff' });
+  } });
+
+/* 18 ─ Ziar navy: header text, two cut-outs, big gold script title, navy date pill */
+def({ id: 'px_ziar', name: 'Ziar Blu e Oro', desc: 'Bianco + blu · titolo oro', ev: ['ziar', 'dahira'], tags: ['ziar', 'khalife', 'mourides scientifiques', 'blu', 'oro'], layout: 'px-ziar-pill', prio: 1,
+  sample: { org: 'Dahira des Mourides Scientifiques', libero: 'La Science au service de Cheikhoul Khadim', titolo: 'Ziar', sotto: 'Auprès du Khalife Général des Mourides', arabo: 'زيارة الخليفة العام للمريدين', luogo: 'Darou Minam, Touba', telefoni: 'Pour plus d’informations : 33 855 94 49 · 78 013 85 03' },
+  build(B) { const { d } = B, N = '#0b2a6b';
+    B.field('org', 'org', 100, 40, 860, 62, st({ size: 40, color: N }));
+    B.field('libero', 'body', 100, 102, 860, 46, { font: 'Playfair Display', size: 30, italic: true, color: N });
+    B.logo(990, 90, 56, { ring: N });
+    B.person(370, 1010, 540, 820, { role: 'photoSlot', phTint: '#5a6f9a', name: 'Foto principale' }); B.person(720, 990, 500, 800, { phTint: '#5a6f9a', name: 'Foto ospite' });
+    B.rect(0, 780, 1080, 270, { g: { c1: 'rgba(255,255,255,0)', c2: '#ffffff', ang: 180 }, name: 'Sfumatura' });
+    B.field('titolo', 'title', 100, 930, 880, 360, GOLD(320, { font: 'Lobster', weight: 400, bold: false, extrude: { d: 10, c: '#6b4a10' }, stroke: { w: 1.5, c: N } }));
+    B.field('sotto', 'subtitle', 100, 1290, 880, 60, st({ size: 34, weight: 700, color: N }));
+    const p = B.dp;
+    if (p) { B.round(170, 1370, 740, 156, { fill: N, radius: 78, stroke: '#d4af37', sw: 6, name: 'Pillola data' }); B.text('date', p.dd, 200, 1380, 190, 136, st({ size: 126, color: '#ffffff' }), 1, { name: 'Giorno' }); B.text('date', tc(p.month), 400, 1384, 480, 76, st({ size: 64, color: '#ffffff', align: 'left' }), 1, { name: 'Mese' }); B.text('date', p.year + (B.time ? ' · ' + B.time : ''), 400, 1458, 480, 58, st({ size: 46, color: '#ffd76a', align: 'left' }), 1, { name: 'Anno' }); }
+    B.field('arabo', 'arabic', 80, 1550, 920, 120, { font: 'Aref Ruqaa', size: 76, bold: true, color: N });
+    if (B.has('luogo')) B.icon('pin', 280, 1720, 50, { fill: '#d4af37' }); B.field('luogo', 'place', 310, 1690, 600, 64, st({ size: 44, color: N, align: 'left' }));
+    B.rect(0, 1830, 1080, 90, { fill: N, name: 'Barra' }); B.field('telefoni', 'phone', 40, 1840, 1000, 70, st({ size: 28, weight: 700, color: '#ffffff' }), 2);
+    return B.page({ color: '#ffffff', g: { c1: '#eef3fb', c2: '#ffffff', ang: 180 } });
+  } });
+
+/* 19 ─ Invitation / soutien: red-gold script, ribbon, paragraph, gold date tile */
+def({ id: 'px_qadrinvite', name: 'Invito Sostegno', desc: 'Bianco + oro · testo invito', ev: ['qadr', 'collecte', 'ramadan', 'dahira'], tags: ['invitation', 'soutien', 'laylatoul qadr', 'collecte', 'contribution'], layout: 'px-invite', prio: 3,
+  sample: { titolo: 'Laylatoul Khadr', badgeTesto: 'Invitation / Soutien', libero: 'Les membres du Dahira vous convient à la célébration de la nuit du destin. Votre contribution matérielle et financière ainsi que votre présence seront les bienvenues.', luogo: 'Rue 10, Tournal Yakhya', telefoni: 'Infoline : 70 612 34 34', org: 'AHIBA-OU CHEIKHOUL KHADIM' },
+  build(B) { const { d } = B, R = '#a8131a';
+    B.orn('pattern', 0, 0, 1080, 1920, { fill: '#c9a227', alpha: 0.08, name: 'Motivo' });
+    B.logo(140, 140, 96, { ring: '#c9a227' });
+    B.orn('minaret', 820, 0, 230, 880, { fill: '#efd9a0', fill2: '#6b4c2a', name: 'Minareto' });
+    B.person(300, 990, 460, 760, { phTint: '#9a8a6a', name: 'Foto ospite' }); B.person(620, 1010, 520, 820, { role: 'photoSlot', phTint: '#9a8a6a', name: 'Foto principale' });
+    B.rect(0, 820, 1080, 200, { g: { c1: 'rgba(255,253,246,0)', c2: '#fffdf6', ang: 180 }, name: 'Sfumatura' });
+    B.field('titolo', 'title', 40, 980, 1000, 190, { font: 'Lobster', size: 160, color: R, stroke: { w: 2.5, c: '#f2c94c' }, shadow: { c: 'rgba(0,0,0,0.3)', b: 10, x: 0, y: 6 } });
+    if (B.has('badgeTesto')) { B.shape('banner', 230, 1170, 620, 84, { fill: R, name: 'Nastro' }); B.field('badgeTesto', 'badge', 260, 1176, 560, 72, st({ size: 44, color: '#ffffff' })); }
+    B.field('libero', 'body', 70, 1275, 940, 230, st({ size: 32, weight: 600, color: '#2a1a0a' }), 6);
+    if (B.has('luogo')) B.icon('pin', 100, 1565, 46, { fill: R }); B.field('luogo', 'place', 130, 1535, 540, 64, st({ size: 40, color: '#2a1a0a', align: 'left' }));
+    B.field('telefoni', 'phone', 80, 1610, 600, 54, st({ size: 30, weight: 700, color: R, align: 'left' }));
+    B.field('org', 'org', 80, 1670, 600, 50, st({ size: 26, weight: 800, color: '#5a3a08', align: 'left' }));
+    const p = B.dp;
+    if (p) { B.rect(700, 1520, 340, 230, { g: { c1: '#f6d77a', c2: '#c08a26', ang: 180 }, name: 'Riquadro data' }); B.text('date', p.day, 710, 1528, 140, 50, st({ size: 32, color: '#3a2405' }), 1, { name: 'Giorno sett.' }); B.text('date', p.dd, 710, 1574, 140, 160, st({ size: 140, color: '#ffffff', extrude: { d: 8, c: '#7a4b10' } }), 1, { name: 'Giorno' }); B.text('date', p.mshort, 860, 1540, 170, 70, st({ size: 56, color: '#3a2405' }), 1, { name: 'Mese' }); B.text('date', p.year, 860, 1620, 170, 90, st({ size: 64, color: '#ffffff', extrude: { d: 6, c: '#7a4b10' } }), 1, { name: 'Anno' }); }
+    B.rect(0, 1830, 1080, 90, { g: { c1: '#f6d77a', c2: '#c08a26', ang: 90 }, name: 'Banda oro' });
+    return B.page({ color: '#fffdf6' });
+  } });
+
+/* 20 ─ Big date block: light blue bokeh, script title, guest medallion, info pills */
+def({ id: 'px_dahirableu', name: 'Dahira Azzurra Data', desc: 'Azzurro · blocco data', ev: ['dahira', 'kassida', 'ziar'], tags: ['dahira', 'data grande', 'azzurro', 'bokeh', 'ospite'], layout: 'px-date-block', prio: 2,
+  sample: { badgeTesto: 'Daahira', titolo: 'HADAA-IQUL FADAA-ILE', org: 'SOPEY SERIGNE SALIOU (KMF)', sotto: 'Fatma Fall', luogo: 'KEUR MBAYE FALL TOOL DIAZ', programma: 'Prestation Kourel 1\nThème culturel\nInformation Daaradji', libero: 'NB : Laxasaaye Bleu Blanc', telefoni: '77 711 42 67 · 76 454 33 01', ora: '17:00' },
+  build(B) { const { d } = B, N = '#183a8c';
+    B.orn('bokeh', 0, 0, 1080, 1100, { fill: '#ffffff', seed: 12, n: 26, name: 'Luci' });
+    B.orn('minaret', 560, 60, 260, 1000, { fill: '#efe5d0', fill2: '#6b5a40', name: 'Minareto' });
+    B.field('badgeTesto', 'badge', 40, 120, 560, 140, { font: 'Kaushan Script', size: 120, color: N, shadow: { c: 'rgba(255,255,255,0.8)', b: 10, x: 0, y: 0 } });
+    if (B.has('titolo')) { B.round(30, 268, 600, 72, { fill: N, radius: 10, name: 'Fascia titolo' }); B.field('titolo', 'title', 46, 274, 568, 60, st({ size: 42, color: '#ffffff' })); }
+    B.field('org', 'org', 40, 346, 580, 48, st({ size: 28, weight: 800, color: N }));
+    B.circle(250, 640, 186, { fill: N, name: 'Anello ospite' }); B.guest(250, 640, 172, { role: 'photoSlot', phTint: '#4b6fb0', name: 'Foto principale' });
+    B.field('sotto', 'name', 30, 840, 560, 90, st({ size: 70, color: '#1a1a1a' }));
+    const p = B.dp;
+    if (p) { B.round(640, 520, 400, 440, { fill: N, radius: 12, stroke: '#d4af37', sw: 6, name: 'Blocco data' }); B.text('date', p.dshort, 660, 530, 360, 120, st({ size: 120, color: '#ffffff' }), 1, { name: 'Giorno sett.' }); B.text('date', p.dd, 660, 640, 260, 200, st({ size: 200, color: '#ffffff' }), 1, { name: 'Giorno' }); B.text('date', p.year.split('').join('\n'), 930, 650, 100, 190, st({ size: 46, color: '#ffd23f', lh: 0.95 }), 4, { name: 'Anno' }); B.text('date', p.mshort, 660, 840, 360, 110, st({ size: 100, color: '#ffffff' }), 1, { name: 'Mese' }); }
+    let y = 1010;
+    if (B.has('luogo') || B.time) { B.round(30, y, 1020, 90, { fill: N, radius: 14, name: 'Riga luogo' }); B.field('luogo', 'place', 50, y + 8, B.time ? 700 : 980, 74, st({ size: 42, color: '#ffffff', align: 'left' })); if (B.time) { B.icon('clock', 790, y + 45, 48, { fill: '#ffd23f' }); B.text('time', B.time.replace('H', 'H') , 820, y + 8, 210, 74, st({ size: 50, color: '#ffffff', align: 'left' })); } y += 120; }
+    B.lines('programma').slice(0, 4).forEach((it, i) => { B.round(30, y, 1020, 84, { fill: 'rgba(255,255,255,0.85)', radius: 14, stroke: N, sw: 3, name: 'Riga programma' }); B.text('prog', it, 60, y + 8, 960, 68, st({ size: 44, color: N, align: 'left' }), 1, { name: 'Voce ' + (i + 1) }); y += 104; });
+    B.field('libero', 'body', 40, Math.max(y + 10, 1500), 1000, 56, st({ size: 32, weight: 700, color: '#1a1a1a', align: 'left' }));
+    if (B.has('telefoni')) { B.rect(0, 1760, 1080, 160, { fill: '#ffffff', name: 'Fondo contatti' }); B.text(null, 'Plus d’infos', 40, 1770, 400, 50, { font: 'Kaushan Script', size: 40, color: N, align: 'left' }, 1, { name: 'Etichetta contatti' }); B.field('telefoni', 'phone', 40, 1820, 1000, 84, st({ size: 64, color: N })); }
+    return B.page({ color: '#dbeafc', g: { c1: '#c9defa', c2: '#f6fbff', ang: 180 } });
+  } });
+
+/* 21 ─ Ramadan greeting: gold calligraphy backdrop, two cut-outs, gold script, paragraph, logo */
+def({ id: 'px_kooru', name: 'Kooru Jamm Oro', desc: 'Oro + bianco · auguri', ev: ['ramadan', 'qadr'], only: ['ramadan', 'qadr', 'dahira'], tags: ['ramadan', 'kooru', 'auguri', 'moubarak', 'oro'], layout: 'px-greeting', prio: 3,
+  sample: { titolo: 'Kooru Jamm', org: 'Ahiba-ou Cheikhoul Khadim', libero: 'Le Dahira vous souhaite un ramadan béni, empli de paix, de sérénité et de renforcement spirituel. Ramadan Moubarak à vous et à votre famille.', luogo: '', telefoni: '' },
+  build(B) { const { d } = B;
+    B.rect(0, 0, 1080, 1060, { g: { c1: '#f3c23a', c2: '#fff6d8', ang: 180 }, name: 'Fondo oro' });
+    B.text(null, 'رمضان كريم', 40, 60, 1000, 380, { font: 'Aref Ruqaa', size: 300, bold: true, color: 'rgba(140,90,10,0.22)' }, 1, { name: 'Calligrafia sfondo' });
+    B.person(300, 1000, 560, 880, { role: 'photoSlot', phTint: '#8a7a5a', name: 'Foto principale' }); B.person(790, 1000, 520, 860, { phTint: '#8a7a5a', name: 'Foto ospite' });
+    B.rect(0, 840, 1080, 220, { g: { c1: 'rgba(255,255,255,0)', c2: '#ffffff', ang: 180 }, name: 'Sfumatura' });
+    B.field('titolo', 'title', 30, 960, 1020, 260, GOLD(220, { font: 'Lobster', weight: 400, bold: false, extrude: { d: 10, c: '#7a5410' } }));
+    B.field('org', 'org', 60, 1220, 960, 80, st({ size: 60, color: '#111111' }));
+    B.field('libero', 'body', 70, 1310, 940, 290, st({ size: 34, weight: 600, color: '#1a1a1a' }), 6);
+    B.circle(540, 1740, 150, { g: { c1: '#f6d77a', c2: '#b8862a', ang: 180 }, name: 'Anello logo' }); B.logo(540, 1740, 130, { ring: '#ffffff' });
+    return B.page({ color: '#ffffff' });
+  } });
+
+/* ---------- integration ---------- */
+SV.ltplById = id => L.find(t => t.id === id);
+SV.allTemplates = () => L.slice().sort((a, b) => (a.prio ?? 5) - (b.prio ?? 5)).concat(typeof TEMPLATES !== 'undefined' ? TEMPLATES : []);
+const FIELDS = ['titolo', 'sotto', 'org', 'footer', 'arabo', 'data', 'ora', 'luogo', 'indirizzo', 'telefoni', 'libero', 'tema', 'programma', 'badgeTesto', 'annoHijri', 'ospite', 'ospite2', 'citazione'];
+SV.ltplData = function (t, ev, keepPhotos, dataOverride) {
+  if (dataOverride) { const o = {}; FIELDS.forEach(f => { o[f] = ''; }); Object.keys(t.sample || {}).forEach(f => { o[f] = ''; }); Object.assign(o, dataOverride); if (!o.programma && dataOverride.programma == null) o.programma = ''; return o; }
+  const base = keepPhotos && typeof getFormData === 'function' ? getFormData() : SV.sampleData(ev || (t.ev && t.ev[0]));
+  return Object.assign({}, base, { libero: '', citazione: '', tema: '', programma: '', badgeTesto: '', org: '', footer: '', telefoni: '' }, t.sample || {}, keepPhotos ? {} : {});
+};
+SV.ltplPage = function (id, ev, post, keepPhotos, dataOverride) {
+  const t = SV.ltplById(id); const d = SV.ltplData(t, ev, keepPhotos, dataOverride);
+  const B = mk(d, !!post, id); const page = t.build(B);
+  page.els = page.els.filter(e => !(e.type === 'shape' && e.h < 1));
+  const top = e => e.type === 'text' || e.type === 'icon'; page.els = page.els.filter(e => !top(e)).concat(page.els.filter(top));
+  return { page, w: B.W, h: B.H };
+};
+// events / search
+const xev = SV.TPL_EVENTS = SV.TPL_EVENTS || {};
+L.forEach(t => { xev[t.id] = new Set(t.ev); });
+SV.LTPL_VER = '2';
+SV.LTPL_CATS = [['safar', '📿 18 Safar'], ['qadr', '🌙 Laylatoul Qadr'], ['thiant', '🎉 Thiant'], ['kassida', '🎤 Kassida / Kourel'], ['ramadan', '🌙 Ramadan']];
+// patch templateToPage / templateThumb
+const _t2p = SV.templateToPage;
+SV.templateToPage = async function (tpl, ev, post, keepPhotos, dataOverride) {
+  if (!SV.ltplById(tpl)) return _t2p.apply(this, arguments);
+  const r = SV.ltplPage(tpl, ev, post, keepPhotos, dataOverride);
+  try { await SV.ensureFonts([r.page]); r.page.els.forEach(e => { if (e.type === 'text' && e._box) {} }); } catch (e) {}
+  // refit after fonts are ready
+  const r2 = SV.ltplPage(tpl, ev, post, keepPhotos, dataOverride); return r2;
+};
+const _thumb = SV.templateThumb;
+SV.templateThumb = function (tpl, ev, post) {
+  if (!SV.ltplById(tpl)) return _thumb.apply(this, arguments);
+  return (async () => { const r = await SV.templateToPage(tpl, ev, post); await SV.ensureAssets([r.page]); const k = 270 / r.w; return SV.renderToCanvas(r.page, r.w, r.h, k, { res: k, placeholders: true }).toDataURL('image/jpeg', 0.82); })();
+};
+})();
+
 /* =====================================================================
    VOLANTINO STUDIO — UI: home, gallery, editor, interactions
    ===================================================================== */
@@ -11964,7 +12607,7 @@ SV.showHome = async function () {
   U.proj = null; U.sel = [];
   show('svHome');
   const list = (await SV.dbAll('projects').catch(() => [])).sort((a, b) => b.updated - a.updated);
-  const tp = TEMPLATES.slice(0, 8);
+  const tp = (SV.allTemplates ? SV.allTemplates() : TEMPLATES).slice(0, 8);
   $('svHome').innerHTML = `
   <div class="sv-hero">
     <div class="sv-brand"><i>✦</i> Volantino Mouride <b style="color:var(--gold)">Studio</b><span class="sv-sp"></span><button class="sv-chip" style="background:rgba(255,255,255,.14);color:#fff;border-color:rgba(255,255,255,.3)" data-a="kitHome">🎨 Kit del marchio</button></div>
@@ -11988,7 +12631,7 @@ SV.showHome = async function () {
   fillThumbs();
 };
 function tplEvLabel(t) {
-  const evs = [...(SV.TPL_EVENTS[t.id] || [])].map(e => (EVENT_TYPES.find(x => x.id === e) || {}).label).filter(Boolean);
+  const evs = [...(SV.TPL_EVENTS[t.id] || [])].map(e => (EVENT_TYPES.find(x => x.id === e) || {}).label || ((SV.LTPL_CATS || []).find(x => x[0] === e) || [])[1]).filter(Boolean).map(x => String(x).replace(/^\S+\s/, m => /[A-Za-z0-9]/.test(m) ? m : ''));
   return evs.slice(0, 2).join(' · ');
 }
 function tplCard(t, post) {
@@ -12007,13 +12650,14 @@ async function fillThumbs() {
     for (const n of nodes) {
       const key = n.dataset.th;
       if (!U.thumbs[key]) {
-        const cached = await SV.kvGet('th2-' + key).catch(() => null);
+        const ck = (SV.ltplById && SV.ltplById(key.split('-')[0]) ? 'th3l' + (SV.LTPL_VER || '') + '-' : 'th2-') + key;
+        const cached = await SV.kvGet(ck).catch(() => null);
         if (cached) U.thumbs[key] = cached;
         else {
           await new Promise(r => setTimeout(r, 16));
           const [id, p] = key.split('-');
-          U.thumbs[key] = SV.templateThumb(id, null, p === 'p');
-          SV.kvSet('th2-' + key, U.thumbs[key]).catch(() => 0);
+          U.thumbs[key] = await SV.templateThumb(id, null, p === 'p');
+          SV.kvSet(ck, U.thumbs[key]).catch(() => 0);
         }
       }
       document.querySelectorAll(`#sv [data-th="${key}"]`).forEach(m => { if (!m.firstChild) m.innerHTML = `<img src="${U.thumbs[key]}" alt="">`; });
@@ -12021,11 +12665,11 @@ async function fillThumbs() {
   } finally { _thumbBusy = false; }
 }
 SV.fillThumbs = fillThumbs;
-const CATS = [['all', 'Tutti']].concat(EVENT_TYPES.map(e => [e.id, e.icon + ' ' + e.label]));
+const CATS = [['all', 'Tutti']].concat(EVENT_TYPES.map(e => [e.id, e.icon + ' ' + e.label]), SV.LTPL_CATS || []);
 SV.tplMatches = function (t, cat, q) {
   if (cat && cat !== 'all' && !(SV.TPL_EVENTS[t.id] || new Set()).has(cat)) return false;
   if (q) {
-    const hay = foldAccents([t.name, t.desc, ...[...(SV.TPL_EVENTS[t.id] || [])].map(e => { const x = EVENT_TYPES.find(y => y.id === e); return x ? x.label + ' ' + e : e; })].join(' ').toLowerCase());
+    const hay = foldAccents([t.name, t.desc, ...(t.tags || []), ...[...(SV.TPL_EVENTS[t.id] || [])].map(e => { const x = EVENT_TYPES.find(y => y.id === e); return x ? x.label + ' ' + e : e; })].join(' ').toLowerCase());
     return foldAccents(q.toLowerCase()).split(/\s+/).filter(Boolean).every(w => hay.includes(w));
   }
   return true;
@@ -12034,10 +12678,10 @@ SV.showGallery = function () {
   show('svGallery');
   const q = U.gallerySearch || '';
   const post = U.gallerySize === 'post';
-  const list = TEMPLATES.filter(t => SV.tplMatches(t, U.galleryCat, q));
+  const list = (SV.allTemplates ? SV.allTemplates() : TEMPLATES).filter(t => SV.tplMatches(t, U.galleryCat, q));
   $('svGallery').innerHTML = `
   <div class="sv-gtop"><div class="sv-wrap" style="padding:0">
-    <div class="row"><button class="sv-back" data-a="home">‹</button><label class="sv-search" style="flex:1;box-shadow:none;border:1px solid var(--line)">🔍<input id="svGalSearch" value="${esc(q)}" placeholder="Cerca tra ${TEMPLATES.length} modelli" enterkeyhint="search"></label></div>
+    <div class="row"><button class="sv-back" data-a="home">‹</button><label class="sv-search" style="flex:1;box-shadow:none;border:1px solid var(--line)">🔍<input id="svGalSearch" value="${esc(q)}" placeholder="Cerca tra ${(SV.allTemplates ? SV.allTemplates() : TEMPLATES).length} modelli" enterkeyhint="search"></label></div>
     <div class="sv-chips" style="margin-top:8px">${CATS.map(([id, l]) => `<button class="sv-chip ${U.galleryCat === id ? 'on' : ''}" data-a="galCat" data-id="${id}">${esc(l)}</button>`).join('')}</div>
     <div class="sv-chips" style="padding-top:0">${[['storia', '📱 Storia 9:16'], ['post', '🖼️ Post 4:5'], ['quadrato', '⬛ Quadrato'], ['a4', '📄 A4 stampa'], ['a5', '📃 A5']].map(([id, l]) => `<button class="sv-chip ${U.gallerySize === id ? 'on' : ''}" data-a="galSize" data-id="${id}">${l}</button>`).join('')}</div>
   </div></div>
@@ -12061,7 +12705,7 @@ SV.createFromTemplate = async function (tplId, sizeId) {
     const sz = SV.sizeById(sizeId || 'storia') || SV.SIZES[0];
     const post = sz.h / sz.w < 1.5;
     const r = await SV.templateToPage(tplId, null, post);
-    const t = TEMPLATES.find(x => x.id === tplId);
+    const t = (SV.allTemplates ? SV.allTemplates() : TEMPLATES).find(x => x.id === tplId);
     const p = SV.newProject(r.w, r.h, (t ? t.name : 'Modello'), sizeId);
     p.pages = [r.page];
     if (sz.w !== r.w || sz.h !== r.h) SV.resizeProject(p, sz.w, sz.h);
@@ -12080,7 +12724,7 @@ SV.fromQuick = async function (tplId) {
     const wasOpen = state._edit && state._edit.open;
     if (wasOpen && typeof closeEditor === 'function') closeEditor();
     const r = await SV.templateToPage(tplId || state.template, null, post, true);
-    const t = TEMPLATES.find(x => x.id === (tplId || state.template));
+    const t = (SV.allTemplates ? SV.allTemplates() : TEMPLATES).find(x => x.id === (tplId || state.template));
     const p = SV.newProject(r.w, r.h, (getFormData().titolo || (t && t.name) || 'Volantino'), post ? 'post' : 'storia');
     p.pages = [r.page];
     await SV.dbPut('projects', p);
@@ -13132,9 +13776,9 @@ const P = SV.P = {};
 P.modelli = function () {
   const q = U.tplQ || '', cat = U.tplCat || 'all';
   const post = U.proj.h / U.proj.w < 1.5;
-  const list = TEMPLATES.filter(t => SV.tplMatches(t, cat, q));
+  const list = (SV.allTemplates ? SV.allTemplates() : TEMPLATES).filter(t => SV.tplMatches(t, cat, q));
   return `<div class="sv-psearch">🔍<input data-in="tplQ" value="${esc(q)}" placeholder="Cerca modelli"></div>
-  <div class="sv-chips">${[['all', 'Tutti'], ['mine', '⭐ Miei']].concat(EVENT_TYPES.map(e => [e.id, e.icon + ' ' + e.label])).map(([id, l]) => `<button class="sv-chip ${cat === id ? 'on' : ''}" data-a="tplCat" data-id="${id}">${esc(l)}</button>`).join('')}</div>
+  <div class="sv-chips">${[['all', 'Tutti'], ['mine', '⭐ Miei']].concat(EVENT_TYPES.map(e => [e.id, e.icon + ' ' + e.label]), SV.LTPL_CATS || []).map(([id, l]) => `<button class="sv-chip ${cat === id ? 'on' : ''}" data-a="tplCat" data-id="${id}">${esc(l)}</button>`).join('')}</div>
   ${SV.myTplPanelHTML ? SV.myTplPanelHTML() : ''}<div class="sv-g2">${(cat === 'mine' ? [] : list).map(t => `<button class="sv-tcard ${post ? 'post' : ''}" data-a="applyTpl" data-id="${t.id}"><div class="th" data-th="${t.id}${post ? '-p' : ''}">${U.thumbs[t.id + (post ? '-p' : '')] ? `<img src="${U.thumbs[t.id + (post ? '-p' : '')]}">` : ''}</div><b>${esc(t.name)}</b></button>`).join('') || '<div class="sv-empty">Nessun modello</div>'}</div>`;
 };
 P.modelli_after = () => SV.fillThumbs();
@@ -16552,7 +17196,9 @@ const TPL_LAYOUT = { verde: 'center', bianco: 'center', noir: 'center', gammu: '
 const TPL_ONLY = { anni: ['anni'], sass: ['collecte', 'magal'], prog: ['programme', 'kazu', 'waxtaan'], waxtaan: ['waxtaan'], kazu: ['kazu', 'programme'], collecte: ['collecte'], teal: ['programme', 'waxtaan'], fatiha: ['fatiha'], touba: ['magal'], gammu: ['gamou'] };
 const EV_ALIAS = { gamou: ['gamou', 'gammu', 'gammug', 'mawlid'], waxtaan: ['waxtaan', 'conference', 'conférence'], fatiha: ['fatiha', 'condoglianze'], anni: ['anni', 'anniversaire', 'joyeux'], collecte: ['collecte', 'sass'], programme: ['programme', 'xassida'], dahira: ['dahira', 'thiant'], ziar: ['ziar', 'dadje', 'dadjé'], magal: ['magal'], kazu: ['kazu', 'safar'] };
 const tplMatches = (id, ev) => { const s = SV.TPL_EVENTS && SV.TPL_EVENTS[id]; return !!(s && (EV_ALIAS[ev] || [ev]).some(k => s.has(k))); };
-const tplAllowed = (id, ev) => !TPL_ONLY[id] || TPL_ONLY[id].includes(ev);
+const LT = id => SV.ltplById && SV.ltplById(id);
+const tplAllowed = (id, ev) => { const t = LT(id); if (t) return !t.only || t.only.includes(ev); return !TPL_ONLY[id] || TPL_ONLY[id].includes(ev); };
+Object.assign(EV_ALIAS, { magal: ['magal', 'safar'], safar: ['safar', 'magal'], qadr: ['qadr', 'ramadan'], ramadan: ['ramadan', 'qadr'], kassida: ['kassida', 'programme'], thiant: ['thiant', 'dahira'] });
 const norm = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
 const toHHMM = v => { const m = /(\d{1,2})(?:[:hH.](\d{2}))?/.exec(v || ''); return m ? String(m[1]).padStart(2, '0') + ':' + (m[2] || '00') : ''; };
 function placeHero(page, slot, A, W, H) { // replace/insert the cut-out in a slot {x,y,w,h}
@@ -16596,6 +17242,7 @@ function applyTexts(page, T) { page.els.forEach(e => { if (e.type === 'text' && 
 async function buildTplItem(it, A, T) {
   const post = A.format === 'post', W = 1080, H = post ? 1350 : 1920, D = A.data;
   const ov = { titolo: D.title, sotto: D.name || D.subtitle, org: D.name ? D.subtitle : '', footer: D.honor, arabo: D.arabic, data: D.date, ora: toHHMM(D.time), luogo: D.place, indirizzo: '', telefoni: '', libero: ' ', lineaWolof: '', tema: '', citazione: '', badgeTesto: (D.time && toHHMM(D.time)) ? 'DÈS ' + (+toHHMM(D.time).slice(0, 2)) + 'H' + (toHHMM(D.time).slice(3) !== '00' ? toHHMM(D.time).slice(3) : '') : ({ preghiera: 'PRIÈRES', magal: 'MAGAL', ziar: 'ZIAR', gamou: 'GÀMMU', kazu: 'KAZU RAJAB', waxtaan: 'CONFÉRENCE', dahira: 'DAHIRA', fatiha: 'FATIHA', anni: 'ANNIVERSAIRE', programme: 'PROGRAMME', collecte: 'COLLECTE' })[D.ev] || ' ', diretta: '', contributo: '', iban: '', programma: '', guestNames: [], annoHijri: '', _noFrame: false };
+  if (LT(it.tpl)) ov.badgeTesto = '';
   const { page } = await SV.templateToPage(it.tpl, D.ev, post, false, ov);
   page.els = page.els.filter(e => !(e.type === 'text' && !String(e.text || '').trim()));
   mapRoles(page, D, ov);
@@ -16605,6 +17252,7 @@ async function buildTplItem(it, A, T) {
   let idx = page.els.findIndex(e => e.role === 'photoSlot'); const slot = idx >= 0 ? page.els[idx] : null;
   const box = slot ? { x: slot.x, y: slot.y, w: slot.w, h: slot.h } : freeArea(page, W, H);
   const hero = placeHero(page, box, A, W, H);
+  if (hero && LT(it.tpl)) { const ringOf = /^(Cerchio logo|Anello ospite|Anello logo|Anello|Arco)$/; page.els = page.els.filter(e => e === slot || !((e.type === 'image' && e.frame && !e.asset) || (e.type === 'shape' && ringOf.test(e.name || '')))); idx = page.els.indexOf(slot); }
   if (hero) { if (idx >= 0) page.els.splice(idx, 1, hero); else { const ft = page.els.findIndex(e => e.type === 'text'); page.els.splice(ft < 0 ? page.els.length : ft, 0, hero); } await addAura(page, hero, A, W, H); }
   return page;
 }
@@ -16642,16 +17290,16 @@ async function buildMineItem(it, A, T) {
 }
 
 /* ================= state helpers ================= */
-const tplName = id => { const t = (typeof TEMPLATES !== 'undefined' ? TEMPLATES : []).find(x => x.id === id); return t ? t.name : id; };
+const tplName = id => { const t = (SV.allTemplates ? SV.allTemplates() : TEMPLATES).find(x => x.id === id); return t ? t.name : id; };
 const itemName = it => it.kind === 'tpl' ? 'Modello · ' + tplName(it.tpl) : it.kind === 'mine' ? '⭐ ' + (it.mineName || 'Mio modello') : `${STYLES.find(s => s.id === it.style).n} · ${PAL[it.pal].n}${it.mosque ? ' · Moschea' : ''}`;
-const layoutOf = it => it.kind === 'tpl' ? (TPL_LAYOUT[it.tpl] || 'tpl-' + it.tpl) : it.kind === 'mine' ? 'mine-' + it.mine : (LAYOUT_OF[it.style] || it.style);
+const layoutOf = it => it.kind === 'tpl' ? ((LT(it.tpl) && LT(it.tpl).layout) || TPL_LAYOUT[it.tpl] || 'tpl-' + it.tpl) : it.kind === 'mine' ? 'mine-' + it.mine : (LAYOUT_OF[it.style] || it.style);
 const keyOf = it => it.kind === 'tpl' ? 'tpl|' + it.tpl : it.kind === 'mine' ? 'mine|' + it.mine : [it.style, it.pal, it.mosque ? 1 : 0].join('|');
 async function candidates(A) {
   const ev = A.data.ev, out = { mine: [], tpl: [], rec: [] };
   const mine = (await SV.myTpls().catch(() => [])) || [];
   mine.filter(t => t.cat === ev).concat(mine.filter(t => t.cat !== ev)).forEach(t => out.mine.push({ kind: 'mine', mine: t.id, mineName: t.name, pri: t.cat === ev ? 0 : 2 }));
-  const T0 = (typeof TEMPLATES !== 'undefined' ? TEMPLATES : []).filter(t => tplAllowed(t.id, ev));
-  T0.filter(t => tplMatches(t.id, ev)).concat(T0.filter(t => !tplMatches(t.id, ev))).forEach(t => out.tpl.push({ kind: 'tpl', tpl: t.id, pri: tplMatches(t.id, ev) ? 1 : 3 }));
+  const T0 = (SV.allTemplates ? SV.allTemplates() : TEMPLATES).filter(t => tplAllowed(t.id, ev));
+  T0.filter(t => tplMatches(t.id, ev)).concat(T0.filter(t => !tplMatches(t.id, ev))).forEach(t => out.tpl.push({ kind: 'tpl', tpl: t.id, pri: (tplMatches(t.id, ev) ? 1 : 3) + (LT(t.id) ? -0.3 + (LT(t.id).prio || 0) * 0.05 : 0) }));
   const pals = palsFor(ev).concat(Object.keys(PAL).filter(k => !palsFor(ev).includes(k)));
   const styleOrder = ['split', 'medal', 'banner', 'arco', 'avorio', 'notte', 'patch'];
   for (const m of [true, false]) for (const pi in pals) for (const st of styleOrder) { const p = pals[pi]; if (!compat(st, p)) continue; if (['split', 'medal', 'banner'].includes(st) && pi > 3) continue; out.rec.push({ kind: 'recipe', style: st, pal: p, mosque: m }); }
@@ -16739,7 +17387,7 @@ const CSS = `.sv-auto{position:absolute;inset:0;z-index:15;background:#f4f5f7;ov
 function overlay() { let o = $('svAuto'); if (!o) { const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st); o = document.createElement('div'); o.id = 'svAuto'; o.className = 'sv-auto'; ($('sv') || document.body).appendChild(o); } o.hidden = false; return o; }
 const closeOverlay = () => { const o = $('svAuto'); if (o) { o.hidden = true; o.innerHTML = ''; } };
 SV.autoClose = closeOverlay;
-const EVS = () => (typeof EVENT_TYPES !== 'undefined' ? EVENT_TYPES : []).concat([{ id: 'preghiera', label: 'Journée de prières / Baye Fall', icon: '🤲' }]);
+const EVS = () => (typeof EVENT_TYPES !== 'undefined' ? EVENT_TYPES : []).concat([{ id: 'preghiera', label: 'Journée de prières / Baye Fall', icon: '🤲' }], (SV.LTPL_CATS || []).map(([id, l]) => ({ id, label: l.replace(/^\S+\s/, ''), icon: l.split(' ')[0] })));
 const DEF = { ev: 'preghiera', title: 'JOURNÉE DE PRIÈRES', subtitle: '', name: '', honor: '', date: '', time: '', place: '', arabic: 'بسم الله الرحمن الرحيم', format: 'storia', hideFeet: true };
 
 SV.autoForm = function (prefill, opts) {
