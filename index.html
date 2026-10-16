@@ -11318,7 +11318,7 @@ function drawOrnament(c, el, w, h) {
       case 'flare': drawLightFlare(c, 0, 0, Math.min(w, h) / 2, col); break;
       case 'goldorn': drawGoldOrnament(c, 0, 0, Math.min(w, h) / 2, col); break;
       case 'crescent': drawIconInto(c, 'crescentStar', x, y, w, h, { fill: col, grad: el.grad }); break;
-      default: drawShapeInto(c, el.kind, x, y, w, h, { fill: col, grad: el.grad, stroke: el.stroke, sw: el.sw });
+      default: if (SV.ORN_EXT && SV.ORN_EXT[el.kind]) SV.ORN_EXT[el.kind](c, x, y, w, h, el); else drawShapeInto(c, el.kind, x, y, w, h, { fill: col, grad: el.grad, stroke: el.stroke, sw: el.sw });
     }
   });
 }
@@ -16260,6 +16260,444 @@ document.addEventListener('click', e => {
   if (a === 'palApply') { const P = cache && cache[+b.dataset.i]; if (!P) return; SV.applyPalette(P, { all }); SV.refreshPanel(true); document.querySelectorAll('.cp-row').forEach(r => r.classList.toggle('on', r.dataset.i === b.dataset.i && !P.orig)); return; }
   if (a === 'palShuffle') { U._palShuffle = SV.shufflePalette(); SV.applyPalette(U._palShuffle, { all }); SV.refreshPanel(true); const r = document.querySelector('.cp-row[data-i="1"]'); if (r) r.classList.add('on'); }
 }, true);
+})();
+
+/* Crea volantino automatico: photo + event data -> persistent set of editable proposals (recipes), one-tap adjustments.
+   Reusable elements: orn 'touba2' (detailed Great Mosque of Touba), orn 'njaxas' (Baye Fall patchwork strip). */
+(function () {
+const SV = window.SV, U = SV.U, $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clone = SV.clone, uid = SV.uid;
+
+/* ================= reusable ornaments ================= */
+function toubaSVG(F, F2, S, S2) {
+  const o = []; const A = s => o.push(s); const f1 = v => v.toFixed(1);
+  const rect = (x, y, w, h, fill, sw) => A(`<rect x="${f1(x)}" y="${f1(y)}" width="${f1(w)}" height="${f1(h)}" fill="${fill || F}" stroke="${S}" stroke-width="${sw || 2}"/>`);
+  const ap = (x, y, w, h) => { const r = w / 2; return `M${f1(x)},${f1(y + h)} L${f1(x)},${f1(y + r * 0.9)} Q${f1(x)},${f1(y + r * 0.15)} ${f1(x + r)},${f1(y)} Q${f1(x + w)},${f1(y + r * 0.15)} ${f1(x + w)},${f1(y + r * 0.9)} L${f1(x + w)},${f1(y + h)} Z`; };
+  const win = (x, y, w, h, fill, sw) => A(`<path d="${ap(x, y, w, h)}" fill="${fill || F2}" stroke="${S}" stroke-width="${sw || 1.5}"/>`);
+  const crescent = (cx, cy, r) => A(`<path d="M${f1(cx)},${f1(cy - r)} A${f1(r)},${f1(r)} 0 1 0 ${f1(cx)},${f1(cy + r)} A${f1(r * 0.75)},${f1(r)} 0 1 1 ${f1(cx)},${f1(cy - r)} Z" fill="${S}"/>`);
+  const finial = (cx, top, h) => { A(`<line x1="${cx}" y1="${f1(top + h)}" x2="${cx}" y2="${f1(top + h * 0.25)}" stroke="${S}" stroke-width="2.5"/>`); [0.75, 0.55].forEach(k => A(`<circle cx="${cx}" cy="${f1(top + h * k)}" r="${f1(h * 0.07)}" fill="${S2}" stroke="${S}" stroke-width="1"/>`)); crescent(cx, top + h * 0.14, h * 0.13); };
+  const dome = (cx, base, r, hk) => { hk = hk || 1.25; const dh = r * 0.35; rect(cx - r * 0.92, base - dh, r * 1.84, dh, F2, 2); const n = Math.max(3, Math.floor(r / 18));
+    for (let i = 0; i < n; i++) { const ww = r * 1.84 / n * 0.45, x = cx - r * 0.92 + r * 1.84 / n * (i + 0.5) - ww / 2; win(x, base - dh * 0.85, ww, dh * 0.7, F, 1); }
+    const b = base - dh, top = b - r * hk * 1.25;
+    A(`<path d="M${f1(cx - r)},${f1(b)} C${f1(cx - r * 1.05)},${f1(b - r * 0.9)} ${f1(cx - r * 0.35)},${f1(b - r * hk * 1.05)} ${f1(cx)},${f1(top)} C${f1(cx + r * 0.35)},${f1(b - r * hk * 1.05)} ${f1(cx + r * 1.05)},${f1(b - r * 0.9)} ${f1(cx + r)},${f1(b)} Z" fill="url(#dg)" stroke="${S}" stroke-width="2.2"/>`);
+    [-0.55, -0.2, 0.2, 0.55].forEach(k => A(`<path d="M${f1(cx + r * k)},${f1(b)} Q${f1(cx + r * k * 0.8)},${f1(b - r * hk * 0.85)} ${f1(cx)},${f1(top + 4)}" fill="none" stroke="${S2}" stroke-width="1.3"/>`));
+    A(`<rect x="${f1(cx - r)}" y="${f1(b - 3)}" width="${f1(r * 2)}" height="6" fill="${S2}" stroke="${S}" stroke-width="1"/>`); finial(cx, top - r * 0.55, r * 0.58); };
+  const railing = (x, y, w, h) => { rect(x, y, w, h, F, 1.5); const n = Math.floor(w / 7); for (let i = 1; i < n; i++) A(`<line x1="${f1(x + i * w / n)}" y1="${f1(y + 2)}" x2="${f1(x + i * w / n)}" y2="${f1(y + h - 2)}" stroke="${S2}" stroke-width="1"/>`); };
+  const minaret = (cx, w, top, base, tiers) => { const H = base - top, st = top + H * 0.17, seg = (base - st) / tiers; let ww = w, y = base;
+    for (let i = 0; i < tiers; i++) { const y2 = y - seg; rect(cx - ww / 2, y2, ww, seg + 1, F, 2);
+      [cx - ww / 2 + ww * 0.12, cx + ww / 2 - ww * 0.12].forEach(lx => A(`<line x1="${f1(lx)}" y1="${f1(y2 + seg * 0.08)}" x2="${f1(lx)}" y2="${f1(y - seg * 0.05)}" stroke="${S2}" stroke-width="1"/>`));
+      const nw = seg > 90 ? 2 : 1; for (let j = 0; j < nw; j++) win(cx - ww * 0.16, y2 + seg * (0.2 + 0.42 * j), ww * 0.32, seg * 0.28, F2, 1.2);
+      const bw = ww + w * 0.62; A(`<path d="M${f1(cx - ww / 2)},${f1(y2 + w * 0.32)} L${f1(cx - bw / 2)},${f1(y2)} L${f1(cx + bw / 2)},${f1(y2)} L${f1(cx + ww / 2)},${f1(y2 + w * 0.32)} Z" fill="${F2}" stroke="${S}" stroke-width="1.5"/>`);
+      railing(cx - bw / 2, y2 - w * 0.26, bw, w * 0.26); y = y2 - w * 0.26; ww *= 0.86; }
+    const kh = H * 0.07; rect(cx - ww / 2, y - kh, ww, kh, F, 1.8); [-0.25, 0.25].forEach(k => win(cx + ww * k - ww * 0.12, y - kh * 0.85, ww * 0.24, kh * 0.75, F2, 1));
+    A(`<rect x="${f1(cx - ww * 0.62)}" y="${f1(y - kh - 4)}" width="${f1(ww * 1.24)}" height="5" fill="${S2}" stroke="${S}" stroke-width="1"/>`);
+    const r = ww * 0.6, b = y - kh - 4, t = b - r * 1.6;
+    A(`<path d="M${f1(cx - r)},${f1(b)} C${f1(cx - r)},${f1(b - r)} ${f1(cx - r * 0.3)},${f1(b - r * 1.3)} ${f1(cx)},${f1(t)} C${f1(cx + r * 0.3)},${f1(b - r * 1.3)} ${f1(cx + r)},${f1(b - r)} ${f1(cx + r)},${f1(b)} Z" fill="url(#dg)" stroke="${S}" stroke-width="1.8"/>`); finial(cx, top, t - top + 2); };
+  const G = 780;
+  dome(430, G - 10, 85); dome(770, G - 10, 85); dome(600, G - 20, 140, 1.2); dome(250, G - 5, 55); dome(950, G - 5, 55);
+  minaret(110, 34, 330, G + 10, 4); minaret(1090, 34, 330, G + 10, 4); minaret(330, 40, 190, G + 10, 5); minaret(870, 40, 190, G + 10, 5);
+  rect(30, G, 1140, 900 - G, F, 2.4); A(`<rect x="20" y="${G - 14}" width="1160" height="16" fill="${F2}" stroke="${S}" stroke-width="2"/>`);
+  for (let i = 0; i < 58; i++) { const x = 24 + i * 20; A(`<path d="M${x},${G - 14} L${x + 5},${G - 26} L${x + 10},${G - 14} Z" fill="${F2}" stroke="${S}" stroke-width="1"/>`); }
+  const n = 21, aw = 1140 / n; for (let i = 0; i < n; i++) { const x = 30 + i * aw; if (Math.abs(i - 10) <= 1) continue; win(x + aw * 0.18, G + 38, aw * 0.64, 900 - G - 38, F2, 1.6); }
+  const px = 30 + 9 * aw, pw = aw * 3; A(`<rect x="${f1(px - 6)}" y="${G - 60}" width="${f1(pw + 12)}" height="${900 - G + 60}" fill="${F}" stroke="${S}" stroke-width="2.4"/>`);
+  win(px + pw * 0.14, G - 30, pw * 0.72, 900 - G + 30, F2, 2); win(px + pw * 0.26, G + 10, pw * 0.48, 900 - G - 10, F2, 1.5);
+  minaret(600, 58, 0, G - 60, 6);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1020" viewBox="0 -120 1200 1020"><defs><linearGradient id="dg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${F2}"/><stop offset=".45" stop-color="${F}"/><stop offset="1" stop-color="${F2}"/></linearGradient></defs>${o.join('')}</svg>`;
+}
+const hex2 = (h, k) => { const v = String(h || '#a8824a').replace('#', ''); const n = parseInt(v.length === 3 ? v.split('').map(c => c + c).join('') : v.slice(0, 6), 16) || 0; const r = n >> 16, g = (n >> 8) & 255, b = n & 255; const m = x => Math.round(k >= 0 ? x + (255 - x) * k : x * (1 + k)); return '#' + [m(r), m(g), m(b)].map(x => Math.max(0, Math.min(255, x)).toString(16).padStart(2, '0')).join(''); };
+const _tb = new Map();
+function toubaBitmap(stroke, fill) {
+  const key = stroke + '|' + fill; let e = _tb.get(key);
+  if (e) return e.c;
+  e = { c: null }; _tb.set(key, e);
+  const svg = toubaSVG(fill, hex2(fill, -0.06), stroke, hex2(stroke, 0.35));
+  const im = new Image();
+  im.onload = () => { const c = document.createElement('canvas'); c.width = 1800; c.height = 1530; c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); e.c = c; e.p && e.p(); if (SV.onAssetLoaded) SV.onAssetLoaded('orn'); };
+  e.ready = new Promise(r => { e.p = r; }); im.onerror = () => e.p && e.p();
+  im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  return null;
+}
+const toubaCols = el => [el.fill || '#a8824a', el.fill2 || hex2(el.fill || '#a8824a', 0.82)];
+SV.toubaReady = (stroke, fill) => { toubaBitmap(stroke, fill); const e = _tb.get(stroke + '|' + fill); return e && e.ready ? e.ready : Promise.resolve(); };
+const NJ = ['#8b1a1a', '#111111', '#6b3e1f', '#c9a227', '#3a2416', '#b5651d', '#1d1d1d', '#7a1f2b'];
+SV.ORN_EXT = Object.assign(SV.ORN_EXT || {}, {
+  touba2(c, x, y, w, h, el) { const [s, f] = toubaCols(el); const b = toubaBitmap(s, f); if (!b) return; const r = b.width / b.height; let dw = w, dh = w / r; if (dh > h) { dh = h; dw = h * r; } c.drawImage(b, x + (w - dw) / 2, y + (h - dh), dw, dh); },
+  njaxas(c, x, y, w, h, el) {
+    const vert = h > w, L = vert ? h : w, T = vert ? w : h, cols = (el.cols && el.cols.length ? el.cols : NJ); let s = (el.seed || 3) * 7919 % 233280;
+    const rnd = () => (s = (s * 9301 + 49297) % 233280) / 233280; const cell = T * 2.2; const n = Math.max(3, Math.round(L / cell)); const sz = []; let tot = 0;
+    for (let i = 0; i < n; i++) { const v = 0.6 + rnd() * 0.9; sz.push(v); tot += v; }
+    let pos = 0; sz.forEach((v, i) => { const len = v / tot * L; c.fillStyle = cols[(i * 3 + (el.seed || 3)) % cols.length]; if (vert) c.fillRect(x, y + pos, w, len + 0.6); else c.fillRect(x + pos, y, len + 0.6, h); pos += len; });
+    if (el.fill && el.fill !== 'none') { c.fillStyle = el.fill; const t = Math.max(2, T * 0.12); if (vert) c.fillRect(el.edge === 'start' ? x : x + w - t, y, t, h); else c.fillRect(x, el.edge === 'start' ? y : y + h - t, w, t); }
+  },
+});
+SV.ORNAMENTS.push(['touba2', 'Grande Moschea di Touba (dettagliata)', 1.176], ['njaxas', 'Patchwork Baye Fall (njaxas)', 12]);
+const _ens = SV.ensureAssets;
+SV.ensureAssets = async function (pages) {
+  const ps = []; (pages || []).forEach(p => p.els.forEach(e => { if (e.type === 'orn' && e.kind === 'touba2') { const [s, f] = toubaCols(e); ps.push(SV.toubaReady(s, f)); } }));
+  await Promise.all([_ens.call(this, pages)].concat(ps));
+};
+
+/* ================= palettes & recipes ================= */
+const PAL = {
+  nero: { n: 'Nero e rosso', dark: true, bg: { color: '#0a0605', g: { c1: '#4a0c10', c2: '#070404', radial: true } }, title: { grad: 'gold' }, sub: '#f3e3c3', text: '#ffffff', band: '#8b1a1a', bandStroke: '#c9a227', bandText: '#ffffff', accent: '#e8c96a', date: { grad: 'gold' }, time: '#ffffff', placeBg: '#c9a227', placeText: '#1a0d08', glow: 'rgba(214,150,60,0.55)', fade: '#000000', mq: ['#7a5410', '#c9a227', 0.30], nj: NJ },
+  terra: { n: 'Terra e oro', dark: true, bg: { color: '#2b180c', g: { c1: '#5a3418', c2: '#1c0f07', ang: 180 } }, title: { grad: 'gold' }, sub: '#f3e3c3', text: '#ffffff', band: '#111111', bandStroke: '#c9a227', bandText: '#ffffff', accent: '#e8c96a', date: { color: '#e8c96a' }, time: '#ffffff', placeBg: '#8b1a1a', placeText: '#ffffff', glow: 'rgba(232,190,100,0.40)', fade: '#1c0f07', mq: ['#7a5410', '#e8c96a', 0.28], nj: NJ },
+  rosso: { n: 'Rosso Baye Fall', dark: true, bg: { color: '#7a1219', g: { c1: '#9b1b22', c2: '#3a0709', ang: 180 } }, title: { color: '#ffffff' }, sub: '#fbe9d0', text: '#ffffff', band: '#111111', bandStroke: '#e8c96a', bandText: '#e8c96a', accent: '#e8c96a', date: { color: '#3a0709' }, dateBg: '#e8c96a', time: '#ffffff', placeBg: '#111111', placeText: '#ffffff', glow: 'rgba(255,190,120,0.45)', fade: '#3a0709', mq: ['#000000', '#2a0406', 0.30], nj: NJ },
+  verde: { n: 'Verde Mouride', dark: true, bg: { color: '#04220f', g: { c1: '#0d5c2e', c2: '#03180b', radial: true } }, title: { grad: 'gold' }, sub: '#e9f5ec', text: '#ffffff', band: '#d4af37', bandStroke: '#fff3b0', bandText: '#0b3d1f', accent: '#f0d060', date: { grad: 'gold' }, time: '#ffffff', placeBg: '#d4af37', placeText: '#0b3d1f', glow: 'rgba(240,208,96,0.40)', fade: '#03180b', mq: ['#7a5410', '#d4af37', 0.28], nj: ['#0d5c2e', '#d4af37', '#ffffff', '#063d22', '#b8902a', '#1a7a43'] },
+  blu: { n: 'Blu notte', dark: true, bg: { color: '#0b1f4a', g: { c1: '#173a7a', c2: '#06122c', radial: true } }, title: { grad: 'gold' }, sub: '#e6ecf7', text: '#ffffff', band: '#d4af37', bandStroke: '#fff3b0', bandText: '#0b1f4a', accent: '#f0d060', date: { grad: 'gold' }, time: '#ffffff', placeBg: '#d4af37', placeText: '#0b1f4a', glow: 'rgba(240,208,96,0.35)', fade: '#06122c', mq: ['#7a5410', '#d4af37', 0.28], nj: ['#0b1f4a', '#d4af37', '#ffffff', '#1e88e5', '#8a6216'] },
+  avorio: { n: 'Avorio e bordeaux', dark: false, bg: { color: '#fbf6ec', g: { c1: '#fffdf9', c2: '#f7efdf', ang: 180 } }, title: { color: '#7a1f2b' }, sub: '#6b4a2a', text: '#3a2416', band: '#7a1f2b', bandStroke: '#c9a227', bandText: '#ffffff', accent: '#8a6216', date: { color: '#3a2416' }, time: '#7a1f2b', placeBg: '#2b180c', placeText: '#e8c96a', glow: 'rgba(255,253,247,0.95)', fade: '#fbf6ec', pattern: '#b8975a', frame: '#c9a227', mq: ['#a8824a', '#f3e8cf', 1], nj: NJ },
+  avverde: { n: 'Bianco e verde', dark: false, bg: { color: '#f8faf6', g: { c1: '#ffffff', c2: '#eef4ec', ang: 180 } }, title: { color: '#0d5c2e' }, sub: '#4a5d50', text: '#1f2d24', band: '#0d5c2e', bandStroke: '#d4af37', bandText: '#ffffff', accent: '#8a6216', date: { color: '#1f2d24' }, time: '#0d5c2e', placeBg: '#0d5c2e', placeText: '#f0d060', glow: 'rgba(255,255,255,0.95)', fade: '#f8faf6', pattern: '#9db8a2', frame: '#c9a227', mq: ['#7f9d86', '#e7f0e8', 1], nj: ['#0d5c2e', '#d4af37', '#063d22', '#b8902a', '#1a7a43', '#ffffff'] },
+  lutto: { n: 'Bianco e nero', dark: false, bg: { color: '#fafafa', g: { c1: '#ffffff', c2: '#eeeeee', ang: 180 } }, title: { color: '#1d1f23' }, sub: '#5b6068', text: '#1d1f23', band: '#1d1f23', bandStroke: '#b9bcc2', bandText: '#ffffff', accent: '#6b7078', date: { color: '#1d1f23' }, time: '#3b3f46', placeBg: '#1d1f23', placeText: '#ffffff', glow: 'rgba(255,255,255,0.95)', fade: '#fafafa', pattern: '#b9bcc2', frame: '#9a9ea6', mq: ['#9a9ea6', '#efefef', 1], nj: ['#1d1f23', '#9a9ea6', '#ffffff', '#5b6068'] },
+};
+const STYLES = [
+  { id: 'avorio', n: 'Bianco arabo', ic: '🤍', light: true, pal: 'avorio' },
+  { id: 'notte', n: 'Scuro', ic: '🖤', pal: 'nero' },
+  { id: 'arco', n: 'Arco', ic: '🕌', pal: 'terra' },
+  { id: 'patch', n: 'Patchwork', ic: '🧵', pal: 'rosso' },
+];
+const EV_PAL = { magal: ['avverde', 'verde', 'terra', 'rosso'], ziar: ['avverde', 'verde', 'terra', 'blu'], gamou: ['avverde', 'verde', 'blu', 'terra'], kazu: ['avorio', 'verde', 'terra', 'rosso'], fatiha: ['lutto', 'nero', 'terra', 'blu'], dahira: ['avorio', 'nero', 'terra', 'rosso'], waxtaan: ['avorio', 'blu', 'terra', 'nero'], preghiera: ['avorio', 'nero', 'terra', 'rosso'] };
+const palsFor = ev => EV_PAL[ev] || ['avorio', 'nero', 'terra', 'rosso'];
+const compat = (style, pal) => !!(STYLES.find(s => s.id === style).light) === !PAL[pal].dark;
+
+/* text fitting into a slot */
+function fit(el, slot, maxLines, minK) {
+  const base = el.st.size; let sz = base; el.x = slot.x; el.w = slot.w;
+  for (let i = 0; i < 40; i++) {
+    el.st.size = Math.round(sz); const L = SV.textLayout(el);
+    if (L.lines.length <= maxLines && L.maxLine <= el.w - 2 * L.pad + 0.5 && L.h <= slot.h) break;
+    if (sz <= base * (minK || 0.35)) break; sz *= 0.95;
+  }
+  SV.fitTextH(el); el.y = Math.round(slot.y + (slot.h - el.h) / 2); return el;
+}
+const MONTHS = ['JANVIER', 'FÉVRIER', 'MARS', 'AVRIL', 'MAI', 'JUIN', 'JUILLET', 'AOÛT', 'SEPTEMBRE', 'OCTOBRE', 'NOVEMBRE', 'DÉCEMBRE'];
+const JR = ['DIMANCHE', 'LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI'];
+function fmtDate(v) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || ''); if (!m) return (v || '').toUpperCase(); const d = new Date(+m[1], +m[2] - 1, +m[3]); return `${JR[d.getDay()]} ${+m[3]} ${MONTHS[+m[2] - 1]} ${m[1]}`; }
+function fmtTime(v) { v = (v || '').trim(); if (!v) return ''; const m = /^(\d{1,2})(?::|h|H)?(\d{2})?$/.exec(v); if (m) return 'À PARTIR DE ' + (+m[1]) + 'H' + (m[2] && m[2] !== '00' ? m[2] : ''); return v.toUpperCase(); }
+
+/* build one proposal page. item: {style, pal, seed, mosque}; A: auto state {data, hero, hideFeet, format} */
+function build(item, A, texts) {
+  const post = A.format === 'post', W = 1080, H = post ? 1350 : 1920, P = PAL[item.pal], D = Object.assign({}, A.data), T = texts || {};
+  const els = [];
+  const tx = (role, def) => (T[role] != null ? T[role] : def);
+  const Tx = (role, text, st, slot, maxLines) => { if (!text) return null; const e = { id: uid(), type: 'text', role, text, st: Object.assign({ font: 'Montserrat', size: 60, color: '#ffffff', align: 'center' }, st), x: 0, y: 0, w: 100, h: 100, rot: 0, op: 1, name: roleName[role] || role, auto: T[role] != null ? null : text }; fit(e, slot, maxLines || 1); els.push(e); return e; };
+  const Sh = (shape, x, y, w, h, o) => { const e = Object.assign({ id: uid(), type: 'shape', shape, x, y, w, h, rot: 0, op: 1 }, o); els.push(e); return e; };
+  const Or = (kind, x, y, w, h, o) => { const e = Object.assign({ id: uid(), type: 'orn', kind, x, y, w, h, rot: 0, op: 1 }, o); els.push(e); return e; };
+  const glow = (cx, cy, r, c) => Sh('circle', cx - r, cy - r, 2 * r, 2 * r, { g: { c1: c, c2: c.replace(/[\d.]+\)$/, '0)'), radial: true }, name: 'Alone luminoso', role: 'deco' });
+  const nj = (x, y, w, h, seed, edge) => Or('njaxas', x, y, w, h, { seed, cols: P.nj, fill: P.dark ? '#c9a227' : (P.frame || '#c9a227'), edge, name: 'Patchwork', role: 'deco' });
+  const mosque = (x, y, w) => { const h = w / 1.176; return Or('touba2', x, y, w, h, { fill: P.mq[0], fill2: P.mq[1], op: P.mq[2], name: 'Grande Moschea di Touba', role: 'deco' }); };
+  const SH = { c: 'rgba(0,0,0,0.6)', b: 18, x: 0, y: 6 };
+  const titleSt = (font, sz) => Object.assign({ font, size: sz, bold: true, weight: 900, ls: font === 'Anton' ? 3 : 1.5, lh: 1.02 }, P.title.grad ? { grad: P.title.grad } : { color: P.title.color }, P.dark ? { shadow: SH } : { shadow: { c: 'rgba(255,255,255,0.9)', b: 16, x: 0, y: 0 } });
+  const hero = (box) => { // box: {top, ground, maxW, cx}
+    const h0 = A.hero; if (!h0 || !h0.asset) return null; const a = h0.w / h0.h; const hide = A.hideFeet; const vis = box.ground - box.top;
+    let h = hide ? vis / 0.86 : vis, w = h * a; if (w > box.maxW) { w = box.maxW; h = w / a; }
+    const y = hide ? box.ground - h * 0.86 : box.ground - h;
+    if (!hide) Sh('circle', box.cx - w * 0.45, box.ground - h * 0.03, w * 0.9, h * 0.06, { g: { c1: P.dark ? 'rgba(0,0,0,0.55)' : 'rgba(60,35,12,0.45)', c2: 'rgba(0,0,0,0)', radial: true }, name: 'Ombra', role: 'deco' });
+    const e = { id: uid(), type: 'image', role: 'hero', asset: h0.asset, origAsset: h0.origAsset || null, cutMask: h0.cutMask || null, x: Math.round(box.cx - w / 2), y: Math.round(y), w: Math.round(w), h: Math.round(h), rot: 0, op: 1, name: 'Foto principale', shadow: P.dark ? undefined : { c: 'rgba(50,25,8,0.30)', b: 8, x: 2, y: 2 } };
+    if (hide) e.fade = { side: 'bottom', amt: 16 };
+    els.push(e); return e;
+  };
+  const coverBelow = (y0, y1) => { Sh('rect', 0, y0, W, y1 - y0 + 1, { g: { c1: P.fade + '00', c2: P.fade, ang: 180 }, name: 'Sfumatura', role: 'deco' }); Sh('rect', 0, y1, W, H - y1, { fill: P.fade, name: 'Fondo', role: 'deco' }); };
+  const date = fmtDate(D.date), time = fmtTime(D.time);
+  const R = { post, W, H };
+  const lower = (b) => { // standard lower block starting at band top b
+    const bh = post ? 104 : 118; Sh('rounded', 150, b, 780, bh, { fill: P.band, radius: 50, stroke: P.bandStroke, sw: 4, name: 'Fascia nome', role: 'deco' });
+    Tx('name', tx('name', D.name), { font: 'Cinzel', size: post ? 60 : 66, bold: true, weight: 900, color: P.bandText, ls: 2 }, { x: 170, y: b + 4, w: 740, h: bh - 8 }, 1);
+    let y = b + bh + 4;
+    if (tx('honor', D.honor)) { Tx('honor', tx('honor', D.honor), { font: 'Playfair Display', size: post ? 32 : 36, italic: true, color: P.accent }, { x: 120, y, w: 840, h: post ? 46 : 52 }, 1); y += post ? 46 : 52; }
+    const pb = H - (post ? 34 : 22) - (post ? 80 : 86);
+    if (post) Tx('date', tx('date', [date, time.replace('À PARTIR DE ', 'DÈS ')].filter(Boolean).join(' · ')), Object.assign({ font: 'Montserrat', size: 46, bold: true, weight: 900 }, P.date.grad ? { grad: P.date.grad, shadow: P.dark ? SH : undefined } : { color: P.date.color }), { x: 40, y, w: 1000, h: pb - y - 6 }, 1);
+    else { const avail = pb - y - 8; Tx('date', tx('date', date), Object.assign({ font: 'Montserrat', size: 56, bold: true, weight: 900 }, P.date.grad ? { grad: P.date.grad, shadow: P.dark ? SH : undefined } : { color: P.date.color }), { x: 50, y, w: 980, h: time ? avail * 0.58 : avail }, 1);
+      if (time) Tx('time', tx('time', time), { font: 'Montserrat', size: 40, bold: true, weight: 800, color: P.time, ls: 6 }, { x: 90, y: y + avail * 0.58, w: 900, h: avail * 0.42 }, 1); }
+    Sh('rect', 0, pb, W, post ? 80 : 86, { fill: P.placeBg, name: 'Fascia luogo', role: 'deco' });
+    Tx('place', tx('place', D.place), { font: 'Montserrat', size: post ? 38 : 40, bold: true, weight: 900, color: P.placeText, ls: 3 }, { x: 40, y: pb + 4, w: 1000, h: (post ? 80 : 86) - 8 }, 1);
+    nj(0, pb + (post ? 80 : 86), W, H - pb - (post ? 80 : 86), 5, 'start');
+  };
+  const split2 = t => { if (!t || /\n/.test(t) || t.indexOf(' ') < 0) return t; const w = t.split(' '); let best = 1, bd = 1e9; for (let i = 1; i < w.length; i++) { const d = Math.abs(w.slice(0, i).join(' ').length - w.slice(i).join(' ').length); if (d < bd) { bd = d; best = i; } } return w.slice(0, best).join(' ') + '\n' + w.slice(best).join(' '); };
+  const topBlock = (titleFont) => {
+    Tx('arabic', tx('arabic', D.arabic), Object.assign({ font: 'Aref Ruqaa', size: post ? 52 : 60, bold: true }, P.dark ? { grad: 'gold', shadow: SH } : { color: P.accent }), { x: 140, y: post ? 26 : 40, w: 800, h: post ? 66 : 80 }, 1);
+    const t = tx('title', D.title); const two = !post && t && t.length > 11 && !/\n/.test(t) && t.indexOf(' ') > 0;
+    const tt = two ? split2(t) : (post ? String(t || '').replace(/\n/g, ' ') : t);
+    Tx('title', tt, titleSt(titleFont, post ? 82 : 108), { x: 30, y: post ? 94 : 118, w: 1020, h: post ? 110 : 262 }, post ? 1 : 2);
+    Tx('subtitle', tx('subtitle', D.subtitle), { font: 'Playfair Display', size: post ? 38 : 46, italic: true, color: P.sub }, { x: 140, y: post ? 204 : 380, w: 800, h: post ? 54 : 64 }, 1);
+  };
+  const band = post ? 990 : 1496, heroTop = post ? 262 : 452;
+  let page;
+  if (item.style === 'notte') {
+    Or('pattern', 0, 0, W, H, { fill: '#c9a227', alpha: 0.07, name: 'Motivo', role: 'deco' });
+    glow(540, post ? 640 : 900, post ? 430 : 520, P.glow);
+    if (item.mosque) mosque(-40, band - 1160 / 1.176 + (post ? 60 : 90), 1160);
+    nj(0, 0, W, post ? 22 : 26, 3, 'end');
+    topBlock('Cinzel');
+    hero({ top: heroTop, ground: band - 6, maxW: 820, cx: 540 });
+    Sh('rect', 0, band - (post ? 120 : 160), W, H - band + (post ? 120 : 160), { g: { c1: P.fade + '00', c2: P.fade, ang: 180 }, name: 'Sfumatura', role: 'deco' });
+    lower(band);
+  } else if (item.style === 'avorio') {
+    Or('pattern', 0, 0, W, H, { fill: P.pattern, alpha: 0.13, name: 'Motivo arabo', role: 'deco' });
+    glow(540, post ? 560 : 820, post ? 520 : 640, P.glow);
+    Or('arch', post ? 120 : 70, post ? 250 : 330, post ? 840 : 940, post ? 860 : 1300, { fill: P.frame, name: 'Arco mihrab', role: 'deco' });
+    const cs = post ? 150 : 190; [[0, 0, 0], [W - cs, 0, 90], [W - cs, H - cs, 180], [0, H - cs, 270]].forEach(([x, y, r]) => Or('corner', x + 14, y + (y ? -14 : 22), cs, cs, { fill: P.frame, rot: r, op: 0.85, name: 'Angolo filigrana', role: 'deco' }));
+    if (item.mosque) post ? mosque(40, heroTop, 1000) : mosque(-160, heroTop, 1400);
+    nj(0, 0, W, 16, 3, 'end');
+    topBlock('Cinzel');
+    hero({ top: heroTop - 12, ground: band - 6, maxW: 820, cx: 534 });
+    coverBelow(band - (post ? 105 : 110), band - 6);
+    lower(band);
+  } else if (item.style === 'arco') {
+    Or('pattern', 0, 0, W, H, { fill: '#e8c96a', alpha: 0.07, name: 'Motivo', role: 'deco' });
+    nj(0, 0, 34, H, 2, 'end'); nj(W - 34, 0, 34, H, 6, 'start');
+    Tx('arabic', tx('arabic', D.arabic), Object.assign({ font: 'Aref Ruqaa', size: post ? 48 : 58, bold: true }, P.dark ? { grad: 'gold', shadow: SH } : { color: P.accent }), { x: 140, y: post ? 22 : 40, w: 800, h: post ? 60 : 80 }, 1);
+    const aT = post ? 92 : 190, aB = post ? 860 : 1320, aX = post ? 210 : 150, aW = W - 2 * aX;
+    Sh('arch', aX, aT, aW, aB - aT, { fill: hex2(P.bg.g ? P.bg.g.c2 : P.bg.color, 0.06), stroke: P.bandStroke, sw: 6, name: 'Arco', role: 'deco' });
+    glow(540, (aT + aB) / 2 + 60, aW * 0.55, P.glow);
+    if (item.mosque) mosque(aX + 25, aB - (aW - 50) / 1.176, aW - 50);
+    hero({ top: aT + 50, ground: aB, maxW: aW - 60, cx: 540 });
+    Sh('rect', 34, aB - (post ? 90 : 130), W - 68, H - aB + (post ? 90 : 130), { g: { c1: P.fade + '00', c2: P.fade, ang: 180 }, name: 'Sfumatura', role: 'deco' });
+    Sh('rect', 34, aB, W - 68, H - aB, { fill: P.fade, name: 'Fondo', role: 'deco' });
+    let y = aB + 8;
+    Tx('title', tx('title', D.title).replace(/\n/g, ' '), titleSt('Cinzel', post ? 66 : 80), { x: 50, y, w: 980, h: post ? 80 : 104 }, 1); y += post ? 80 : 104;
+    if (tx('subtitle', D.subtitle)) { Tx('subtitle', tx('subtitle', D.subtitle), { font: 'Playfair Display', size: post ? 32 : 42, italic: true, color: P.sub }, { x: 140, y, w: 800, h: post ? 42 : 56 }, 1); y += post ? 42 : 56; }
+    const nb = post ? 74 : 104; y += post ? 4 : 14;
+    Sh('rect', 34, y, W - 68, nb, { fill: P.band, name: 'Fascia nome', role: 'deco' }); Sh('rect', 34, y, W - 68, 4, { fill: P.bandStroke, role: 'deco' }); Sh('rect', 34, y + nb - 4, W - 68, 4, { fill: P.bandStroke, role: 'deco' });
+    Tx('name', tx('name', D.name), { font: 'Cinzel', size: post ? 50 : 62, bold: true, weight: 900, color: P.bandText, ls: 3 }, { x: 70, y: y + 6, w: 940, h: nb - 12 }, 1); y += nb + 6;
+    const hon = tx('honor', D.honor); const dt = [date, time.replace('À PARTIR DE ', post ? 'DÈS ' : '')].filter(Boolean).join(' · ');
+    const pH = post ? 66 : 86, pb = H - (post ? 18 : 40) - pH;
+    if (hon && !post) { Tx('honor', hon, { font: 'Playfair Display', size: 34, italic: true, color: P.accent }, { x: 120, y, w: 840, h: 48 }, 1); y += 48; }
+    Tx('date', tx('date', dt), Object.assign({ font: 'Montserrat', size: 48, bold: true, weight: 900 }, { color: P.accent }), { x: 60, y, w: 960, h: pb - y - 8 }, 1);
+    Sh('rounded', 120, pb, 840, pH, { fill: P.placeBg, radius: 50, name: 'Fascia luogo', role: 'deco' });
+    Tx('place', tx('place', D.place), { font: 'Montserrat', size: post ? 32 : 38, bold: true, weight: 900, color: P.placeText, ls: 2 }, { x: 140, y: pb + 4, w: 800, h: pH - 8 }, 1);
+  } else { // patch
+    Or('pattern', 0, 0, W, H, { fill: '#000000', alpha: 0.08, name: 'Motivo', role: 'deco' });
+    if (item.mosque) mosque(-60, band - 1200 / 1.176 + (post ? 40 : 80), 1200);
+    Tx('arabic', tx('arabic', D.arabic), { font: 'Aref Ruqaa', size: post ? 50 : 60, bold: true, color: '#ffffff', shadow: SH }, { x: 140, y: post ? 22 : 40, w: 800, h: post ? 64 : 80 }, 1);
+    Tx('title', post ? tx('title', D.title).replace(/\n/g, ' ') : split2(tx('title', D.title)), Object.assign(titleSt('Anton', post ? 110 : 150), { color: '#ffffff', grad: undefined, shadow: { c: 'rgba(0,0,0,0.45)', b: 0, x: 4, y: 6 } }), { x: 40, y: post ? 84 : 112, w: 1000, h: post ? 132 : 300 }, post ? 1 : 2);
+    const by = post ? 222 : 420; Sh('rect', 0, by, W, post ? 56 : 70, { fill: '#111111', name: 'Fascia', role: 'deco' }); nj(0, by - 16, W, 16, 4, 'end'); nj(0, by + (post ? 56 : 70), W, 16, 7, 'start');
+    Tx('subtitle', tx('subtitle', D.subtitle), { font: 'Montserrat', size: post ? 34 : 42, bold: true, weight: 800, color: '#e8c96a', ls: 10, upper: false }, { x: 60, y: by + 4, w: 960, h: (post ? 56 : 70) - 8 }, 1);
+    glow(540, post ? 640 : 950, post ? 430 : 520, P.glow);
+    hero({ top: by + (post ? 80 : 104), ground: band - 6, maxW: 820, cx: 540 });
+    Sh('rect', 0, band - (post ? 120 : 170), W, H - band + (post ? 120 : 170), { g: { c1: P.fade + '00', c2: P.fade, ang: 180 }, name: 'Sfumatura', role: 'deco' });
+    lower(band);
+  }
+  page = { id: uid('p'), bg: clone(P.bg), els: els.filter(e => !(e.type === 'shape' && e.g && e.g.c1 === undefined)) };
+  page.els.forEach(e => { if (e.shadow === undefined) delete e.shadow; });
+  return page;
+}
+const roleName = { arabic: 'Scritta araba', title: 'Titolo', subtitle: 'Sottotitolo', name: 'Nome', honor: 'Riga d’onore', date: 'Data', time: 'Ora', place: 'Luogo' };
+function textsOf(pages) { const t = {}; (pages || []).forEach(p => p.els.forEach(e => { if (e.type === 'text' && e.role && t[e.role] == null && e.text !== e.auto) t[e.role] = e.text; })); return t; }
+SV.autoBuild = build;
+
+/* ================= state helpers ================= */
+const itemName = it => `${STYLES.find(s => s.id === it.style).n} · ${PAL[it.pal].n}${it.mosque ? ' · Moschea' : ''}`;
+function nextCombos(A, n) {
+  const have = new Set(A.items.map(i => i.style + '|' + i.pal + '|' + (i.mosque ? 1 : 0)));
+  const pals = palsFor(A.data.ev).concat(Object.keys(PAL)); const out = [];
+  const order = [];
+  for (const m of [true, false]) for (const p of pals) for (const s of STYLES) if (compat(s.id, p)) order.push({ style: s.id, pal: p, mosque: m });
+  for (const c of order) { const k = c.style + '|' + c.pal + '|' + (c.mosque ? 1 : 0); if (have.has(k)) continue; have.add(k); out.push(c); if (out.length >= n) break; }
+  return out;
+}
+function firstCombos(A) {
+  const pl = palsFor(A.data.ev);
+  const light = pl.find(p => !PAL[p].dark) || 'avorio', dark = pl.filter(p => PAL[p].dark).concat(['nero', 'terra', 'rosso']);
+  return [{ style: 'avorio', pal: light, mosque: true }, { style: 'notte', pal: dark[0], mosque: true }, { style: 'arco', pal: dark.find(p => p === 'terra') || dark[1], mosque: false }, { style: 'patch', pal: dark.find(p => p === 'rosso') || dark[2] || 'rosso', mosque: true }];
+}
+async function fontsReady() {
+  const pg = { els: ['Cinzel', 'Montserrat', 'Playfair Display', 'Anton', 'Aref Ruqaa'].map(f => ({ type: 'text', text: f === 'Aref Ruqaa' ? 'بسم الله الرحمن الرحيم' : 'Aa', st: { font: f } })) };
+  try { await Promise.race([SV.ensureFonts([pg]), new Promise(r => setTimeout(r, 6000))]); } catch (e) {}
+  try { await Promise.all(['900 40px Cinzel', 'italic 400 40px "Playfair Display"', '900 40px Montserrat', '800 40px Montserrat', '400 40px Anton'].map(f => document.fonts.load(f))); } catch (e) {}
+}
+async function makeItem(A, c) { const it = { id: uid('ap'), style: c.style, pal: c.pal, mosque: !!c.mosque, seed: Math.round(Math.random() * 1e6) }; it.name = itemName(it); it.pages = [build(it, A)]; return it; }
+async function thumbOf(it, A) { const W = 1080, H = A.format === 'post' ? 1350 : 1920; await SV.ensureAssets(it.pages); const k = 300 / W; return SV.renderToCanvas(it.pages[0], W, H, k, { res: k }).toDataURL('image/jpeg', 0.8); }
+function syncActive(p) { // store editor state into the active item, propagate photo edits
+  const A = p.auto; if (!A || A.active == null || A.active < 0) return; const it = A.items[A.active]; if (!it) return;
+  it.pages = clone(p.pages);
+  const h = p.pages[0] && p.pages[0].els.find(e => e.role === 'hero');
+  if (h && h.asset && h.asset !== A.hero.asset) { A.hero = Object.assign({}, A.hero, { asset: h.asset, origAsset: h.origAsset || A.hero.origAsset, cutMask: h.cutMask || A.hero.cutMask });
+    A.items.forEach(o => { if (o === it) return; o.pages.forEach(pg => pg.els.forEach(e => { if (e.role === 'hero') { e.asset = h.asset; e.origAsset = h.origAsset || null; e.cutMask = h.cutMask || null; } })); o.thumb = null; }); }
+}
+const _chg = SV.change;
+SV.change = function () { const r = _chg.apply(this, arguments); try { const A = U.proj && U.proj.auto; if (A && A.items[A.active]) A.items[A.active].edited = true; } catch (e) {} return r; };
+async function rebuildItem(p, it, keepTexts) { const A = p.auto; it.pages = [build(it, A, keepTexts ? textsOf(it.pages) : null)]; it.name = itemName(it); it.thumb = null; }
+function applyToEditor(p, it) {
+  const post = p.auto.format === 'post'; p.w = 1080; p.h = post ? 1350 : 1920; p.sizeId = post ? 'post' : 'storia';
+  p.pages = clone(it.pages); U.pi = 0; U.sel = []; U.undo = []; U.redo = []; U.mode = null;
+  if (U.proj === p && !$('svEditor').hidden) { SV.ensureAssets(p.pages).then(() => SV.render()); SV.fit(); SV.refresh(); SV.render(); SV.renderPagesStrip && SV.renderPagesStrip(); }
+}
+
+/* ================= photo processing ================= */
+async function hasAlpha(im) { const c = document.createElement('canvas'); const w = c.width = Math.min(200, im.naturalWidth || im.width), h = c.height = Math.round(w * (im.naturalHeight || im.height) / (im.naturalWidth || im.width)); const x = c.getContext('2d'); x.drawImage(im, 0, 0, w, h); const d = x.getImageData(0, 0, w, h).data; let t = 0; for (let i = 3; i < d.length; i += 16) if (d[i] < 20) t++; return t / (d.length / 16) > 0.08; }
+function trimAlpha(im) {
+  const w = im.naturalWidth || im.width, h = im.naturalHeight || im.height, c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0);
+  const d = x.getImageData(0, 0, w, h).data; let x0 = w, y0 = h, x1 = 0, y1 = 0;
+  for (let y = 0; y < h; y += 2) for (let xx = 0; xx < w; xx += 2) if (d[(y * w + xx) * 4 + 3] > 24) { if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  if (x1 <= x0) return c; const o = document.createElement('canvas'); o.width = x1 - x0 + 2; o.height = y1 - y0 + 2; o.getContext('2d').drawImage(c, x0, y0, o.width, o.height, 0, 0, o.width, o.height); return o;
+}
+SV.autoProcessPhoto = async function (file, onMsg) {
+  const orig = await SV.addAsset(file, 'upload', 'Foto evento', { max: 2400 });
+  const im = await SV.loadAsset(orig.id);
+  let cutImg;
+  if (await hasAlpha(im)) cutImg = im;
+  else { onMsg && onMsg('Rimuovo lo sfondo… (la prima volta scarica il modello, ~1 min)'); const blob = await SV.runBgRemoval(im); cutImg = await SV.blobToImg(blob); }
+  const trimmed = trimAlpha(cutImg);
+  const m = document.createElement('canvas'); m.width = trimmed.width; m.height = trimmed.height; const mc = m.getContext('2d'); mc.drawImage(trimmed, 0, 0); mc.globalCompositeOperation = 'source-in'; mc.fillStyle = '#fff'; mc.fillRect(0, 0, m.width, m.height);
+  const crec = await SV.addAsset(trimmed, 'cut', 'Ritaglio'); const mrec = await SV.addAsset(m, 'mask', 'Maschera');
+  return { asset: crec.id, origAsset: orig.id, cutMask: mrec.id, w: crec.w, h: crec.h };
+};
+
+/* ================= UI ================= */
+const CSS = `.sv-auto{position:absolute;inset:0;z-index:15;background:#f4f5f7;overflow:auto;-webkit-overflow-scrolling:touch;font-family:Montserrat,system-ui,sans-serif;color:#1d1f23}
+.sv-auto .ah{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:10px;padding:12px 16px;background:linear-gradient(90deg,#0d5c2e,#13723b);color:#fff}
+.sv-auto .ah b{font-size:17px;flex:1}.sv-auto .ah button{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:10px;padding:8px 12px;font-weight:700;font-size:14px}
+.sv-auto .aw{max-width:980px;margin:0 auto;padding:16px}.sv-auto .af{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.sv-auto label{text-transform:none;display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;color:#555}.sv-auto label.full{grid-column:1/-1}
+.sv-auto input,.sv-auto select{font:inherit;font-size:16px;padding:10px 12px;border:1px solid #d5d8dd;border-radius:10px;background:#fff;color:#1d1f23}
+.sv-auto .chk{flex-direction:row;align-items:center;gap:8px;font-size:14px;color:#1d1f23}.sv-auto .chk input{width:20px;height:20px}
+.sv-auto .ph{grid-column:1/-1;display:flex;gap:12px;align-items:center;background:#fff;border:2px dashed #c9a227;border-radius:14px;padding:12px;cursor:pointer}
+.sv-auto .ph img{width:70px;height:90px;object-fit:cover;border-radius:8px;background:#eee}.sv-auto .go{grid-column:1/-1;background:#d4af37;color:#1d1f23;border:0;border-radius:12px;padding:14px;font-weight:900;font-size:17px}
+.sv-auto .ag{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}.sv-auto .ac{background:#fff;border-radius:14px;padding:8px;box-shadow:0 2px 10px rgba(0,0,0,.08);border:3px solid transparent;cursor:pointer;text-align:left}
+.sv-auto .ac.on{border-color:#d4af37}.sv-auto .ac img{width:100%;border-radius:8px;display:block;background:#ddd}.sv-auto .ac b{display:block;font-size:13px;margin:6px 2px 0}.sv-auto .ac small{color:#777;font-size:11px;margin:0 2px}
+.sv-auto .tb{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.sv-auto .tb button,.sv-auto .tb label.bt{text-transform:none;letter-spacing:0;background:#fff;border:1px solid #d5d8dd;border-radius:22px;padding:9px 14px;font-weight:700;font-size:14px;color:#1d1f23;flex-direction:row}
+.sv-auto .tb button.on{background:#1d1f23;color:#fff;border-color:#1d1f23}.sv-auto h3{font-size:15px;margin:18px 0 6px}.sv-auto .note{font-size:12px;color:#777}
+.sv-auto-btn{white-space:nowrap}@media(max-width:640px){.sv-auto .af{grid-template-columns:1fr}.sv-auto .ag{grid-template-columns:1fr 1fr}}`;
+function overlay() { let o = $('svAuto'); if (!o) { const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st); o = document.createElement('div'); o.id = 'svAuto'; o.className = 'sv-auto'; ($('sv') || document.body).appendChild(o); } o.hidden = false; return o; }
+const closeOverlay = () => { const o = $('svAuto'); if (o) { o.hidden = true; o.innerHTML = ''; } };
+SV.autoClose = closeOverlay;
+const EVS = () => (typeof EVENT_TYPES !== 'undefined' ? EVENT_TYPES : []).concat([{ id: 'preghiera', label: 'Journée de prières / Baye Fall', icon: '🤲' }]);
+const DEF = { ev: 'preghiera', title: 'JOURNÉE DE PRIÈRES', subtitle: '', name: '', honor: '', date: '', time: '', place: '', arabic: 'بسم الله الرحمن الرحيم', format: 'storia', hideFeet: true };
+
+SV.autoForm = function (prefill, opts) {
+  opts = opts || {}; let last = {}; try { last = JSON.parse(localStorage.getItem('sv-auto-last') || '{}'); } catch (e) {}
+  const d = Object.assign({}, DEF, last, prefill || {}); let file = null;
+  const o = overlay();
+  o.innerHTML = `<div class="ah"><b>✨ Crea volantino automatico</b><button data-x="close">✕ Chiudi</button></div><div class="aw">
+  <form class="af" id="afForm" autocomplete="off">
+    ${opts.photo === false ? '' : `<div class="ph" id="afPh"><img id="afPrev" alt=""><div><b>📷 Foto principale</b><div class="note">La persona viene scontornata in automatico (anche PNG già scontornati).</div></div><input type="file" id="afFile" accept="image/*" hidden></div>`}
+    <label>Tipo di evento<select id="af_ev">${EVS().map(e => `<option value="${e.id}" ${e.id === d.ev ? 'selected' : ''}>${esc(e.icon + ' ' + e.label)}</option>`).join('')}</select></label>
+    <label>Formato<select id="af_format"><option value="storia" ${d.format !== 'post' ? 'selected' : ''}>Storia 1080×1920 (WhatsApp/TikTok)</option><option value="post" ${d.format === 'post' ? 'selected' : ''}>Post 4:5 1080×1350</option></select></label>
+    <label class="full">Titolo<input id="af_title" value="${esc(d.title)}" placeholder="JOURNÉE DE PRIÈRES"></label>
+    <label>Sottotitolo / traduzione<input id="af_subtitle" value="${esc(d.subtitle)}" placeholder="Giornata di preghiere"></label>
+    <label>Nome dell’ospite<input id="af_name" value="${esc(d.name)}" placeholder="BAYE MODOU FALL"></label>
+    <label>Riga d’onore<input id="af_honor" value="${esc(d.honor)}" placeholder="Barké Cheikh Ibrahima Fall"></label>
+    <label>Scritta araba (facoltativa)<input id="af_arabic" value="${esc(d.arabic)}" dir="rtl"></label>
+    <label>Data<input id="af_date" type="date" value="${esc(d.date)}"></label>
+    <label>Ora<input id="af_time" value="${esc(d.time)}" placeholder="15H"></label>
+    <label class="full">Luogo<input id="af_place" value="${esc(d.place)}" placeholder="KEUR SERIGNE TOUBA – NOVARA"></label>
+    <label class="chk full"><input type="checkbox" id="af_hideFeet" ${d.hideFeet ? 'checked' : ''}> Nascondi i piedi (sfuma la foto all’altezza delle gambe)</label>
+    <button class="go" type="submit">${opts.submitLabel || '✨ Crea 4 proposte'}</button>
+  </form></div>`;
+  const ph = $('afPh'); if (ph) { ph.onclick = () => $('afFile').click(); $('afFile').onchange = e => { file = e.target.files[0] || null; if (file) $('afPrev').src = URL.createObjectURL(file); }; }
+  let prevEv = d.ev; $('af_ev').onchange = () => { const ev = $('af_ev').value, df = (typeof EVENT_DEFAULTS !== 'undefined' && EVENT_DEFAULTS[ev]) || null; const pdf = (typeof EVENT_DEFAULTS !== 'undefined' && EVENT_DEFAULTS[prevEv]) || {};
+    if (df) { const t = $('af_title'); if (!t.value || t.value === (pdf.titolo || DEF.title)) t.value = df.titolo || t.value; const s = $('af_subtitle'); if (!s.value || s.value === pdf.sotto) s.value = df.sotto || ''; const a = $('af_arabic'); if (!a.value || a.value === pdf.arabo) a.value = df.arabo || a.value; }
+    prevEv = ev; };
+  o.onclick = e => { const b = e.target.closest('[data-x]'); if (b && b.dataset.x === 'close') closeOverlay(); };
+  SV._autoTestFile = f => { file = f; if ($('afPrev')) $('afPrev').src = URL.createObjectURL(f); };
+  $('afForm').onsubmit = async e => {
+    e.preventDefault();
+    const v = k => ($('af_' + k) ? (k === 'hideFeet' ? $('af_' + k).checked : $('af_' + k).value.trim()) : d[k]);
+    const data = {}; ['ev', 'title', 'subtitle', 'name', 'honor', 'arabic', 'date', 'time', 'place'].forEach(k => data[k] = v(k));
+    const format = v('format'), hideFeet = v('hideFeet');
+    try { localStorage.setItem('sv-auto-last', JSON.stringify(Object.assign({}, data, { format, hideFeet }))); } catch (e2) {}
+    if (opts.onSubmit) return opts.onSubmit({ data, format, hideFeet });
+    if (!file) { SV.toast('Scegli prima la foto principale 📷'); return; }
+    if (!data.title) { SV.toast('Scrivi il titolo'); return; }
+    await SV.autoCreate(file, data, format, hideFeet);
+  };
+};
+SV.autoCreate = async function (file, data, format, hideFeet) {
+  SV.busy(true, 'Preparo la foto…');
+  try {
+    const hero = await SV.autoProcessPhoto(file, t => SV.busy(true, t));
+    SV.busy(true, 'Creo le proposte…'); await fontsReady();
+    const A = { data, hero, format, hideFeet, items: [], active: -1, v: 1 };
+    for (const c of firstCombos(A)) A.items.push(await makeItem(A, c));
+    for (const it of A.items) it.thumb = await thumbOf(it, A);
+    const post = format === 'post';
+    const p = SV.newProject(1080, post ? 1350 : 1920, (data.title || 'Volantino').replace(/\n/g, ' ') + (data.name ? ' – ' + data.name : ''), post ? 'post' : 'storia');
+    p.auto = A; p.pages = clone(A.items[0].pages); A.active = 0;
+    await SV.dbPut('projects', p);
+    SV.busy(false);
+    await SV.open({ project: p.id });
+    SV.autoGallery();
+  } catch (e) { console.error(e); SV.busy(false); SV.toast('Errore: ' + (e.message || e)); }
+};
+
+SV.autoGallery = async function () {
+  const p = U.proj; if (!p || !p.auto) return; const A = p.auto;
+  syncActive(p);
+  const o = overlay();
+  const render = async () => {
+    for (const it of A.items) if (!it.thumb) it.thumb = await thumbOf(it, A);
+    const act = A.items[A.active];
+    o.innerHTML = `<div class="ah"><b>✨ Proposte</b><button data-x="close">✏️ Modifica</button></div><div class="aw">
+    <div class="note">Tocca una proposta per aprirla. Le modifiche di ogni proposta restano salvate: puoi tornare qui quando vuoi con “✨ Proposte”.</div>
+    <div class="ag" style="margin-top:12px">${A.items.map((it, i) => `<button class="ac ${i === A.active ? 'on' : ''}" data-x="pick" data-i="${i}"><img src="${it.thumb}" alt=""><b>${i + 1}. ${esc(it.name)}</b><small>${i === A.active ? '● aperta' : ''}${it.edited ? ' · modificata' : ''}</small></button>`).join('')}</div>
+    <div class="tb"><button data-x="more">➕ Genera altre 3</button><button data-x="data">📝 Dati evento</button></div>
+    ${act ? `<h3>Ritocchi rapidi · proposta ${A.active + 1}</h3>
+    <div class="note">Sfondo</div><div class="tb">${STYLES.map(s => `<button data-x="style" data-v="${s.id}" class="${act.style === s.id ? 'on' : ''}">${s.ic} ${esc(s.n)}</button>`).join('')}<button data-x="mosque" class="${act.mosque ? 'on' : ''}">🕌 Moschea di Touba</button></div>
+    <div class="note">Colori</div><div class="tb">${Object.keys(PAL).filter(k => compat(act.style, k)).map(k => `<button data-x="pal" data-v="${k}" class="${act.pal === k ? 'on' : ''}">${esc(PAL[k].n)}</button>`).join('')}</div>
+    <div class="note">Foto e formato</div><div class="tb"><label class="bt" style="display:inline-flex;cursor:pointer">📷 Cambia foto<input type="file" accept="image/*" id="agPhoto" hidden></label><button data-x="feet" class="${A.hideFeet ? 'on' : ''}">🦶 Nascondi piedi</button><button data-x="fmt" data-v="storia" class="${A.format !== 'post' ? 'on' : ''}">📱 Storia</button><button data-x="fmt" data-v="post" class="${A.format === 'post' ? 'on' : ''}">🖼️ Post 4:5</button></div>
+    <div class="note">Condividi</div><div class="tb"><button data-x="png">⬇️ Scarica PNG</button><button data-x="share">📤 File modificabile</button></div>
+    <div class="note">I ritocchi rifanno la disposizione della proposta: i testi che hai modificato restano, le posizioni spostate a mano no. Il file modificabile si apre con “📥 Importa file” su un altro telefono.</div>` : ''}
+    </div>`;
+    const ph = $('agPhoto'); if (ph) ph.onchange = async e => { const f = e.target.files[0]; if (!f) return; SV.busy(true, 'Preparo la nuova foto…'); try { A.hero = await SV.autoProcessPhoto(f, t => SV.busy(true, t)); for (const it of A.items) await rebuildItem(p, it, true); applyToEditor(p, A.items[A.active]); await SV.saveNow(); SV.busy(false); render(); SV.toast('Foto cambiata in tutte le proposte'); } catch (er) { SV.busy(false); SV.toast('Errore: ' + er.message); } };
+  };
+  const adjust = async (fn, all) => { SV.busy(true, 'Aggiorno…'); try { await fontsReady(); syncActive(p); const act = A.items[A.active]; fn(act); if (all) { for (const it of A.items) await rebuildItem(p, it, true); } else await rebuildItem(p, act, true); applyToEditor(p, A.items[A.active]); await SV.saveNow(); } finally { SV.busy(false); } render(); };
+  o.onclick = async e => {
+    const b = e.target.closest('[data-x]'); if (!b) return; const x = b.dataset.x;
+    if (x === 'close') { closeOverlay(); SV.render(); return; }
+    if (x === 'pick') { const i = +b.dataset.i; if (i !== A.active) { syncActive(p); A.active = i; applyToEditor(p, A.items[i]); await SV.saveNow(); } closeOverlay(); SV.toast('Proposta ' + (i + 1) + ' aperta'); return; }
+    if (x === 'more') { SV.busy(true, 'Creo altre proposte…'); try { await fontsReady(); const cs = nextCombos(A, 3); for (const c of cs) A.items.push(await makeItem(A, c)); await SV.saveNow(); } finally { SV.busy(false); } render(); return; }
+    if (x === 'style') return adjust(it => { it.style = b.dataset.v; if (!compat(it.style, it.pal)) it.pal = STYLES.find(s => s.id === it.style).light ? (palsFor(A.data.ev).find(k => !PAL[k].dark) || 'avorio') : (palsFor(A.data.ev).find(k => PAL[k].dark) || 'nero'); });
+    if (x === 'mosque') return adjust(it => { it.mosque = !it.mosque; });
+    if (x === 'pal') return adjust(it => { it.pal = b.dataset.v; });
+    if (x === 'feet') return adjust(() => { A.hideFeet = !A.hideFeet; }, true);
+    if (x === 'fmt') { if ((b.dataset.v === 'post') === (A.format === 'post')) return; return adjust(() => { A.format = b.dataset.v; }, true); }
+    if (x === 'png') return SV.autoExportPNG();
+    if (x === 'share') return SV.autoShareFile();
+    if (x === 'data') { const keep = { ev: A.data.ev, format: A.format, hideFeet: A.hideFeet }; return SV.autoForm(Object.assign({}, A.data, keep), { photo: false, submitLabel: '🔄 Aggiorna tutte le proposte', onSubmit: async r => { SV.busy(true, 'Aggiorno le proposte…'); try { await fontsReady(); syncActive(p); A.data = r.data; A.format = r.format; A.hideFeet = r.hideFeet; for (const it of A.items) await rebuildItem(p, it, false); applyToEditor(p, A.items[A.active]); await SV.saveNow(); } finally { SV.busy(false); } SV.autoGallery(); } }); }
+  };
+  await render();
+};
+async function deliver(file, title) {
+  if (navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  const u = URL.createObjectURL(file), a = document.createElement('a'); a.href = u; a.download = file.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 30000); SV.toast('File salvato: ' + file.name);
+}
+const slug = s => String(s || 'volantino').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'volantino';
+SV.autoExportPNG = async function () { const p = U.proj; if (!p) return; syncActive(p); SV.busy(true, 'Preparo il PNG…'); try { const { files } = await SV.buildExport({ fmt: 'png', pages: 'all' }); SV.busy(false); const f = files[0]; await deliver(new File([f], slug(p.name) + '.png', { type: 'image/png' }), p.name); } catch (e) { SV.busy(false); SV.toast('Errore: ' + e.message); } };
+SV.buildProjectFile = async function (p) {
+  const b64 = buf => { let s = ''; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+  const ids = new Set(); p.pages.forEach(pg => { if (pg.bg && pg.bg.img) ids.add(pg.bg.img); pg.els.forEach(e => ['asset', 'origAsset', 'cutMask'].forEach(k => e[k] && ids.add(e[k]))); });
+  const assets = {}; for (const id of ids) { const r = await SV.dbGet('assets', id); if (!r) continue; const buf = r.buf || (r.blob && await r.blob.arrayBuffer()); if (buf) assets[id] = { type: r.type || 'image/png', w: r.w, h: r.h, kind: r.kind, name: r.name, data: b64(buf) }; }
+  const json = JSON.stringify({ format: 'volantino-mouride-project', v: 1, exported: new Date().toISOString(), project: { name: p.name, w: p.w, h: p.h, sizeId: p.sizeId, pages: p.pages }, assets });
+  return new File([json], slug(p.name) + '.volantino.json', { type: 'application/json' });
+};
+SV.autoShareFile = async function () { const p = U.proj; if (!p) return; syncActive(p); SV.busy(true, 'Preparo il file…'); try { const f = await SV.buildProjectFile(p); SV.busy(false); await deliver(f, p.name); } catch (e) { SV.busy(false); SV.toast('Errore: ' + e.message); } };
+
+/* import: project files open directly */
+const _pick = SV.pickImportTpl;
+SV.pickImportTpl = function () {
+  const i = document.createElement('input'); i.type = 'file'; i.accept = '.json,application/json,.volantino'; i.style.display = 'none'; document.body.appendChild(i);
+  i.onchange = async () => { const f = i.files[0]; i.remove(); if (!f) return; SV.busy(true, 'Importo…');
+    try { const d = JSON.parse(await f.text()); if (d && d.format === 'volantino-mouride-project') { const p = await SV.importProjectData(d); SV.busy(false); return SV.open({ project: p.id }); } const n = await SV.importTplFile(f); SV.busy(false); SV.toast(n + ' modello/i importato/i ✓'); SV.refreshMyTpl && SV.refreshMyTpl(); }
+    catch (e) { SV.busy(false); SV.toast(e.message || 'File non valido'); } };
+  i.click();
+};
+
+/* editor integration: persist active proposal edits, Proposte button */
+const _save = SV.saveNow;
+SV.saveNow = async function () { if (U.proj && U.proj.auto) syncActive(U.proj); return _save.apply(this, arguments); };
+const _openP = SV.openProject;
+SV.openProject = async function () {
+  const r = await _openP.apply(this, arguments);
+  let b = $('svAutoBtn'); if (!b) { const t = $('svTitle'); if (t) { b = document.createElement('button'); b.id = 'svAutoBtn'; b.className = 'sv-ib sv-auto-btn'; b.type = 'button'; b.innerHTML = '✨ <span class="sv-dk">Proposte</span>'; b.title = 'Proposte automatiche e ritocchi rapidi'; b.onclick = () => SV.autoGallery(); t.insertAdjacentElement('afterend', b); } }
+  if (b) b.hidden = !(U.proj && U.proj.auto);
+  return r;
+};
+const _home = SV.showHome;
+SV.showHome = async function () {
+  closeOverlay(); await _home.apply(this, arguments);
+  const q = document.querySelector('#svHome .sv-quick'); if (q && !$('svAutoEntry')) q.insertAdjacentHTML('beforebegin', `<button class="sv-quick" id="svAutoEntry" type="button" style="border-color:#d4af37;background:linear-gradient(90deg,#fff8e1,#fff)"><span class="q">✨</span><span><b>Crea volantino automatico</b><small>Foto + dati dell’evento → 4 proposte modificabili, con ritocchi in un tocco</small></span></button>`);
+  const en = $('svAutoEntry'); if (en) en.onclick = () => SV.autoForm();
+};
 })();
 
 window.SV = window.SV || {}; SV.PADDLE_DICTS = {"latin": ["!", "\"", "#", "$", "%", "&", "'", "(", ")", "*", "+", ",", "-", ".", "/", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ":", ";", "<", "=", ">", "?", "@", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "[", "\\", "]", "^", "_", "`", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "{", "|", "}", "~", "¡", "¢", "£", "¤", "¥", "¦", "§", "¨", "©", "ª", "«", "¬", "­", "®", "¯", "°", "±", "²", "³", "´", "µ", "¶", "·", "¸", "¹", "º", "»", "¼", "½", "¾", "¿", "À", "Á", "Â", "Ã", "Ä", "Å", "Æ", "Ç", "È", "É", "Ê", "Ë", "Ì", "Í", "Î", "Ï", "Ð", "Ñ", "Ò", "Ó", "Ô", "Õ", "Ö", "×", "Ø", "Ù", "Ú", "Û", "Ü", "Ý", "Þ", "ß", "à", "á", "â", "ã", "ä", "å", "æ", "ç", "è", "é", "ê", "ë", "ì", "í", "î", "ï", "ð", "ñ", "ò", "ó", "ô", "õ", "ö", "÷", "ø", "ù", "ú", "û", "ü", "ý", "þ", "ÿ", "Ą", "ą", "Ć", "ć", "Č", "č", "Ď", "ď", "Đ", "đ", "Ė", "ė", "Ę", "ę", "Ě", "ě", "Ğ", "ğ", "Į", "į", "İ", "ı", "Ĺ", "ĺ", "Ľ", "ľ", "Ł", "ł", "Ń", "ń", "Ň", "ň", "ō", "Ő", "ő", "Œ", "œ", "Ŕ", "ŕ", "Ř", "ř", "Ś", "ś", "Ş", "ş", "Š", "š", "Ť", "ť", "Ū", "ū", "Ů", "ů", "Ű", "ű", "Ų", "ų", "Ÿ", "Ź", "ź", "Ż", "ż", "Ž", "ž", "ƒ", "ʒ", "Ω", "α", "β", "γ", "δ", "ε", "ζ", "η", "θ", "ι", "κ", "λ", "μ", "ν", "ξ", "ο", "π", "ρ", "ς", "σ", "τ", "υ", "φ", "χ", "ψ", "ω", "з", "०", "Ṡ", "ẞ", "Ạ", "‐", "‑", "‒", "–", "—", "―", "‖", "‗", "‘", "’", "‚", "‛", "“", "”", "„", "‟", "†", "‡", "•", "‣", "․", "‥", "…", "‧", "‰", "′", "″", "‴", "‵", "‶", "‷", "‸", "‹", "›", "※", "‼", "‽", "‾", "⁄", "₂", "₃", "₡", "₤", "€", "₴", "₹", "₽", "₿", "℉", "ℏ", "№", "™", "Ω", "℧", "Å", "℮", "⅀", "Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ", "Ⅶ", "Ⅷ", "Ⅸ", "Ⅹ", "Ⅺ", "Ⅻ", "ⅰ", "ⅱ", "ⅲ", "ⅳ", "ⅴ", "ⅵ", "ⅶ", "ⅷ", "ⅸ", "ⅹ", "ⅺ", "ⅻ", "←", "↑", "→", "↓", "↔", "↕", "⇐", "⇒", "⇔", "∀", "∂", "∃", "∄", "∅", "∆", "∋", "∏", "∑", "−", "∓", "∕", "∖", "∗", "∙", "√", "∛", "∜", "∝", "∞", "∟", "∠", "∡", "∢", "∥", "∧", "∨", "∩", "∪", "∫", "∬", "∭", "∮", "∯", "∰", "∱", "∲", "∳", "∴", "∵", "∶", "∷", "∼", "≈", "≠", "≡", "≤", "≥", "⊂", "⊃", "⊥", "⊾", "⊿", "⋅", "⌀", "⍵", "⍺", "①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩", "─", "│", "└", "├", "■", "□", "▪", "▫", "▶", "◀", "●", "◼", "☑", "☒", "✓", "✔", "✕", "✗", "✘", "❶", "❷", "❸", "❹", "❺", "❻", "❼", "❽", "❾", "❿", "➀", "➁", "➂", "➃", "➄", "➅", "➆", "➇", "➈", "➉", "➊", "➋", "➌", "➍", "➎", "➏", "➐", "➑", "➒", "➓", "⬆", "、", "ﬁ", "ﬂ", "︽", "︾", "﹥", "�", "𝑢", "𝜓"], "arabic": ["!", "#", "$", "%", "&", "'", "(", "+", ",", "-", ".", "/", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ":", "?", "@", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "_", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "É", "é", "ء", "آ", "أ", "ؤ", "إ", "ئ", "ا", "ب", "ة", "ت", "ث", "ج", "ح", "خ", "د", "ذ", "ر", "ز", "س", "ش", "ص", "ض", "ط", "ظ", "ع", "غ", "ف", "ق", "ك", "ل", "م", "ن", "ه", "و", "ى", "ي", "ً", "ٌ", "ٍ", "َ", "ُ", "ِ", "ّ", "ْ", "ٓ", "ٔ", "ٰ", "ٱ", "ٹ", "پ", "چ", "ڈ", "ڑ", "ژ", "ک", "ڭ", "گ", "ں", "ھ", "ۀ", "ہ", "ۂ", "ۃ", "ۆ", "ۇ", "ۈ", "ۋ", "ی", "ې", "ے", "ۓ", "ە", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"]};
