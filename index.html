@@ -11731,9 +11731,9 @@ function textElFromLayer(L) {
  * Convert one of the 20 Volantino templates into an editable page.
  * Background → page bg image, decorations/photos → image elements, texts → editable text.
  */
-SV.templateToPage = async function (tpl, ev, post, keepPhotos) {
+SV.templateToPage = async function (tpl, ev, post, keepPhotos, dataOverride) {
   const W = 1080, H = post ? 1350 : 1920;
-  const d = keepPhotos ? getFormData() : SV.sampleData(ev || TEMPLATE_EVENT_SAMPLE[tpl]);
+  const d = Object.assign(keepPhotos ? getFormData() : SV.sampleData(ev || TEMPLATE_EVENT_SAMPLE[tpl]), dataOverride || {});
   const parts = withTemplateSandbox(tpl, !!keepPhotos, () => {
     const layers = buildFlyerLayers(tpl, W, H, d);
     const sorted = layers.slice().sort((a, b) => {
@@ -11778,15 +11778,15 @@ SV.templateToPage = async function (tpl, ev, post, keepPhotos) {
     else if (p.kind === 'img') {
       const a = await SV.addAsset(p.cv, 'tpl', p.name);
       if (p.photo) hadPhoto = true;
-      page.els.push({ id: uid(), type: 'image', name: p.name, asset: a.id, x: p.b.x, y: p.b.y, w: p.b.w, h: p.b.h, rot: 0, op: 1, fit: 'contain' });
+      page.els.push(Object.assign({ id: uid(), type: 'image', name: p.name, asset: a.id, x: p.b.x, y: p.b.y, w: p.b.w, h: p.b.h, rot: 0, op: 1, fit: 'contain' }, p.photo ? { role: 'photoSlot' } : {}));
     } else page.els.push(p.el);
   }
   // texts always above decorations (as in the original templates)
   const txt = page.els.filter(e => e.type === 'text');
   page.els = page.els.filter(e => e.type !== 'text').concat(txt);
-  if (!hadPhoto && !keepPhotos && !/fatiha|prog|collecte|sass|teal/.test(tpl)) {
+  if (!hadPhoto && !keepPhotos && (dataOverride ? !dataOverride._noFrame : !/fatiha|prog|collecte|sass|teal/.test(tpl))) {
     const z = photoZoneFor(tpl, W, H);
-    const fr = { id: uid(), type: 'image', name: 'Cornice foto', asset: null, x: z.x + z.w * 0.18, y: z.y + z.h * 0.08, w: z.w * 0.64, h: z.h * 0.84, rot: 0, op: 1, mask: 'arch', ph: 'Tocca e aggiungi la foto', frame: true, fade: { side: 'bottom', amt: 30 } };
+    const fr = { id: uid(), type: 'image', role: 'photoSlot', name: 'Cornice foto', asset: null, x: z.x + z.w * 0.18, y: z.y + z.h * 0.08, w: z.w * 0.64, h: z.h * 0.84, rot: 0, op: 1, mask: 'arch', ph: 'Tocca e aggiungi la foto', frame: true, fade: { side: 'bottom', amt: 30 } };
     // place the frame below texts but above images
     const firstText = page.els.findIndex(e => e.type === 'text');
     page.els.splice(firstText < 0 ? page.els.length : firstText, 0, fr);
@@ -16354,10 +16354,14 @@ const STYLES = [
   { id: 'notte', n: 'Scuro', ic: '🖤', pal: 'nero' },
   { id: 'arco', n: 'Arco', ic: '🕌', pal: 'terra' },
   { id: 'patch', n: 'Patchwork', ic: '🧵', pal: 'rosso' },
+  { id: 'split', n: 'Foto di lato', ic: '◧', any: true, pal: 'avorio' },
+  { id: 'medal', n: 'Medaglione', ic: '⭕', any: true, pal: 'verde' },
+  { id: 'banner', n: 'Banner in alto', ic: '▀', any: true, pal: 'terra' },
 ];
+const LAYOUT_OF = { avorio: 'center', notte: 'center', patch: 'center', arco: 'arch', split: 'split', medal: 'medallion', banner: 'banner' };
 const EV_PAL = { magal: ['avverde', 'verde', 'terra', 'rosso'], ziar: ['avverde', 'verde', 'terra', 'blu'], gamou: ['avverde', 'verde', 'blu', 'terra'], kazu: ['avorio', 'verde', 'terra', 'rosso'], fatiha: ['lutto', 'nero', 'terra', 'blu'], dahira: ['avorio', 'nero', 'terra', 'rosso'], waxtaan: ['avorio', 'blu', 'terra', 'nero'], preghiera: ['avorio', 'nero', 'terra', 'rosso'] };
 const palsFor = ev => EV_PAL[ev] || ['avorio', 'nero', 'terra', 'rosso'];
-const compat = (style, pal) => !!(STYLES.find(s => s.id === style).light) === !PAL[pal].dark;
+const compat = (style, pal) => { const st = STYLES.find(s => s.id === style); return st.any || !!st.light === !PAL[pal].dark; };
 
 /* text fitting into a slot */
 function fit(el, slot, maxLines, minK) {
@@ -16382,6 +16386,9 @@ function build(item, A, texts) {
   const Tx = (role, text, st, slot, maxLines) => { if (!text) return null; const e = { id: uid(), type: 'text', role, text, st: Object.assign({ font: 'Montserrat', size: 60, color: '#ffffff', align: 'center' }, st), x: 0, y: 0, w: 100, h: 100, rot: 0, op: 1, name: roleName[role] || role, auto: T[role] != null ? null : text }; fit(e, slot, maxLines || 1); els.push(e); return e; };
   const Sh = (shape, x, y, w, h, o) => { const e = Object.assign({ id: uid(), type: 'shape', shape, x, y, w, h, rot: 0, op: 1 }, o); els.push(e); return e; };
   const Or = (kind, x, y, w, h, o) => { const e = Object.assign({ id: uid(), type: 'orn', kind, x, y, w, h, rot: 0, op: 1 }, o); els.push(e); return e; };
+  const bright = !P.dark && A.hero && A.hero.lum > 0.6;
+  const rgbaOf = (h, a) => { const n = parseInt(String(h).slice(1, 7), 16) || 0; return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+  const GLW = bright ? rgbaOf(P.band, 0.30) : P.glow;
   const glow = (cx, cy, r, c) => Sh('circle', cx - r, cy - r, 2 * r, 2 * r, { g: { c1: c, c2: c.replace(/[\d.]+\)$/, '0)'), radial: true }, name: 'Alone luminoso', role: 'deco' });
   const nj = (x, y, w, h, seed, edge) => Or('njaxas', x, y, w, h, { seed, cols: P.nj, fill: P.dark ? '#c9a227' : (P.frame || '#c9a227'), edge, name: 'Patchwork', role: 'deco' });
   const mosque = (x, y, w) => { const h = w / 1.176; return Or('touba2', x, y, w, h, { fill: P.mq[0], fill2: P.mq[1], op: P.mq[2], name: 'Grande Moschea di Touba', role: 'deco' }); };
@@ -16392,7 +16399,7 @@ function build(item, A, texts) {
     let h = hide ? vis / 0.86 : vis, w = h * a; if (w > box.maxW) { w = box.maxW; h = w / a; }
     const y = hide ? box.ground - h * 0.86 : box.ground - h;
     if (!hide) Sh('circle', box.cx - w * 0.45, box.ground - h * 0.03, w * 0.9, h * 0.06, { g: { c1: P.dark ? 'rgba(0,0,0,0.55)' : 'rgba(60,35,12,0.45)', c2: 'rgba(0,0,0,0)', radial: true }, name: 'Ombra', role: 'deco' });
-    const e = { id: uid(), type: 'image', role: 'hero', asset: h0.asset, origAsset: h0.origAsset || null, cutMask: h0.cutMask || null, x: Math.round(box.cx - w / 2), y: Math.round(y), w: Math.round(w), h: Math.round(h), rot: 0, op: 1, name: 'Foto principale', shadow: P.dark ? undefined : { c: 'rgba(50,25,8,0.30)', b: 8, x: 2, y: 2 } };
+    const e = { id: uid(), type: 'image', role: 'hero', asset: h0.asset, origAsset: h0.origAsset || null, cutMask: h0.cutMask || null, x: Math.round(box.cx - w / 2), y: Math.round(y), w: Math.round(w), h: Math.round(h), rot: 0, op: 1, name: 'Foto principale', shadow: P.dark ? undefined : (bright ? { c: 'rgba(20,12,6,0.55)', b: 12, x: 0, y: 3 } : { c: 'rgba(50,25,8,0.30)', b: 8, x: 2, y: 2 }) };
     if (hide) e.fade = { side: 'bottom', amt: 16 };
     els.push(e); return e;
   };
@@ -16400,7 +16407,7 @@ function build(item, A, texts) {
   const date = fmtDate(D.date), time = fmtTime(D.time);
   const R = { post, W, H };
   const lower = (b) => { // standard lower block starting at band top b
-    const bh = post ? 104 : 118; Sh('rounded', 150, b, 780, bh, { fill: P.band, radius: 50, stroke: P.bandStroke, sw: 4, name: 'Fascia nome', role: 'deco' });
+    const bh = post ? 104 : 118; if (tx('name', D.name)) Sh('rounded', 150, b, 780, bh, { fill: P.band, radius: 50, stroke: P.bandStroke, sw: 4, name: 'Fascia nome', role: 'deco' });
     Tx('name', tx('name', D.name), { font: 'Cinzel', size: post ? 60 : 66, bold: true, weight: 900, color: P.bandText, ls: 2 }, { x: 170, y: b + 4, w: 740, h: bh - 8 }, 1);
     let y = b + bh + 4;
     if (tx('honor', D.honor)) { Tx('honor', tx('honor', D.honor), { font: 'Playfair Display', size: post ? 32 : 36, italic: true, color: P.accent }, { x: 120, y, w: 840, h: post ? 46 : 52 }, 1); y += post ? 46 : 52; }
@@ -16408,7 +16415,7 @@ function build(item, A, texts) {
     if (post) Tx('date', tx('date', [date, time.replace('À PARTIR DE ', 'DÈS ')].filter(Boolean).join(' · ')), Object.assign({ font: 'Montserrat', size: 46, bold: true, weight: 900 }, P.date.grad ? { grad: P.date.grad, shadow: P.dark ? SH : undefined } : { color: P.date.color }), { x: 40, y, w: 1000, h: pb - y - 6 }, 1);
     else { const avail = pb - y - 8; Tx('date', tx('date', date), Object.assign({ font: 'Montserrat', size: 56, bold: true, weight: 900 }, P.date.grad ? { grad: P.date.grad, shadow: P.dark ? SH : undefined } : { color: P.date.color }), { x: 50, y, w: 980, h: time ? avail * 0.58 : avail }, 1);
       if (time) Tx('time', tx('time', time), { font: 'Montserrat', size: 40, bold: true, weight: 800, color: P.time, ls: 6 }, { x: 90, y: y + avail * 0.58, w: 900, h: avail * 0.42 }, 1); }
-    Sh('rect', 0, pb, W, post ? 80 : 86, { fill: P.placeBg, name: 'Fascia luogo', role: 'deco' });
+    if (tx('place', D.place)) Sh('rect', 0, pb, W, post ? 80 : 86, { fill: P.placeBg, name: 'Fascia luogo', role: 'deco' });
     Tx('place', tx('place', D.place), { font: 'Montserrat', size: post ? 38 : 40, bold: true, weight: 900, color: P.placeText, ls: 3 }, { x: 40, y: pb + 4, w: 1000, h: (post ? 80 : 86) - 8 }, 1);
     nj(0, pb + (post ? 80 : 86), W, H - pb - (post ? 80 : 86), 5, 'start');
   };
@@ -16424,7 +16431,7 @@ function build(item, A, texts) {
   let page;
   if (item.style === 'notte') {
     Or('pattern', 0, 0, W, H, { fill: '#c9a227', alpha: 0.07, name: 'Motivo', role: 'deco' });
-    glow(540, post ? 640 : 900, post ? 430 : 520, P.glow);
+    glow(540, post ? 640 : 900, post ? 430 : 520, GLW);
     if (item.mosque) mosque(-40, band - 1160 / 1.176 + (post ? 60 : 90), 1160);
     nj(0, 0, W, post ? 22 : 26, 3, 'end');
     topBlock('Cinzel');
@@ -16433,7 +16440,7 @@ function build(item, A, texts) {
     lower(band);
   } else if (item.style === 'avorio') {
     Or('pattern', 0, 0, W, H, { fill: P.pattern, alpha: 0.13, name: 'Motivo arabo', role: 'deco' });
-    glow(540, post ? 560 : 820, post ? 520 : 640, P.glow);
+    glow(540, post ? 560 : 820, post ? 520 : 640, GLW);
     Or('arch', post ? 120 : 70, post ? 250 : 330, post ? 840 : 940, post ? 860 : 1300, { fill: P.frame, name: 'Arco mihrab', role: 'deco' });
     const cs = post ? 150 : 190; [[0, 0, 0], [W - cs, 0, 90], [W - cs, H - cs, 180], [0, H - cs, 270]].forEach(([x, y, r]) => Or('corner', x + 14, y + (y ? -14 : 22), cs, cs, { fill: P.frame, rot: r, op: 0.85, name: 'Angolo filigrana', role: 'deco' }));
     if (item.mosque) post ? mosque(40, heroTop, 1000) : mosque(-160, heroTop, 1400);
@@ -16448,7 +16455,7 @@ function build(item, A, texts) {
     Tx('arabic', tx('arabic', D.arabic), Object.assign({ font: 'Aref Ruqaa', size: post ? 48 : 58, bold: true }, P.dark ? { grad: 'gold', shadow: SH } : { color: P.accent }), { x: 140, y: post ? 22 : 40, w: 800, h: post ? 60 : 80 }, 1);
     const aT = post ? 92 : 190, aB = post ? 860 : 1320, aX = post ? 210 : 150, aW = W - 2 * aX;
     Sh('arch', aX, aT, aW, aB - aT, { fill: hex2(P.bg.g ? P.bg.g.c2 : P.bg.color, 0.06), stroke: P.bandStroke, sw: 6, name: 'Arco', role: 'deco' });
-    glow(540, (aT + aB) / 2 + 60, aW * 0.55, P.glow);
+    glow(540, (aT + aB) / 2 + 60, aW * 0.55, GLW);
     if (item.mosque) mosque(aX + 25, aB - (aW - 50) / 1.176, aW - 50);
     hero({ top: aT + 50, ground: aB, maxW: aW - 60, cx: 540 });
     Sh('rect', 34, aB - (post ? 90 : 130), W - 68, H - aB + (post ? 90 : 130), { g: { c1: P.fade + '00', c2: P.fade, ang: 180 }, name: 'Sfumatura', role: 'deco' });
@@ -16457,14 +16464,69 @@ function build(item, A, texts) {
     Tx('title', tx('title', D.title).replace(/\n/g, ' '), titleSt('Cinzel', post ? 66 : 80), { x: 50, y, w: 980, h: post ? 80 : 104 }, 1); y += post ? 80 : 104;
     if (tx('subtitle', D.subtitle)) { Tx('subtitle', tx('subtitle', D.subtitle), { font: 'Playfair Display', size: post ? 32 : 42, italic: true, color: P.sub }, { x: 140, y, w: 800, h: post ? 42 : 56 }, 1); y += post ? 42 : 56; }
     const nb = post ? 74 : 104; y += post ? 4 : 14;
-    Sh('rect', 34, y, W - 68, nb, { fill: P.band, name: 'Fascia nome', role: 'deco' }); Sh('rect', 34, y, W - 68, 4, { fill: P.bandStroke, role: 'deco' }); Sh('rect', 34, y + nb - 4, W - 68, 4, { fill: P.bandStroke, role: 'deco' });
+    if (tx('name', D.name)) { Sh('rect', 34, y, W - 68, nb, { fill: P.band, name: 'Fascia nome', role: 'deco' }); Sh('rect', 34, y, W - 68, 4, { fill: P.bandStroke, role: 'deco' }); Sh('rect', 34, y + nb - 4, W - 68, 4, { fill: P.bandStroke, role: 'deco' }); }
     Tx('name', tx('name', D.name), { font: 'Cinzel', size: post ? 50 : 62, bold: true, weight: 900, color: P.bandText, ls: 3 }, { x: 70, y: y + 6, w: 940, h: nb - 12 }, 1); y += nb + 6;
     const hon = tx('honor', D.honor); const dt = [date, time.replace('À PARTIR DE ', post ? 'DÈS ' : '')].filter(Boolean).join(' · ');
     const pH = post ? 66 : 86, pb = H - (post ? 18 : 40) - pH;
     if (hon && !post) { Tx('honor', hon, { font: 'Playfair Display', size: 34, italic: true, color: P.accent }, { x: 120, y, w: 840, h: 48 }, 1); y += 48; }
     Tx('date', tx('date', dt), Object.assign({ font: 'Montserrat', size: 48, bold: true, weight: 900 }, { color: P.accent }), { x: 60, y, w: 960, h: pb - y - 8 }, 1);
-    Sh('rounded', 120, pb, 840, pH, { fill: P.placeBg, radius: 50, name: 'Fascia luogo', role: 'deco' });
+    if (tx('place', D.place)) Sh('rounded', 120, pb, 840, pH, { fill: P.placeBg, radius: 50, name: 'Fascia luogo', role: 'deco' });
     Tx('place', tx('place', D.place), { font: 'Montserrat', size: post ? 32 : 38, bold: true, weight: 900, color: P.placeText, ls: 2 }, { x: 140, y: pb + 4, w: 800, h: pH - 8 }, 1);
+  } else if (item.style === 'split') {
+    Or('pattern', 0, 0, W, H, { fill: P.dark ? '#c9a227' : (P.pattern || '#b8975a'), alpha: P.dark ? 0.07 : 0.12, name: 'Motivo', role: 'deco' });
+    const pbH = post ? 80 : 86, pb = H - (post ? 34 : 22) - pbH, cx = post ? 790 : 780;
+    glow(cx, post ? 760 : 1100, post ? 420 : 560, GLW);
+    if (item.mosque) mosque(cx - 330, pb - 660 / 1.176 + 40, 660);
+    nj(W - 26, 0, 26, pb, 4, 'start');
+    hero({ top: post ? 190 : 300, ground: pb - 4, maxW: post ? 540 : 600, cx: cx + 20 });
+    Tx('arabic', tx('arabic', D.arabic), Object.assign({ font: 'Aref Ruqaa', size: post ? 50 : 60, bold: true }, P.dark ? { grad: 'gold', shadow: SH } : { color: P.accent }), { x: 50, y: post ? 28 : 56, w: 980, h: post ? 66 : 80 }, 1);
+    Tx('title', tx('title', D.title), Object.assign(titleSt('Cinzel', post ? 84 : 104), { align: 'left' }), { x: 40, y: post ? 104 : 170, w: post ? 560 : 580, h: post ? 300 : 430 }, 3);
+    let y = post ? 410 : 610;
+    if (tx('subtitle', D.subtitle)) { Tx('subtitle', tx('subtitle', D.subtitle), { font: 'Playfair Display', size: post ? 34 : 42, italic: true, color: P.sub, align: 'left' }, { x: 40, y, w: 520, h: post ? 50 : 64 }, 1); y += post ? 54 : 70; }
+    Sh('rect', 52, y + 6, 130, 6, { fill: P.bandStroke, name: 'Linea', role: 'deco' }); y += post ? 24 : 30;
+    if (tx('name', D.name)) { Tx('name', tx('name', D.name), { font: 'Cinzel', size: post ? 54 : 64, bold: true, weight: 900, color: P.dark ? '#ffffff' : P.title.color || P.band, align: 'left', lh: 1.0 }, { x: 40, y, w: 540, h: post ? 130 : 170 }, 2); y += post ? 130 : 170; }
+    if (tx('honor', D.honor)) { Tx('honor', tx('honor', D.honor), { font: 'Playfair Display', size: post ? 30 : 36, italic: true, color: P.accent, align: 'left' }, { x: 40, y, w: 540, h: post ? 46 : 56 }, 1); y += post ? 52 : 66; }
+    if (date || time) { const bh = post ? 150 : 210; Sh('rounded', 40, y, 520, bh, { fill: P.band, radius: 14, stroke: P.bandStroke, sw: 3, name: 'Riquadro data', role: 'deco' });
+      Tx('date', tx('date', date), { font: 'Montserrat', size: post ? 40 : 50, bold: true, weight: 900, color: P.bandText, lh: 1.0 }, { x: 56, y: y + 10, w: 488, h: bh * 0.62 }, 2);
+      if (time) Tx('time', tx('time', time), { font: 'Montserrat', size: post ? 28 : 34, bold: true, weight: 800, color: P.accent === P.band ? '#ffffff' : P.accent, ls: 4 }, { x: 56, y: y + bh * 0.64, w: 488, h: bh * 0.32 }, 1); }
+    Sh('rect', 0, pb - (post ? 70 : 90), W, (post ? 70 : 90), { g: { c1: P.fade + '00', c2: P.fade, ang: 180 }, name: 'Sfumatura', role: 'deco' });
+    if (tx('place', D.place)) Sh('rect', 0, pb, W, pbH, { fill: P.placeBg, name: 'Fascia luogo', role: 'deco' }); else Sh('rect', 0, pb, W, pbH, { fill: P.fade, role: 'deco' });
+    Tx('place', tx('place', D.place), { font: 'Montserrat', size: post ? 36 : 40, bold: true, weight: 900, color: P.placeText, ls: 3 }, { x: 40, y: pb + 4, w: 1000, h: pbH - 8 }, 1);
+    nj(0, pb + pbH, W, H - pb - pbH, 5, 'start');
+  } else if (item.style === 'medal') {
+    Or('pattern', 0, 0, W, H, { fill: P.dark ? '#c9a227' : (P.pattern || '#b8975a'), alpha: P.dark ? 0.08 : 0.13, name: 'Motivo', role: 'deco' });
+    if (!P.dark) { const cs = post ? 150 : 190; [[0, 0, 0], [W - cs, 0, 90], [W - cs, H - cs, 180], [0, H - cs, 270]].forEach(([x, y, r]) => Or('corner', x + 14, y + (y ? -14 : 22), cs, cs, { fill: P.frame, rot: r, op: 0.85, name: 'Angolo filigrana', role: 'deco' })); }
+    if (item.mosque) mosque(40, H - (post ? 560 : 820), 1000);
+    topBlock('Cinzel');
+    const D0 = post ? 470 : 620, cy0 = post ? 250 : 450, cxm = 540;
+    glow(cxm, cy0 + D0 / 2, D0 * 0.75, GLW);
+    Sh('circle', cxm - D0 / 2 - 14, cy0 - 14, D0 + 28, D0 + 28, { fill: P.bandStroke, name: 'Anello', role: 'deco' });
+    Sh('circle', cxm - D0 / 2, cy0, D0, D0, { g: { c1: P.dark ? hex2(P.band, 0.25) : hex2(P.band, 0.55), c2: P.dark ? P.band : hex2(P.band, 0.2), radial: true }, name: 'Medaglione', role: 'deco' });
+    if (A.hero && A.hero.asset) { const h0 = A.hero; els.push({ id: uid(), type: 'image', role: 'hero', heroMode: 'medal', asset: h0.asset, origAsset: h0.origAsset || null, cutMask: h0.cutMask || null, x: cxm - D0 / 2, y: cy0, w: D0, h: D0, rot: 0, op: 1, mask: 'circle', crop: { z: Math.max(1, Math.min(1.6, 0.42 / Math.max(0.2, h0.w / h0.h))), px: 0.5, py: 0 }, name: 'Foto principale' }); }
+    lower(cy0 + D0 + (post ? 18 : 40));
+  } else if (item.style === 'banner') {
+    const bH = post ? 330 : 520;
+    Or('pattern', 0, 0, W, H, { fill: P.dark ? '#c9a227' : (P.pattern || '#b8975a'), alpha: 0.08, name: 'Motivo', role: 'deco' });
+    if (item.mosque) mosque(-60, H - (post ? 980 : 1360), 1200);
+    glow(720, post ? 820 : 1180, post ? 420 : 560, GLW);
+    const pbH = post ? 80 : 86, pb = H - (post ? 34 : 22) - pbH;
+    hero({ top: bH + 20, ground: pb - 4, maxW: post ? 600 : 760, cx: 700 });
+    Sh('rect', 0, 0, W, bH, { fill: P.dark ? P.band : P.band, name: 'Banner', role: 'deco' });
+    nj(0, bH, W, post ? 18 : 24, 6, 'start');
+    Tx('arabic', tx('arabic', D.arabic), Object.assign({ font: 'Aref Ruqaa', size: post ? 48 : 58, bold: true }, { color: P.bandText === '#ffffff' ? '#f0d060' : P.bandText }), { x: 140, y: post ? 18 : 40, w: 800, h: post ? 60 : 80 }, 1);
+    Tx('title', tx('title', D.title), Object.assign(titleSt('Anton', post ? 96 : 130), { color: P.bandText, grad: undefined, shadow: { c: 'rgba(0,0,0,0.35)', b: 10, x: 0, y: 4 } }), { x: 40, y: post ? 76 : 120, w: 1000, h: post ? 170 : 300 }, 2);
+    Tx('subtitle', tx('subtitle', D.subtitle), { font: 'Playfair Display', size: post ? 32 : 42, italic: true, color: P.bandText }, { x: 140, y: post ? 250 : 430, w: 800, h: post ? 56 : 70 }, 1);
+    Sh('rect', 0, pb - (post ? 70 : 90), W, (post ? 70 : 90), { g: { c1: P.fade + '00', c2: P.fade, ang: 180 }, name: 'Sfumatura', role: 'deco' });
+    const bx = 40, bw = post ? 470 : 500, by0 = post ? 820 : 1250, bh0 = pb - by0 - 30;
+    Sh('rounded', bx, by0, bw, bh0, { fill: P.dark ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.88)', radius: 18, stroke: P.bandStroke, sw: 3, name: 'Riquadro info', role: 'deco' });
+    let y = by0 + 16; const tc = P.dark ? '#ffffff' : P.text;
+    if (tx('name', D.name)) { Tx('name', tx('name', D.name), { font: 'Cinzel', size: post ? 44 : 56, bold: true, weight: 900, color: P.dark ? P.accent : (P.title.color || P.band), lh: 1.0 }, { x: bx + 14, y, w: bw - 28, h: bh0 * 0.34 }, 2); y += bh0 * 0.34; }
+    if (tx('honor', D.honor)) { Tx('honor', tx('honor', D.honor), { font: 'Playfair Display', size: post ? 26 : 32, italic: true, color: P.dark ? '#f3e3c3' : P.accent }, { x: bx + 14, y, w: bw - 28, h: bh0 * 0.16 }, 1); y += bh0 * 0.16; }
+    Tx('date', tx('date', date), { font: 'Montserrat', size: post ? 36 : 44, bold: true, weight: 900, color: tc, lh: 1.0 }, { x: bx + 14, y, w: bw - 28, h: bh0 * 0.28 }, 2); y += bh0 * 0.28;
+    if (time) Tx('time', tx('time', time), { font: 'Montserrat', size: post ? 26 : 32, bold: true, weight: 800, color: P.dark ? P.accent : P.time, ls: 3 }, { x: bx + 14, y, w: bw - 28, h: bh0 * 0.16 }, 1);
+    if (tx('place', D.place)) Sh('rect', 0, pb, W, pbH, { fill: P.placeBg, name: 'Fascia luogo', role: 'deco' }); else Sh('rect', 0, pb, W, pbH, { fill: P.fade, role: 'deco' });
+    Tx('place', tx('place', D.place), { font: 'Montserrat', size: post ? 36 : 40, bold: true, weight: 900, color: P.placeText, ls: 3 }, { x: 40, y: pb + 4, w: 1000, h: pbH - 8 }, 1);
+    nj(0, pb + pbH, W, H - pb - pbH, 5, 'start');
   } else { // patch
     Or('pattern', 0, 0, W, H, { fill: '#000000', alpha: 0.08, name: 'Motivo', role: 'deco' });
     if (item.mosque) mosque(-60, band - 1200 / 1.176 + (post ? 40 : 80), 1200);
@@ -16472,7 +16534,7 @@ function build(item, A, texts) {
     Tx('title', post ? tx('title', D.title).replace(/\n/g, ' ') : split2(tx('title', D.title)), Object.assign(titleSt('Anton', post ? 110 : 150), { color: '#ffffff', grad: undefined, shadow: { c: 'rgba(0,0,0,0.45)', b: 0, x: 4, y: 6 } }), { x: 40, y: post ? 84 : 112, w: 1000, h: post ? 132 : 300 }, post ? 1 : 2);
     const by = post ? 222 : 420; Sh('rect', 0, by, W, post ? 56 : 70, { fill: '#111111', name: 'Fascia', role: 'deco' }); nj(0, by - 16, W, 16, 4, 'end'); nj(0, by + (post ? 56 : 70), W, 16, 7, 'start');
     Tx('subtitle', tx('subtitle', D.subtitle), { font: 'Montserrat', size: post ? 34 : 42, bold: true, weight: 800, color: '#e8c96a', ls: 10, upper: false }, { x: 60, y: by + 4, w: 960, h: (post ? 56 : 70) - 8 }, 1);
-    glow(540, post ? 640 : 950, post ? 430 : 520, P.glow);
+    glow(540, post ? 640 : 950, post ? 430 : 520, GLW);
     hero({ top: by + (post ? 80 : 104), ground: band - 6, maxW: 820, cx: 540 });
     Sh('rect', 0, band - (post ? 120 : 170), W, H - band + (post ? 120 : 170), { g: { c1: P.fade + '00', c2: P.fade, ang: 180 }, name: 'Sfumatura', role: 'deco' });
     lower(band);
@@ -16485,27 +16547,142 @@ const roleName = { arabic: 'Scritta araba', title: 'Titolo', subtitle: 'Sottotit
 function textsOf(pages) { const t = {}; (pages || []).forEach(p => p.els.forEach(e => { if (e.type === 'text' && e.role && t[e.role] == null && e.text !== e.auto) t[e.role] = e.text; })); return t; }
 SV.autoBuild = build;
 
+/* ================= existing templates (built-in + I miei modelli) ================= */
+const TPL_LAYOUT = { verde: 'center', bianco: 'center', noir: 'center', gammu: 'center-badge', seppia: 'phototop', scuro: 'phototop', soleil: 'phototop', ciel: 'phototop-box', bordeaux: 'arch', arch: 'arch', touba: 'side', navy: 'side', fatiha: 'panel', anni: 'special-anni', sass: 'special-sass', prog: 'special-prog', waxtaan: 'special-wax', kazu: 'special-kazu', collecte: 'special-coll', teal: 'special-teal' };
+const TPL_ONLY = { anni: ['anni'], sass: ['collecte', 'magal'], prog: ['programme', 'kazu', 'waxtaan'], waxtaan: ['waxtaan'], kazu: ['kazu', 'programme'], collecte: ['collecte'], teal: ['programme', 'waxtaan'], fatiha: ['fatiha'], touba: ['magal'], gammu: ['gamou'] };
+const EV_ALIAS = { gamou: ['gamou', 'gammu', 'gammug', 'mawlid'], waxtaan: ['waxtaan', 'conference', 'conférence'], fatiha: ['fatiha', 'condoglianze'], anni: ['anni', 'anniversaire', 'joyeux'], collecte: ['collecte', 'sass'], programme: ['programme', 'xassida'], dahira: ['dahira', 'thiant'], ziar: ['ziar', 'dadje', 'dadjé'], magal: ['magal'], kazu: ['kazu', 'safar'] };
+const tplMatches = (id, ev) => { const s = SV.TPL_EVENTS && SV.TPL_EVENTS[id]; return !!(s && (EV_ALIAS[ev] || [ev]).some(k => s.has(k))); };
+const tplAllowed = (id, ev) => !TPL_ONLY[id] || TPL_ONLY[id].includes(ev);
+const norm = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
+const toHHMM = v => { const m = /(\d{1,2})(?:[:hH.](\d{2}))?/.exec(v || ''); return m ? String(m[1]).padStart(2, '0') + ':' + (m[2] || '00') : ''; };
+function placeHero(page, slot, A, W, H) { // replace/insert the cut-out in a slot {x,y,w,h}
+  const h0 = A.hero; if (!h0 || !h0.asset) return null; const a = h0.w / h0.h, hide = A.hideFeet;
+  const over = page.els.filter(e => e.type === 'text' && String(e.text || '').trim() && e.y > slot.y + slot.h * 0.45 && e.y < slot.y + slot.h && e.x < slot.x + slot.w * 0.8 && e.x + e.w > slot.x + slot.w * 0.2).map(e => e.y);
+  if (over.length) slot = Object.assign({}, slot, { h: Math.min(...over) - 6 - slot.y });
+  let h = hide ? slot.h / 0.86 : slot.h, w = h * a; const maxW = Math.min(W * 0.96, slot.w * 1.3); if (w > maxW) { w = maxW; h = w / a; }
+  const ground = slot.y + slot.h, y = hide ? ground - h * 0.86 : ground - h, cx = slot.x + slot.w / 2;
+  const e = { id: uid(), type: 'image', role: 'hero', asset: h0.asset, origAsset: h0.origAsset || null, cutMask: h0.cutMask || null, x: Math.round(cx - w / 2), y: Math.round(y), w: Math.round(w), h: Math.round(h), rot: 0, op: 1, name: 'Foto principale', shadow: { c: h0.lum > 0.6 ? 'rgba(15,10,5,0.55)' : 'rgba(0,0,0,0.35)', b: 10, x: 0, y: 3 } };
+  if (hide) e.fade = { side: 'bottom', amt: 16 };
+  return e;
+}
+const lumOf = c => { const m = /^#?([0-9a-f]{6})/i.exec(String(c || '').trim()); if (!m) { const r = /rgba?\((\d+)[^\d]+(\d+)[^\d]+(\d+)/.exec(c || ''); return r ? (0.299 * r[1] + 0.587 * r[2] + 0.114 * r[3]) / 255 : 0.5; } const n = parseInt(m[1], 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
+function auraFor(page, hero, A, rasterLum) { // dark soft halo behind a bright (white-robed) figure on a light area
+  if (!hero || !A.hero || !(A.hero.lum > 0.6)) return null;
+  const bgL = rasterLum != null ? rasterLum : lumOf(page.bg && (page.bg.color || (page.bg.g && page.bg.g.c1)));
+  if (bgL < 0.62) return null;
+  const tc = (page.els.find(e => e.type === 'text' && e.role === 'title' && e.st && e.st.color) || {}).st; let col = tc && tc.color && lumOf(tc.color) < 0.6 ? tc.color : '#5a3a1a';
+  const n = parseInt(String(col).replace('#', '').slice(0, 6), 16) || 0x5a3a1a; const rgb = `${n >> 16},${(n >> 8) & 255},${n & 255}`;
+  const r = Math.max(hero.w, hero.h * 0.62) * 0.62, cx = hero.x + hero.w / 2, cy = hero.y + hero.h * 0.42;
+  hero.shadow = { c: 'rgba(10,6,2,0.6)', b: 14, x: 0, y: 2 };
+  return { id: uid(), type: 'shape', shape: 'circle', role: 'deco', name: 'Alone contrasto', x: Math.round(cx - r), y: Math.round(cy - r), w: Math.round(2 * r), h: Math.round(2 * r), rot: 0, op: 1, g: { c1: `rgba(${rgb},0.42)`, c2: `rgba(${rgb},0)`, radial: true } };
+}
+function freeArea(page, W, H) { // largest horizontal gap between text blocks
+  const boxes = page.els.filter(e => e.type === 'text').map(e => [e.y, e.y + e.h]).sort((a, b) => a[0] - b[0]);
+  let best = { y0: H * 0.25, y1: H * 0.7 }, cur = H * 0.06, bh = 0;
+  for (const [y0, y1] of boxes.concat([[H * 0.96, H]])) { if (y0 - cur > bh) { bh = y0 - cur; best = { y0: cur, y1: y0 }; } cur = Math.max(cur, y1); }
+  return { x: W * 0.14, y: best.y0 + 10, w: W * 0.72, h: Math.max(H * 0.2, best.y1 - best.y0 - 20) };
+}
+function mapRoles(page, D, ov) {
+  const dateN = norm(fmtDate(D.date)), yr = (/^(\d{4})/.exec(D.date || '') || [])[1], tm = toHHMM(D.time);
+  const vals = [['title', ov.titolo], ['arabic', ov.arabo], ['place', ov.luogo], ['honor', ov.footer]];
+  if (D.name) vals.push(['name', ov.sotto], ['subtitle', ov.org]); else vals.push(['subtitle', ov.sotto]);
+  page.els.forEach(e => { if (e.type !== 'text') return; const t = norm(e.text);
+    for (const [r, v] of vals) if (v && t === norm(v)) { e.role = r; break; }
+    if (!e.role && D.date && (t.includes(dateN) || (yr && t.includes(yr)) || /LUNDI|MARDI|MERCREDI|JEUDI|VENDREDI|SAMEDI|DIMANCHE|\d{2}\/\d{2}\/\d{4}/.test(t))) e.role = 'date';
+    if (!e.role && tm && (t.includes(tm) || t.includes(String(+tm.slice(0, 2)) + 'H'))) e.role = 'time';
+    if (e.role) { e.auto = e.text; e.name = roleName[e.role] || e.name; } });
+}
+function applyTexts(page, T) { page.els.forEach(e => { if (e.type === 'text' && e.role && T[e.role] != null) { e.text = T[e.role]; e.auto = null; SV.fitTextH(e); } }); }
+async function buildTplItem(it, A, T) {
+  const post = A.format === 'post', W = 1080, H = post ? 1350 : 1920, D = A.data;
+  const ov = { titolo: D.title, sotto: D.name || D.subtitle, org: D.name ? D.subtitle : '', footer: D.honor, arabo: D.arabic, data: D.date, ora: toHHMM(D.time), luogo: D.place, indirizzo: '', telefoni: '', libero: ' ', lineaWolof: '', tema: '', citazione: '', badgeTesto: (D.time && toHHMM(D.time)) ? 'DÈS ' + (+toHHMM(D.time).slice(0, 2)) + 'H' + (toHHMM(D.time).slice(3) !== '00' ? toHHMM(D.time).slice(3) : '') : ({ preghiera: 'PRIÈRES', magal: 'MAGAL', ziar: 'ZIAR', gamou: 'GÀMMU', kazu: 'KAZU RAJAB', waxtaan: 'CONFÉRENCE', dahira: 'DAHIRA', fatiha: 'FATIHA', anni: 'ANNIVERSAIRE', programme: 'PROGRAMME', collecte: 'COLLECTE' })[D.ev] || ' ', diretta: '', contributo: '', iban: '', programma: '', guestNames: [], annoHijri: '', _noFrame: false };
+  const { page } = await SV.templateToPage(it.tpl, D.ev, post, false, ov);
+  page.els = page.els.filter(e => !(e.type === 'text' && !String(e.text || '').trim()));
+  mapRoles(page, D, ov);
+  const OTHER = /\b(ziar|magal|gamou|gammu|kazu|safar|rajab|anniversaire|fatiha|[ée]dition|diwanou|brescia|via roma|\+39)\b/i;
+  page.els = page.els.filter(e => !(e.type === 'text' && !e.role && OTHER.test(e.text) && !OTHER.test([D.title, D.subtitle, D.name, D.honor, D.place].join(' '))));
+  if (T) applyTexts(page, T);
+  let idx = page.els.findIndex(e => e.role === 'photoSlot'); const slot = idx >= 0 ? page.els[idx] : null;
+  const box = slot ? { x: slot.x, y: slot.y, w: slot.w, h: slot.h } : freeArea(page, W, H);
+  const hero = placeHero(page, box, A, W, H);
+  if (hero) { if (idx >= 0) page.els.splice(idx, 1, hero); else { const ft = page.els.findIndex(e => e.type === 'text'); page.els.splice(ft < 0 ? page.els.length : ft, 0, hero); } await addAura(page, hero, A, W, H); }
+  return page;
+}
+async function addAura(page, hero, A, W, H) { // measure the real background luminance behind the figure
+  if (!A.hero || !(A.hero.lum > 0.6)) return; let L = null;
+  try { const pg = Object.assign({}, page, { els: page.els.slice(0, page.els.indexOf(hero)).filter(e => e.type !== 'text') }); await SV.ensureAssets([pg]); const k = 0.1; const c = SV.renderToCanvas(pg, W, H, k, { res: k }); const x = c.getContext('2d');
+    const d = x.getImageData(Math.max(0, Math.round(hero.x * k)), Math.max(0, Math.round(hero.y * k)), Math.max(1, Math.round(Math.min(hero.w, W - Math.max(0, hero.x)) * k)), Math.max(1, Math.round(Math.min(hero.h, H - Math.max(0, hero.y)) * k))).data; let s = 0, n = 0; for (let i = 0; i < d.length; i += 4) { s += (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) / 255; n++; } if (n) L = s / n; } catch (e) {}
+  const a = auraFor(page, hero, A, L); if (a) page.els.splice(page.els.indexOf(hero), 0, a);
+}
+async function buildMineItem(it, A, T) {
+  const post = A.format === 'post', W = 1080, H = post ? 1350 : 1920, D = A.data;
+  const t = (await SV.myTpls()).find(x => x.id === it.mine); if (!t) throw new Error('Modello non trovato');
+  const tmp = { w: t.w, h: t.h, pages: clone(t.pages.slice(0, 1)) }; tmp.pages.forEach(pg => { pg.id = uid('p'); pg.els.forEach(e => { e.id = uid(); }); });
+  if (t.w !== W || t.h !== H) SV.resizeProject(tmp, W, H);
+  const page = tmp.pages[0]; const texts = page.els.filter(e => e.type === 'text' && String(e.text || '').trim());
+  const assign = (e, r, v) => { const box = { x: e.x, y: e.y, w: e.w, h: Math.max(e.h, (e.st.size || 40) * 1.3) }; e.role = r; e.text = v; e.auto = v; e.name = roleName[r]; fit(e, box, r === 'title' || r === 'date' ? 2 : 1); };
+  const free = texts.slice(); const take = pred => { const i = free.findIndex(pred); return i < 0 ? null : free.splice(i, 1)[0]; };
+  const dt = [fmtDate(D.date), fmtTime(D.time)].filter(Boolean);
+  let e = take(x => SV.isArabic(x.text)); if (e) { if (D.arabic) assign(e, 'arabic', D.arabic); else e._drop = true; }
+  e = take(x => /\d{1,2}[\/.]\d{1,2}|\b(19|20)\d{2}\b|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre|sabato|domenica/i.test(x.text)); if (e) assign(e, 'date', dt.join(' · ') || ' ');
+  const DT = /\d{1,2}[\/.]\d{1,2}|\b(19|20)\d{2}\b|\b\d{1,2}\s*[hH:]\s*\d{0,2}\b|\b(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|janv|févr|mars|avril|mai|juin|juil|août|sept|octo|nov|déc|ore)\b|^\s*\d{1,2}\s*$/i; for (;;) { e = take(x => DT.test(x.text)); if (!e) break; e._drop = true; }
+  free.sort((a, b) => (b.st.size || 0) - (a.st.size || 0)); e = free.shift(); if (e) assign(e, 'title', D.title);
+  free.sort((a, b) => a.y - b.y);
+  const order = [['subtitle', D.subtitle], ['name', D.name], ['honor', D.honor], ['place', D.place]].filter(x => x[1]);
+  if (D.place && free.length) { const last = free.pop(); assign(last, 'place', D.place); order.pop(); }
+  for (const x of free) { const o = order.shift(); if (o) assign(x, o[0], o[1]); else x._drop = true; }
+  page.els = page.els.filter(x => !x._drop);
+  if (T) applyTexts(page, T);
+  const slots = page.els.filter(x => x.type === 'image' && (x.frame || x.autoCut || !x.asset || x.role === 'photoSlot'));
+  const slot = slots.sort((a, b) => b.w * b.h - a.w * a.h)[0];
+  const box = slot ? { x: slot.x, y: slot.y, w: slot.w, h: slot.h } : freeArea(page, W, H);
+  const hero = placeHero(page, box, A, W, H);
+  if (hero) { if (slot) { page.els.splice(page.els.indexOf(slot), 1, hero); } else { const ft = page.els.findIndex(x => x.type === 'text'); page.els.splice(ft < 0 ? page.els.length : ft, 0, hero); } await addAura(page, hero, A, W, H); }
+  return page;
+}
+
 /* ================= state helpers ================= */
-const itemName = it => `${STYLES.find(s => s.id === it.style).n} · ${PAL[it.pal].n}${it.mosque ? ' · Moschea' : ''}`;
-function nextCombos(A, n) {
-  const have = new Set(A.items.map(i => i.style + '|' + i.pal + '|' + (i.mosque ? 1 : 0)));
-  const pals = palsFor(A.data.ev).concat(Object.keys(PAL)); const out = [];
-  const order = [];
-  for (const m of [true, false]) for (const p of pals) for (const s of STYLES) if (compat(s.id, p)) order.push({ style: s.id, pal: p, mosque: m });
-  for (const c of order) { const k = c.style + '|' + c.pal + '|' + (c.mosque ? 1 : 0); if (have.has(k)) continue; have.add(k); out.push(c); if (out.length >= n) break; }
+const tplName = id => { const t = (typeof TEMPLATES !== 'undefined' ? TEMPLATES : []).find(x => x.id === id); return t ? t.name : id; };
+const itemName = it => it.kind === 'tpl' ? 'Modello · ' + tplName(it.tpl) : it.kind === 'mine' ? '⭐ ' + (it.mineName || 'Mio modello') : `${STYLES.find(s => s.id === it.style).n} · ${PAL[it.pal].n}${it.mosque ? ' · Moschea' : ''}`;
+const layoutOf = it => it.kind === 'tpl' ? (TPL_LAYOUT[it.tpl] || 'tpl-' + it.tpl) : it.kind === 'mine' ? 'mine-' + it.mine : (LAYOUT_OF[it.style] || it.style);
+const keyOf = it => it.kind === 'tpl' ? 'tpl|' + it.tpl : it.kind === 'mine' ? 'mine|' + it.mine : [it.style, it.pal, it.mosque ? 1 : 0].join('|');
+async function candidates(A) {
+  const ev = A.data.ev, out = { mine: [], tpl: [], rec: [] };
+  const mine = (await SV.myTpls().catch(() => [])) || [];
+  mine.filter(t => t.cat === ev).concat(mine.filter(t => t.cat !== ev)).forEach(t => out.mine.push({ kind: 'mine', mine: t.id, mineName: t.name, pri: t.cat === ev ? 0 : 2 }));
+  const T0 = (typeof TEMPLATES !== 'undefined' ? TEMPLATES : []).filter(t => tplAllowed(t.id, ev));
+  T0.filter(t => tplMatches(t.id, ev)).concat(T0.filter(t => !tplMatches(t.id, ev))).forEach(t => out.tpl.push({ kind: 'tpl', tpl: t.id, pri: tplMatches(t.id, ev) ? 1 : 3 }));
+  const pals = palsFor(ev).concat(Object.keys(PAL).filter(k => !palsFor(ev).includes(k)));
+  const styleOrder = ['split', 'medal', 'banner', 'arco', 'avorio', 'notte', 'patch'];
+  for (const m of [true, false]) for (const pi in pals) for (const st of styleOrder) { const p = pals[pi]; if (!compat(st, p)) continue; if (['split', 'medal', 'banner'].includes(st) && pi > 3) continue; out.rec.push({ kind: 'recipe', style: st, pal: p, mosque: m }); }
   return out;
 }
-function firstCombos(A) {
-  const pl = palsFor(A.data.ev);
-  const light = pl.find(p => !PAL[p].dark) || 'avorio', dark = pl.filter(p => PAL[p].dark).concat(['nero', 'terra', 'rosso']);
-  return [{ style: 'avorio', pal: light, mosque: true }, { style: 'notte', pal: dark[0], mosque: true }, { style: 'arco', pal: dark.find(p => p === 'terra') || dark[1], mosque: false }, { style: 'patch', pal: dark.find(p => p === 'rosso') || dark[2] || 'rosso', mosque: true }];
+async function pickBatch(A, n, maxTpl) {
+  const have = new Set(A.items.map(keyOf)); const used = new Set(); const C = await candidates(A); const res = [];
+  const lcount = {}; A.items.forEach(it => { const l = it.layout || layoutOf(it); lcount[l] = (lcount[l] || 0) + 1; });
+  const scount = {}; A.items.forEach(it => { if ((it.kind || 'recipe') === 'recipe') scount[it.style] = (scount[it.style] || 0) + 1; });
+  const pool = C.mine.concat(C.tpl).filter(c => !have.has(keyOf(c)));
+  const seenR = new Set(); C.rec.forEach(c => { if (have.has(keyOf(c)) || seenR.has(c.style)) return; seenR.add(c.style); pool.push(Object.assign({ pri: 4 + (scount[c.style] || 0) * 0.5 + ['split', 'medal', 'banner', 'arco', 'avorio', 'notte', 'patch'].indexOf(c.style) * 0.01 }, c)); });
+  const score = c => (lcount[layoutOf(c)] || 0) * 10 + c.pri;
+  pool.sort((x, y) => score(x) - score(y));
+  let nT = 0, lastDark = null;
+  for (const c of pool) { if (res.length >= n) break; const isT = c.kind !== 'recipe'; if (isT && nT >= maxTpl) continue; const l = layoutOf(c); if (used.has(l)) continue;
+    if (!isT) { const alt = C.rec.find(r => r.style === c.style && !have.has(keyOf(r)) && (lastDark == null || PAL[r.pal].dark !== lastDark)); if (alt) Object.assign(c, alt); lastDark = PAL[c.pal].dark; }
+    used.add(l); have.add(keyOf(c)); res.push(c); if (isT) nT++; }
+  for (const c of pool) { if (res.length >= n) break; if (!have.has(keyOf(c)) && !used.has(layoutOf(c))) { used.add(layoutOf(c)); have.add(keyOf(c)); res.push(c); } }
+  if (res.length < n) for (const c of C.rec) { if (res.length >= n) break; const k = keyOf(c); if (!have.has(k)) { have.add(k); res.push(c); } }
+  return res;
 }
 async function fontsReady() {
   const pg = { els: ['Cinzel', 'Montserrat', 'Playfair Display', 'Anton', 'Aref Ruqaa'].map(f => ({ type: 'text', text: f === 'Aref Ruqaa' ? 'بسم الله الرحمن الرحيم' : 'Aa', st: { font: f } })) };
   try { await Promise.race([SV.ensureFonts([pg]), new Promise(r => setTimeout(r, 6000))]); } catch (e) {}
   try { await Promise.all(['900 40px Cinzel', 'italic 400 40px "Playfair Display"', '900 40px Montserrat', '800 40px Montserrat', '400 40px Anton'].map(f => document.fonts.load(f))); } catch (e) {}
 }
-async function makeItem(A, c) { const it = { id: uid('ap'), style: c.style, pal: c.pal, mosque: !!c.mosque, seed: Math.round(Math.random() * 1e6) }; it.name = itemName(it); it.pages = [build(it, A)]; return it; }
+async function buildAny(it, A, T) { if (it.kind === 'tpl') return buildTplItem(it, A, T); if (it.kind === 'mine') return buildMineItem(it, A, T); return build(it, A, T); }
+async function makeItem(A, c, batch) { const it = Object.assign({ id: uid('ap'), kind: 'recipe', seed: Math.round(Math.random() * 1e6), batch }, c); delete it.pri; it.name = itemName(it); it.layout = layoutOf(it);
+  try { it.pages = [await buildAny(it, A)]; } catch (e) { console.warn('auto item', e); return null; }
+  try { await SV.ensureFonts(it.pages); } catch (e) {}
+  return it; }
 async function thumbOf(it, A) { const W = 1080, H = A.format === 'post' ? 1350 : 1920; await SV.ensureAssets(it.pages); const k = 300 / W; return SV.renderToCanvas(it.pages[0], W, H, k, { res: k }).toDataURL('image/jpeg', 0.8); }
 function syncActive(p) { // store editor state into the active item, propagate photo edits
   const A = p.auto; if (!A || A.active == null || A.active < 0) return; const it = A.items[A.active]; if (!it) return;
@@ -16516,7 +16693,7 @@ function syncActive(p) { // store editor state into the active item, propagate p
 }
 const _chg = SV.change;
 SV.change = function () { const r = _chg.apply(this, arguments); try { const A = U.proj && U.proj.auto; if (A && A.items[A.active]) A.items[A.active].edited = true; } catch (e) {} return r; };
-async function rebuildItem(p, it, keepTexts) { const A = p.auto; it.pages = [build(it, A, keepTexts ? textsOf(it.pages) : null)]; it.name = itemName(it); it.thumb = null; }
+async function rebuildItem(p, it, keepTexts) { const A = p.auto; it.pages = [await buildAny(it, A, keepTexts ? textsOf(it.pages) : null)]; it.name = itemName(it); it.layout = layoutOf(it); it.thumb = null; }
 function applyToEditor(p, it) {
   const post = p.auto.format === 'post'; p.w = 1080; p.h = post ? 1350 : 1920; p.sizeId = post ? 'post' : 'storia';
   p.pages = clone(it.pages); U.pi = 0; U.sel = []; U.undo = []; U.redo = []; U.mode = null;
@@ -16540,7 +16717,8 @@ SV.autoProcessPhoto = async function (file, onMsg) {
   const trimmed = trimAlpha(cutImg);
   const m = document.createElement('canvas'); m.width = trimmed.width; m.height = trimmed.height; const mc = m.getContext('2d'); mc.drawImage(trimmed, 0, 0); mc.globalCompositeOperation = 'source-in'; mc.fillStyle = '#fff'; mc.fillRect(0, 0, m.width, m.height);
   const crec = await SV.addAsset(trimmed, 'cut', 'Ritaglio'); const mrec = await SV.addAsset(m, 'mask', 'Maschera');
-  return { asset: crec.id, origAsset: orig.id, cutMask: mrec.id, w: crec.w, h: crec.h };
+  let lum = 0.5; try { const c = document.createElement('canvas'); const w = c.width = 120, h = c.height = Math.max(1, Math.round(120 * trimmed.height / trimmed.width)); const x = c.getContext('2d'); x.drawImage(trimmed, 0, 0, w, h); const d = x.getImageData(0, 0, w, h).data; let s = 0, n = 0; for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 128) { s += (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) / 255; n++; } if (n) lum = s / n; } catch (e) {}
+  return { asset: crec.id, origAsset: orig.id, cutMask: mrec.id, w: crec.w, h: crec.h, lum };
 };
 
 /* ================= UI ================= */
@@ -16608,7 +16786,7 @@ SV.autoCreate = async function (file, data, format, hideFeet) {
     const hero = await SV.autoProcessPhoto(file, t => SV.busy(true, t));
     SV.busy(true, 'Creo le proposte…'); await fontsReady();
     const A = { data, hero, format, hideFeet, items: [], active: -1, v: 1 };
-    for (const c of firstCombos(A)) A.items.push(await makeItem(A, c));
+    for (const c of await pickBatch(A, 6, 4)) { const it = await makeItem(A, c, 1); if (it) A.items.push(it); }
     for (const it of A.items) it.thumb = await thumbOf(it, A);
     const post = format === 'post';
     const p = SV.newProject(1080, post ? 1350 : 1920, (data.title || 'Volantino').replace(/\n/g, ' ') + (data.name ? ' – ' + data.name : ''), post ? 'post' : 'storia');
@@ -16629,11 +16807,13 @@ SV.autoGallery = async function () {
     const act = A.items[A.active];
     o.innerHTML = `<div class="ah"><b>✨ Proposte</b><button data-x="close">✏️ Modifica</button></div><div class="aw">
     <div class="note">Tocca una proposta per aprirla. Le modifiche di ogni proposta restano salvate: puoi tornare qui quando vuoi con “✨ Proposte”.</div>
-    <div class="ag" style="margin-top:12px">${A.items.map((it, i) => `<button class="ac ${i === A.active ? 'on' : ''}" data-x="pick" data-i="${i}"><img src="${it.thumb}" alt=""><b>${i + 1}. ${esc(it.name)}</b><small>${i === A.active ? '● aperta' : ''}${it.edited ? ' · modificata' : ''}</small></button>`).join('')}</div>
+    <div class="tb" id="agFilt">${[['all', 'Tutte'], ['tpl', '🖼️ Modelli'], ['mine', '⭐ I miei'], ['recipe', '✨ Stili automatici']].map(([k, n]) => `<button data-x="filt" data-v="${k}" class="${(o._filt || 'all') === k ? 'on' : ''}">${n} (${k === 'all' ? A.items.length : A.items.filter(it => (it.kind || 'recipe') === k).length})</button>`).join('')}</div>
+    <div class="ag" style="margin-top:12px">${A.items.map((it, i) => (o._filt && o._filt !== 'all' && (it.kind || 'recipe') !== o._filt) ? '' : `<button class="ac ${i === A.active ? 'on' : ''}" data-x="pick" data-i="${i}" data-kind="${it.kind || 'recipe'}" data-layout="${esc(it.layout || '')}"><img src="${it.thumb}" alt=""><b>${i + 1}. ${esc(it.name)}</b><small>${i === A.active ? '● aperta' : ''}${it.edited ? ' · modificata' : ''}</small></button>`).join('')}</div>
     <div class="tb"><button data-x="more">➕ Genera altre 3</button><button data-x="data">📝 Dati evento</button></div>
     ${act ? `<h3>Ritocchi rapidi · proposta ${A.active + 1}</h3>
-    <div class="note">Sfondo</div><div class="tb">${STYLES.map(s => `<button data-x="style" data-v="${s.id}" class="${act.style === s.id ? 'on' : ''}">${s.ic} ${esc(s.n)}</button>`).join('')}<button data-x="mosque" class="${act.mosque ? 'on' : ''}">🕌 Moschea di Touba</button></div>
-    <div class="note">Colori</div><div class="tb">${Object.keys(PAL).filter(k => compat(act.style, k)).map(k => `<button data-x="pal" data-v="${k}" class="${act.pal === k ? 'on' : ''}">${esc(PAL[k].n)}</button>`).join('')}</div>
+    <div class="note">Sfondo</div><div class="tb">${STYLES.map(s => `<button data-x="style" data-v="${s.id}" class="${act.style === s.id ? 'on' : ''}">${s.ic} ${esc(s.n)}</button>`).join('')}${(act.kind || 'recipe') === 'recipe' ? `<button data-x="mosque" class="${act.mosque ? 'on' : ''}">🕌 Moschea di Touba</button>` : ''}</div>
+    ${(act.kind || 'recipe') === 'recipe' ? '' : `<div class="note">Questa proposta usa ${act.kind === 'mine' ? 'un tuo modello' : 'un modello dell’app'} con i suoi colori. Scegli uno sfondo sopra per trasformarla in stile automatico.</div>`}
+    <div class="note" ${(act.kind || 'recipe') === 'recipe' ? '' : 'hidden'}>Colori</div><div class="tb" ${(act.kind || 'recipe') === 'recipe' ? '' : 'hidden'}>${Object.keys(PAL).filter(k => act.style && compat(act.style, k)).map(k => `<button data-x="pal" data-v="${k}" class="${act.pal === k ? 'on' : ''}">${esc(PAL[k].n)}</button>`).join('')}</div>
     <div class="note">Foto e formato</div><div class="tb"><label class="bt" style="display:inline-flex;cursor:pointer">📷 Cambia foto<input type="file" accept="image/*" id="agPhoto" hidden></label><button data-x="feet" class="${A.hideFeet ? 'on' : ''}">🦶 Nascondi piedi</button><button data-x="fmt" data-v="storia" class="${A.format !== 'post' ? 'on' : ''}">📱 Storia</button><button data-x="fmt" data-v="post" class="${A.format === 'post' ? 'on' : ''}">🖼️ Post 4:5</button></div>
     <div class="note">Condividi</div><div class="tb"><button data-x="png">⬇️ Scarica PNG</button><button data-x="share">📤 File modificabile</button></div>
     <div class="note">I ritocchi rifanno la disposizione della proposta: i testi che hai modificato restano, le posizioni spostate a mano no. Il file modificabile si apre con “📥 Importa file” su un altro telefono.</div>` : ''}
@@ -16644,9 +16824,10 @@ SV.autoGallery = async function () {
   o.onclick = async e => {
     const b = e.target.closest('[data-x]'); if (!b) return; const x = b.dataset.x;
     if (x === 'close') { closeOverlay(); SV.render(); return; }
+    if (x === 'filt') { o._filt = b.dataset.v; render(); return; }
     if (x === 'pick') { const i = +b.dataset.i; if (i !== A.active) { syncActive(p); A.active = i; applyToEditor(p, A.items[i]); await SV.saveNow(); } closeOverlay(); SV.toast('Proposta ' + (i + 1) + ' aperta'); return; }
-    if (x === 'more') { SV.busy(true, 'Creo altre proposte…'); try { await fontsReady(); const cs = nextCombos(A, 3); for (const c of cs) A.items.push(await makeItem(A, c)); await SV.saveNow(); } finally { SV.busy(false); } render(); return; }
-    if (x === 'style') return adjust(it => { it.style = b.dataset.v; if (!compat(it.style, it.pal)) it.pal = STYLES.find(s => s.id === it.style).light ? (palsFor(A.data.ev).find(k => !PAL[k].dark) || 'avorio') : (palsFor(A.data.ev).find(k => PAL[k].dark) || 'nero'); });
+    if (x === 'more') { SV.busy(true, 'Creo altre proposte…'); try { await fontsReady(); const bn = Math.max(0, ...A.items.map(i => i.batch || 1)) + 1; for (const c of await pickBatch(A, 3, 2)) { const it = await makeItem(A, c, bn); if (it) A.items.push(it); } await SV.saveNow(); } finally { SV.busy(false); } render(); return; }
+    if (x === 'style') return adjust(it => { it.kind = 'recipe'; delete it.tpl; delete it.mine; it.mosque = it.mosque !== false; if (!it.pal) it.pal = STYLES.find(s => s.id === b.dataset.v).pal; it.style = b.dataset.v; if (!compat(it.style, it.pal)) it.pal = STYLES.find(s => s.id === it.style).light ? (palsFor(A.data.ev).find(k => !PAL[k].dark) || 'avorio') : (palsFor(A.data.ev).find(k => PAL[k].dark) || 'nero'); });
     if (x === 'mosque') return adjust(it => { it.mosque = !it.mosque; });
     if (x === 'pal') return adjust(it => { it.pal = b.dataset.v; });
     if (x === 'feet') return adjust(() => { A.hideFeet = !A.hideFeet; }, true);
@@ -16655,7 +16836,7 @@ SV.autoGallery = async function () {
     if (x === 'share') return SV.autoShareFile();
     if (x === 'data') { const keep = { ev: A.data.ev, format: A.format, hideFeet: A.hideFeet }; return SV.autoForm(Object.assign({}, A.data, keep), { photo: false, submitLabel: '🔄 Aggiorna tutte le proposte', onSubmit: async r => { SV.busy(true, 'Aggiorno le proposte…'); try { await fontsReady(); syncActive(p); A.data = r.data; A.format = r.format; A.hideFeet = r.hideFeet; for (const it of A.items) await rebuildItem(p, it, false); applyToEditor(p, A.items[A.active]); await SV.saveNow(); } finally { SV.busy(false); } SV.autoGallery(); } }); }
   };
-  await render();
+  await render(); o.scrollTop = 0; const aw = o.querySelector('.aw'); if (aw) aw.scrollTop = 0;
 };
 async function deliver(file, title) {
   if (navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title }); return; } catch (e) { if (e.name === 'AbortError') return; } }
