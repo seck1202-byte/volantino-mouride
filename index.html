@@ -890,6 +890,7 @@ textarea.sv-in{height:auto;padding:8px 10px;min-height:70px}
 #svAnalyze .an-more summary small{color:#8a8f96;font-weight:400}
 #svAnalyze .an-more .an-sty{grid-template-columns:1fr 1fr 1fr;margin-top:6px}
 @media (max-width:520px){#svAnalyze .an-more .an-sty{grid-template-columns:1fr}}
+@media(min-width:700px){.sv-chips{flex-wrap:wrap;overflow-x:visible}.sv-chip{flex-shrink:0}}
 
 </style>
 </head>
@@ -12636,7 +12637,7 @@ function tplEvLabel(t) {
 }
 function tplCard(t, post) {
   const th = U.thumbs[t.id + (post ? '-p' : '')];
-  return `<button class="sv-tcard ${post ? 'post' : ''}" data-a="useTpl" data-id="${t.id}"><div class="th" data-th="${t.id}${post ? '-p' : ''}">${th ? `<img src="${th}" alt="">` : ''}</div><b>${esc(t.name)}</b><small>${esc(tplEvLabel(t) || t.desc)}</small></button>`;
+  return `<button class="sv-tcard ${post ? 'post' : ''}" data-a="useTpl" data-id="${t.id}"><div class="th" data-th="${t.id}${post ? '-p' : ''}">${th ? `<img src="${th}" alt="">` : ''}</div><span class="more" role="button" data-a="tplMenu" data-id="${t.id}" title="Rinomina / duplica">⋯</span><b>${esc(t.name)}</b><small>${esc(tplEvLabel(t) || t.desc)}</small></button>`;
 }
 function projCard(p) {
   const d = new Date(p.updated);
@@ -14209,6 +14210,7 @@ SV.act = async function (a, d, b, ev) {
     case 'useTpl': SV.createFromTemplate(d.id, $('svGallery').hidden ? 'storia' : U.gallerySize); break;
     case 'openProj': if (ev && ev.target.closest('.more')) return; SV.openProject(d.id); break;
     case 'projMenu': return projMenu(d.id);
+    case 'tplMenu': if (ev) { ev.stopPropagation && ev.stopPropagation(); } return tplMenu(d.id);
     case 'kitHome': SV.modal(`<h3>Kit del marchio</h3><div id="svKitModal">${P.kit()}</div><button class="sv-btn sec" data-a="closeModal" style="margin-top:14px">Chiudi</button>`); P.kit_after(); break;
     case 'closeModal': SV.closeModal(); break;
     case 'tab': if (U.panel === d.tab) SV.closePanel(); else SV.openPanel(d.tab); break;
@@ -14425,15 +14427,37 @@ async function kitApply() {
 }
 
 /* ---------- dialogs ---------- */
+/* built-in templates: local rename (stored as overrides) + copy into "I miei modelli" (where it can be renamed / duplicated / deleted) */
+const allT = () => (SV.allTemplates ? SV.allTemplates() : TEMPLATES);
+SV.applyTplNames = async function () { const m = (await SV.kvGet('tplNames')) || {}; allT().forEach(t => { if (t._on == null) t._on = t.name; t.name = m[t.id] || t._on; }); };
+const _shT = SV.showHome; SV.showHome = async function () { try { await SV.applyTplNames(); } catch (e) {} return _shT.apply(this, arguments); };
+async function tplMenu(id) {
+  const t = allT().find(x => x.id === id); if (!t) return; if (t._on == null) t._on = t.name;
+  const refresh = () => { SV.closeModal(); if (!$('svGallery').hidden) SV.showGallery(); else SV.showHome(); };
+  SV.modal(`<h3>${esc(t.name)}</h3><p>Modello dell’app${t.name !== t._on ? ' · nome originale: ' + esc(t._on) : ''}</p>
+    <button class="sv-opt" id="tm1"><span>🔤</span><span><b>Rinomina</b><small>solo su questo dispositivo</small></span></button>
+    ${t.name !== t._on ? '<button class="sv-opt" id="tm2"><span>↩️</span><span><b>Ripristina nome originale</b></span></button>' : ''}
+    <button class="sv-opt" id="tm3"><span>⧉</span><span><b>Duplica in “I miei modelli”</b><small>la copia si può rinominare, modificare ed eliminare</small></span></button>
+    <button class="sv-btn sec" id="tm0">Chiudi</button>`);
+  $('tm0').onclick = SV.closeModal;
+  const setName = async n => { const m = (await SV.kvGet('tplNames')) || {}; if (n && n !== t._on) m[id] = n; else delete m[id]; await SV.kvSet('tplNames', m); await SV.applyTplNames(); };
+  $('tm1').onclick = () => { SV.modal(`<h3>Rinomina modello</h3><div class="sv-lbl">Nome</div><input class="sv-inp" id="tmN" value="${esc(t.name)}"><div style="display:flex;gap:8px;margin-top:14px"><button class="sv-btn sec" id="tmX">Annulla</button><button class="sv-btn" id="tmOk">Salva</button></div>`);
+    $('tmN').focus(); $('tmX').onclick = SV.closeModal; $('tmOk').onclick = async () => { await setName($('tmN').value.trim()); refresh(); SV.toast('Rinominato'); }; };
+  if ($('tm2')) $('tm2').onclick = async () => { await setName(''); refresh(); SV.toast('Nome ripristinato'); };
+  $('tm3').onclick = async () => { SV.busy(true, 'Copio il modello…'); try { const r = await SV.templateToPage(id, ([...(SV.TPL_EVENTS[id] || [])][0]) || '', false); await SV.ensureAssets([r.page]); try { await SV.ensureFonts([r.page]); } catch (e) {}
+      const k = 360 / r.w; const c = { id: SV.uid('ut'), name: t.name + ' (copia)', cat: ([...(SV.TPL_EVENTS[id] || [])][0]) || 'altro', w: r.w, h: r.h, sizeId: r.h > r.w * 1.5 ? 'storia' : 'post', pages: [r.page], created: Date.now(), thumb: SV.renderToCanvas(r.page, r.w, r.h, k, { res: k, placeholders: true }).toDataURL('image/jpeg', 0.75) };
+      await SV.myTpls(); U.myTpls.unshift(c); await SV.kvSet('mytpl', U.myTpls); SV.busy(false); refresh(); SV.toast('Copiato in “I miei modelli” ⭐'); } catch (e) { SV.busy(false); SV.toast('Errore: ' + e.message); } };
+}
 async function projMenu(id) {
   const p = await SV.dbGet('projects', id); if (!p) return;
   SV.modal(`<h3>${esc(p.name)}</h3><p>${p.w}×${p.h} px · ${p.pages.length} pagine</p>
     <button class="sv-opt" id="pm1"><span>✏️</span><span><b>Apri</b></span></button>
     <button class="sv-opt" id="pm2"><span>🔤</span><span><b>Rinomina</b></span></button>
     <button class="sv-opt" id="pm3"><span>⧉</span><span><b>Duplica</b></span></button>
+    <button class="sv-opt" id="pm5"><span>📤</span><span><b>Condividi progetto</b><small>file modificabile (.volantino.json) via WhatsApp/AirDrop…; si apre con “📥 Importa file”</small></span></button>
     <button class="sv-opt" id="pm4" style="color:#b42318"><span>🗑️</span><span><b>Elimina</b></span></button>
     <button class="sv-btn sec" id="pm0">Chiudi</button>`);
-  $('pm0').onclick = SV.closeModal;
+  $('pm0').onclick = SV.closeModal; $('pm5').onclick = () => { SV.closeModal(); SV.shareProject(p); };
   $('pm1').onclick = () => { SV.closeModal(); SV.openProject(id); };
   $('pm2').onclick = async () => { const n = await SV.prompt('Nuovo nome', p.name, 'Rinomina'); if (n && n.trim()) { p.name = n.trim(); await SV.dbPut('projects', p); } SV.showHome(); };
   $('pm3').onclick = async () => { const c = SV.clone(p); c.id = SV.uid('pr'); c.name = p.name + ' (copia)'; c.updated = Date.now(); await SV.dbPut('projects', c); SV.closeModal(); SV.showHome(); SV.toast('Duplicato'); };
@@ -14968,6 +14992,7 @@ SV.showGallery = async function () {
   if (mineOnly) { const a = chips.querySelector('[data-id="all"]'); a && a.classList.remove('on'); }
   const list = (await SV.myTpls()).filter(t => match(t, U.galleryCat, U.gallerySearch));
   const wrap = g.querySelector('.sv-wrap:last-child'); if (!wrap) return;
+  g.querySelectorAll('#svGalMine').forEach(o => { const n = o.nextSibling; if (n && n.classList && n.classList.contains('sv-h2')) n.remove(); o.remove(); }); // concurrent refreshes
   const box = document.createElement('div'); box.id = 'svGalMine'; box.innerHTML = section(list, 'useMy');
   if (mineOnly) { wrap.innerHTML = ''; wrap.appendChild(box); } else if (list.length || !U.gallerySearch) { wrap.insertBefore(box, wrap.firstChild); const h = document.createElement('div'); h.className = 'sv-h2'; h.textContent = 'Modelli Mouride'; wrap.insertBefore(h, box.nextSibling); }
 };
@@ -17579,6 +17604,7 @@ SV.buildProjectFile = async function (p) {
   const json = JSON.stringify({ format: 'volantino-mouride-project', v: 1, exported: new Date().toISOString(), project: { name: p.name, w: p.w, h: p.h, sizeId: p.sizeId, pages: p.pages }, assets });
   return new File([json], slug(p.name) + '.volantino.json', { type: 'application/json' });
 };
+SV.shareProject = async function (p) { SV.busy(true, 'Preparo il file…'); try { const f = await SV.buildProjectFile(p); SV.busy(false); await deliver(f, p.name); } catch (e) { SV.busy(false); SV.toast('Errore: ' + e.message); } };
 SV.autoShareFile = async function () { const p = U.proj; if (!p) return; syncActive(p); SV.busy(true, 'Preparo il file…'); try { const f = await SV.buildProjectFile(p); SV.busy(false); await deliver(f, p.name); } catch (e) { SV.busy(false); SV.toast('Errore: ' + e.message); } };
 
 /* import: project files open directly */
