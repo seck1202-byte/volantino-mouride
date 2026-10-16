@@ -12300,7 +12300,7 @@ def({ id: 'px_thiantciel', name: 'Thiant Cielo', desc: 'Azzurro · titolo corsiv
   } });
 
 /* 13 ─ Dahira brown panel: 3D title, date medallion, guest, theme + programme pills */
-def({ id: 'px_dahirabrown', name: 'Dahira Terra', desc: 'Crema + marrone · tema e programma', ev: ['dahira', 'thiant', 'kassida', 'programme'], tags: ['dahira', 'thème', 'programme', 'marrone', 'dieuwrigne'], layout: 'px-panel-brown', prio: 2,
+def({ id: 'px_dahirabrown', heroBox: { x: 230, y: 30, w: 620, h: 570 }, name: 'Dahira Terra', desc: 'Crema + marrone · tema e programma', ev: ['dahira', 'thiant', 'kassida', 'programme'], tags: ['dahira', 'thème', 'programme', 'marrone', 'dieuwrigne'], layout: 'px-panel-brown', prio: 2,
   sample: { titolo: 'DAHIRA', sotto: 'Ahiba-ou Cheikhoul Khadim', org: 'Keur Mbaye Fall', ospite: 'PAPE NDIAYE', tema: 'Déedu', programma: 'Drus\nPrestation Kurel\nRadiass\nJang Alhur an\nThème\nSoññé\nXatm', ora: '17:00', telefoni: 'Ack audiovisuel 70 721 44 91' },
   build(B) { const { d } = B, BR = '#6b3f14', CR = '#f6ead7';
     B.orn('pattern', 0, 0, 1080, 1300, { fill: '#b08850', alpha: 0.1, name: 'Motivo' });
@@ -12324,7 +12324,7 @@ def({ id: 'px_dahirabrown', name: 'Dahira Terra', desc: 'Crema + marrone · tema
   } });
 
 /* 14 ─ 18 Safar programme: guests row on a yellow arc, two-column programme */
-def({ id: 'px_safarprog', name: '18 Safar Programma', desc: 'Verde + giallo · fila ospiti', ev: ['safar', 'magal', 'programme'], only: ['safar', 'magal', 'programme'], tags: ['18 safar', 'programme', 'cérémonie officielle', 'ospiti', 'verde'], layout: 'px-guest-row', prio: 2,
+def({ id: 'px_safarprog', heroBox: { x: 190, y: 320, w: 700, h: 620 }, name: '18 Safar Programma', desc: 'Verde + giallo · fila ospiti', ev: ['safar', 'magal', 'programme'], only: ['safar', 'magal', 'programme'], tags: ['18 safar', 'programme', 'cérémonie officielle', 'ospiti', 'verde'], layout: 'px-guest-row', prio: 2,
   sample: { org: 'DAHIRA AHIBA-OU CHEIKHOUL KHADIM', titolo: '18 Safar', libero: 'L’événement se déroulera de 16H00 jusqu’à 00H00', programma: 'Jàng Alxuraan\nDurus\nRadiass\nKureel\nThème\nWaxtaane\nNouha Dabo\nArame Ndiaye\nKilifë yi', luogo: 'Près de la mosquée d’Imame Sarr' },
   build(B) { const { d } = B, G = '#0f7a37', Y = '#f6c700';
     B.logo(540, 100, 72, { ring: G }); B.field('org', 'org', 240, 182, 600, 84, st({ size: 32, color: G }), 2);
@@ -12346,7 +12346,7 @@ def({ id: 'px_safarprog', name: '18 Safar Programma', desc: 'Verde + giallo · f
   } });
 
 /* 15 ─ Album / tracklist: artists row, big title, tracklist + cover */
-def({ id: 'px_album', name: 'Album Xassida', desc: 'Verde + bianco · tracklist', ev: ['kassida', 'programme', 'magal'], tags: ['album', 'sortie', 'xassida', 'tracklist', 'kourel', 'magal'], layout: 'px-tracklist', prio: 3, only: ['album'],
+def({ id: 'px_album', heroBox: { x: 270, y: 40, w: 540, h: 620 }, name: 'Album Xassida', desc: 'Verde + bianco · tracklist', ev: ['kassida', 'programme', 'magal'], tags: ['album', 'sortie', 'xassida', 'tracklist', 'kourel', 'magal'], layout: 'px-tracklist', prio: 3, only: ['album'],
   sample: { badgeTesto: 'Spécial', titolo: 'MAGAL TOUBA', org: 'KOUREL FÉDÉRATION SAFINATOUL AMANE', annoHijri: '1448H-2026', programma: 'IKFINI · S. Moustapha Diop\nROUMNA · Serigne Cissé\nMADDALIYAL MADADTOU · Dadjou Daara Dji', arabo: 'إلهى أعنى بجاه خادم', footer: 'DISPONIBLE SUR TOUTES NOS PLATEFORMES DIGITALES' },
   build(B) { const { d } = B, G = '#0f7a37';
     [110, 325, 540, 755, 970].forEach((cx, i) => B.person(cx, 640, 240, 600, Object.assign({ phTint: '#3a6a4a', name: 'Foto artista ' + (i + 1) }, i === 2 ? { role: 'photoSlot' } : {})));
@@ -12367,7 +12367,7 @@ def({ id: 'px_album', name: 'Album Xassida', desc: 'Verde + bianco · tracklist'
   } });
 
 /* 16 ─ Night stage: deep blue, lanterns, three singers, elder bottom-left, gold info */
-def({ id: 'px_animation', name: 'Animazione Notte', desc: 'Blu notte + oro · palco', ev: ['kassida', 'waxtaan', 'programme', 'gamou'], tags: ['animation culturelle', 'soirée', 'lanterne', 'blu notte', 'en direct', 'live'], layout: 'px-night-stage', prio: 2, only: ['kassida', 'waxtaan', 'programme', 'gamou'],
+def({ id: 'px_animation', heroBox: { x: 230, y: 150, w: 620, h: 700 }, name: 'Animazione Notte', desc: 'Blu notte + oro · palco', ev: ['kassida', 'waxtaan', 'programme', 'gamou'], tags: ['animation culturelle', 'soirée', 'lanterne', 'blu notte', 'en direct', 'live'], layout: 'px-night-stage', prio: 2, only: ['kassida', 'waxtaan', 'programme', 'gamou'],
   sample: { badgeTesto: 'Animation', titolo: 'CULTURELLE', org: 'daara ahlou khassida guédiawaye', luogo: 'Yeumbeul Asecna', indirizzo: 'chez Baye Serigne Ndiaye', telefoni: 'Info : 77 516 07 62 · 77 836 92 67', footer: 'DAARA AHLOU KHASSIDA TV', ora: '20:00' },
   build(B) { const { d } = B;
     B.orn('rays', 140, -260, 800, 800, { fill: 'rgba(255,214,120,0.30)', n: 22, name: 'Raggi' }, true);
@@ -17193,6 +17193,7 @@ SV.autoBuild = build;
 
 /* ================= existing templates (built-in + I miei modelli) ================= */
 const TPL_LAYOUT = { verde: 'center', bianco: 'center', noir: 'center', gammu: 'center-badge', seppia: 'phototop', scuro: 'phototop', soleil: 'phototop', ciel: 'phototop-box', bordeaux: 'arch', arch: 'arch', touba: 'side', navy: 'side', fatiha: 'panel', anni: 'special-anni', sass: 'special-sass', prog: 'special-prog', waxtaan: 'special-wax', kazu: 'special-kazu', collecte: 'special-coll', teal: 'special-teal' };
+const TPL_HERO = { teal: { x: 50, y: 650, w: 480, h: 640 }, prog: { x: 240, y: 380, w: 600, h: 680 }, fatiha: { x: 240, y: 110, w: 600, h: 690 }, collecte: { x: 240, y: 370, w: 600, h: 770 }, sass: { x: 160, y: 130, w: 680, h: 850 } }; // legacy templates without a photo frame
 const TPL_ONLY = { anni: ['anni'], sass: ['collecte', 'magal'], prog: ['programme', 'kazu', 'waxtaan'], waxtaan: ['waxtaan'], kazu: ['kazu', 'programme'], collecte: ['collecte'], teal: ['programme', 'waxtaan'], fatiha: ['fatiha'], touba: ['magal'], gammu: ['gamou'] };
 const EV_ALIAS = { gamou: ['gamou', 'gammu', 'gammug', 'mawlid'], waxtaan: ['waxtaan', 'conference', 'conférence'], fatiha: ['fatiha', 'condoglianze'], anni: ['anni', 'anniversaire', 'joyeux'], collecte: ['collecte', 'sass'], programme: ['programme', 'xassida'], dahira: ['dahira', 'thiant'], ziar: ['ziar', 'dadje', 'dadjé'], magal: ['magal'], kazu: ['kazu', 'safar'] };
 const tplMatches = (id, ev) => { const s = SV.TPL_EVENTS && SV.TPL_EVENTS[id]; return !!(s && (EV_ALIAS[ev] || [ev]).some(k => s.has(k))); };
@@ -17201,16 +17202,91 @@ const tplAllowed = (id, ev) => { const t = LT(id); if (t) return !t.only || t.on
 Object.assign(EV_ALIAS, { magal: ['magal', 'safar'], safar: ['safar', 'magal'], qadr: ['qadr', 'ramadan'], ramadan: ['ramadan', 'qadr'], kassida: ['kassida', 'programme'], thiant: ['thiant', 'dahira'] });
 const norm = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
 const toHHMM = v => { const m = /(\d{1,2})(?:[:hH.](\d{2}))?/.exec(v || ''); return m ? String(m[1]).padStart(2, '0') + ':' + (m[2] || '00') : ''; };
-function placeHero(page, slot, A, W, H) { // replace/insert the cut-out in a slot {x,y,w,h}
+function placeHero(page, slot, A, W, H, slotEl) { // replace/insert the cut-out in a slot {x,y,w,h}
   const h0 = A.hero; if (!h0 || !h0.asset) return null; const a = h0.w / h0.h, hide = A.hideFeet;
+  const base = { id: uid(), type: 'image', role: 'hero', asset: h0.asset, origAsset: h0.origAsset || null, cutMask: h0.cutMask || null, rot: 0, op: 1, name: 'Foto principale', shadow: { c: h0.lum > 0.6 ? 'rgba(15,10,5,0.55)' : 'rgba(0,0,0,0.35)', b: 10, x: 0, y: 3 } };
+  if (SV._autoLegacy) { // previous behaviour (kept for before/after QA)
+    const over = page.els.filter(e => e.type === 'text' && String(e.text || '').trim() && e.y > slot.y + slot.h * 0.45 && e.y < slot.y + slot.h && e.x < slot.x + slot.w * 0.8 && e.x + e.w > slot.x + slot.w * 0.2).map(e => e.y);
+    if (over.length) slot = Object.assign({}, slot, { h: Math.min(...over) - 6 - slot.y });
+    let h = hide ? slot.h / 0.86 : slot.h, w = h * a; const maxW = Math.min(W * 0.96, slot.w * 1.3); if (w > maxW) { w = maxW; h = w / a; }
+    const ground = slot.y + slot.h, y = hide ? ground - h * 0.86 : ground - h, cx = slot.x + slot.w / 2;
+    const e = Object.assign(base, { x: Math.round(cx - w / 2), y: Math.round(y), w: Math.round(w), h: Math.round(h) }); if (hide) e.fade = { side: 'bottom', amt: 16 }; return e;
+  }
+  // shaped frames (circle / arch / …): keep the frame shape, head-and-shoulders crop
+  if (slotEl && slotEl.autoCut && slotEl.mask && slotEl.mask !== 'none') {
+    const z = slotEl.mask === 'circle' ? 1.12 : 1;
+    return Object.assign(base, { x: Math.round(slot.x), y: Math.round(slot.y), w: Math.round(slot.w), h: Math.round(slot.h), mask: slotEl.mask, radius: slotEl.radius, crop: { z, px: 0.5, py: 0 }, fade: slotEl.mask === 'circle' ? undefined : { side: 'bottom', amt: 12 }, shadow: undefined });
+  }
+  { // panels/blocks covering a big part of the slot: keep the figure on the freer side
+    const obs = page.els.filter(e => e !== slotEl && e.role !== 'photoSlot' && ((e.type === 'shape' && !/^(Sfumatura|Fondo|Motivo|Banner)/.test(e.name || '') && e.w < W * 0.7) || e.type === 'text') && e.y < slot.y + slot.h * 0.8 && e.y + e.h > slot.y + slot.h * 0.35 && Math.min(e.y + e.h, slot.y + slot.h) - Math.max(e.y, slot.y) > slot.h * 0.35 && e.x < slot.x + slot.w && e.x + e.w > slot.x);
+    for (const o of obs) { const L = o.x - slot.x, R = slot.x + slot.w - (o.x + o.w); if (Math.max(L, R) < slot.w * 0.35) continue; slot = L >= R ? Object.assign({}, slot, { w: L - 10 }) : Object.assign({}, slot, { x: o.x + o.w + 10, w: R - 10 }); }
+  }
+  { // the head must never sit under a text: move the slot top below texts in its upper part (central column)
+    const cx0 = slot.x + slot.w / 2, half = slot.w * 0.28;
+    const top = page.els.filter(e => e.type === 'text' && String(e.text || '').trim() && e.x < cx0 + half && e.x + e.w > cx0 - half && e.y + e.h > slot.y && e.y < slot.y + slot.h * 0.4).map(e => { let hh = e.h; try { hh = Math.max(hh, SV.textLayout(e).h); } catch (er) {} return e.y + hh; });
+    if (top.length) { const ny = Math.max(...top) + 14; if (ny < slot.y + slot.h * 0.6) slot = Object.assign({}, slot, { y: ny, h: slot.y + slot.h - ny }); }
+  }
+  const s0 = slot;
   const over = page.els.filter(e => e.type === 'text' && String(e.text || '').trim() && e.y > slot.y + slot.h * 0.45 && e.y < slot.y + slot.h && e.x < slot.x + slot.w * 0.8 && e.x + e.w > slot.x + slot.w * 0.2).map(e => e.y);
-  if (over.length) slot = Object.assign({}, slot, { h: Math.min(...over) - 6 - slot.y });
-  let h = hide ? slot.h / 0.86 : slot.h, w = h * a; const maxW = Math.min(W * 0.96, slot.w * 1.3); if (w > maxW) { w = maxW; h = w / a; }
-  const ground = slot.y + slot.h, y = hide ? ground - h * 0.86 : ground - h, cx = slot.x + slot.w / 2;
-  const e = { id: uid(), type: 'image', role: 'hero', asset: h0.asset, origAsset: h0.origAsset || null, cutMask: h0.cutMask || null, x: Math.round(cx - w / 2), y: Math.round(y), w: Math.round(w), h: Math.round(h), rot: 0, op: 1, name: 'Foto principale', shadow: { c: h0.lum > 0.6 ? 'rgba(15,10,5,0.55)' : 'rgba(0,0,0,0.35)', b: 10, x: 0, y: 3 } };
-  if (hide) e.fade = { side: 'bottom', amt: 16 };
+  if (over.length) slot = Object.assign({}, slot, { h: Math.max(s0.h * 0.55, Math.min(...over) - 6 - slot.y) }); // stop above texts (legibility pass handles the rest)
+  // visible fraction of the body: feet hidden (≤ 86%), down to upper body (50%) when the slot is wide/short
+  if (SV._heroDbg) SV._heroDbg.push({ s0: Object.assign({}, s0), slot: Object.assign({}, slot) });
+  let vf = hide ? 0.86 : 1; const want = a / (0.8 * (slot.w / slot.h)); if (want < vf) vf = Math.max(0.5, want);
+  let hv = slot.h, w = hv / vf * a; const maxW = Math.min(W * 0.96, slot.w * 1.2); if (w > maxW) { w = maxW; hv = w / a * vf; }
+  const ground = slot.y + slot.h, cx = slot.x + slot.w / 2;
+  const e = Object.assign(base, { x: Math.round(cx - w / 2), y: Math.round(ground - hv), w: Math.round(w), h: Math.round(hv) });
+  if (vf < 1) { e.crop = { z: 1, px: 0.5, py: 0 }; e.fade = { side: 'bottom', amt: vf < 0.7 ? 22 : 16 }; }
   return e;
 }
+/* ---------- legibility: contrast check of every text against what is really behind it ---------- */
+const _lin = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+const relL = (r, g, b) => 0.2126 * _lin(r) + 0.7152 * _lin(g) + 0.0722 * _lin(b);
+const rgbOf = c => { c = String(c || '').trim(); let m = /^#([0-9a-f]{3})$/i.exec(c); if (m) return m[1].split('').map(h => parseInt(h + h, 16)); m = /^#([0-9a-f]{6})/i.exec(c); if (m) { const n = parseInt(m[1], 16); return [n >> 16, (n >> 8) & 255, n & 255]; } m = /rgba?\(([\d.]+)[^\d]+([\d.]+)[^\d]+([\d.]+)/.exec(c); return m ? [+m[1], +m[2], +m[3]] : null; };
+const cssL = c => { const r = rgbOf(c); return r ? relL(r[0], r[1], r[2]) : null; };
+const CR = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+function textL(st) {
+  if (st.grad) { const g = typeof st.grad === 'string' && typeof TEXT_GRADIENTS !== 'undefined' ? TEXT_GRADIENTS[st.grad] : (st.grad && st.grad.stops) || null; if (Array.isArray(g) && g.length) { const ls = g.map(c => cssL(typeof c === 'string' ? c : c.c)).filter(v => v != null); if (ls.length) return ls.reduce((x, y) => x + y, 0) / ls.length; } }
+  const l = cssL(st.color || '#ffffff'); return l == null ? 1 : l;
+}
+SV.ensureLegible = async function (page, W, H) {
+  const texts = page.els.filter(e => e.type === 'text' && String(e.text || '').trim() && !e.hidden && (e.op == null || e.op > 0.3) && !e.rot);
+  const out = []; if (!texts.length) return out;
+  try { await SV.ensureAssets([page]); } catch (e) {}
+  const k = 0.25, bg = SV.renderToCanvas(Object.assign({}, page, { els: page.els.filter(e => e.type !== 'text') }), W, H, k, { res: k });
+  const cw = bg.width, chh = bg.height, D = bg.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, cw, chh).data;
+  for (const e of texts) {
+    const st = e.st || (e.st = {}); if (e.legAid) continue;
+    let L; try { L = SV.textLayout(e); } catch (er) { continue; }
+    const sz = L.fi.size, gw = Math.min(L.maxLine, e.w), al = st.align || 'center';
+    const gx = al === 'left' ? e.x + L.pad : al === 'right' ? e.x + e.w - L.pad - gw : e.x + (e.w - gw) / 2;
+    const gy = e.y + L.pad, gh = Math.min(sz * 1.08 + (L.lines.length - 1) * L.lh, Math.max(e.h, sz));
+    const x0 = Math.max(0, Math.floor(gx * k)), x1 = Math.min(cw, Math.ceil((gx + gw) * k)), y0 = Math.max(0, Math.floor(gy * k)), y1 = Math.min(chh, Math.ceil((gy + gh) * k));
+    if (x1 <= x0 || y1 <= y0) continue;
+    const tL = textL(st); let n = 0, bad = 0, s = 0, s2 = 0;
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const i = (y * cw + x) * 4, l = relL(D[i], D[i + 1], D[i + 2]); n++; s += l; s2 += l * l; if (CR(tL, l) < 2.3) bad++; }
+    if (!n) continue;
+    const mean = s / n, sd = Math.sqrt(Math.max(0, s2 / n - mean * mean)), bf = bad / n;
+    const sL = st.stroke && st.stroke.c ? cssL(st.stroke.c) : null;
+    const outlined = st.stroke && (st.stroke.w || 0) >= 2.5 && sL != null && CR(tL, sL) >= 3 && CR(sL, mean) >= 1.8;
+    const backed = st.hl && st.hl.c && (cssL(st.hl.c) != null) && CR(tL, cssL(st.hl.c)) >= 3;
+    const info = { id: e.id, text: String(e.text).slice(0, 24), cr: +CR(tL, mean).toFixed(2), bf: +bf.toFixed(2), sd: +sd.toFixed(3), aid: '' };
+    out.push(info);
+    if (bf < 0.1 || outlined || backed) continue;
+    const lightText = tL > 0.35, aidC = a => lightText ? `rgba(0,0,0,${a})` : `rgba(255,255,255,${a})`;
+    const sw = Math.max(3, Math.min(8, 240 / sz));
+    if (bf < 0.4) { // a few busy spots: soft outline + shadow
+      st.stroke = { w: Math.max(sw, (st.stroke && st.stroke.w) || 0), c: lightText ? 'rgba(30,18,4,0.75)' : aidC(0.8) }; st.shadow = { c: aidC(0.6), b: 20, x: 0, y: 4 }; info.aid = 'outline';
+    } else if (sd < 0.06 && !st.grad && !st.extrude && rgbOf(st.color || '#ffffff') && !(sz >= 60 && (c => Math.max(...c) - Math.min(...c) < 40)(rgbOf(st.color || '#ffffff')))) { // flat low-contrast area: same hue, darker/lighter until readable
+      const c0 = rgbOf(st.color || '#ffffff'), to = mean > 0.3 ? [0, 0, 0] : [255, 255, 255]; let col = null;
+      for (let t = 0.15; t <= 1.001; t += 0.05) { const c = c0.map((v, j) => Math.round(v + (to[j] - v) * t)); if (CR(relL(c[0], c[1], c[2]), mean) >= (sz >= 60 ? 3 : 4.5)) { col = c; break; } }
+      col = col || to; st.color = '#' + col.map(v => v.toString(16).padStart(2, '0')).join(''); info.aid = 'colour ' + st.color;
+    } else if (!st.curve && sz < 90) { // busy area: backing band per line
+      st.hl = { c: aidC(lightText ? 0.55 : 0.82), pad: 0.22, r: 0.22 }; info.aid = 'band';
+    } else { st.stroke = { w: Math.max(sw, 4), c: lightText ? 'rgba(40,24,4,0.85)' : aidC(0.9) }; st.shadow = { c: aidC(0.55), b: 18, x: 0, y: 4 }; info.aid = 'strong outline'; }
+    e.legAid = info.aid;
+  }
+  return out;
+};
 const lumOf = c => { const m = /^#?([0-9a-f]{6})/i.exec(String(c || '').trim()); if (!m) { const r = /rgba?\((\d+)[^\d]+(\d+)[^\d]+(\d+)/.exec(c || ''); return r ? (0.299 * r[1] + 0.587 * r[2] + 0.114 * r[3]) / 255 : 0.5; } const n = parseInt(m[1], 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
 function auraFor(page, hero, A, rasterLum) { // dark soft halo behind a bright (white-robed) figure on a light area
   if (!hero || !A.hero || !(A.hero.lum > 0.6)) return null;
@@ -17250,10 +17326,12 @@ async function buildTplItem(it, A, T) {
   page.els = page.els.filter(e => !(e.type === 'text' && !e.role && OTHER.test(e.text) && !OTHER.test([D.title, D.subtitle, D.name, D.honor, D.place].join(' '))));
   if (T) applyTexts(page, T);
   let idx = page.els.findIndex(e => e.role === 'photoSlot'); const slot = idx >= 0 ? page.els[idx] : null;
-  const box = slot ? { x: slot.x, y: slot.y, w: slot.w, h: slot.h } : freeArea(page, W, H);
-  const hero = placeHero(page, box, A, W, H);
+  if (!SV._autoLegacy && A.hero && A.hero.asset && LT(it.tpl)) { const ringOf = /^(Cerchio logo|Anello ospite|Anello logo|Anello|Arco)$/; page.els = page.els.filter(e => e === slot || !((e.type === 'image' && e.frame && !e.asset) || (e.type === 'shape' && ringOf.test(e.name || '')))); idx = page.els.indexOf(slot); }
+  let box = slot ? { x: slot.x, y: slot.y, w: slot.w, h: slot.h } : freeArea(page, W, H);
+  const hb = !SV._autoLegacy && ((LT(it.tpl) && LT(it.tpl).heroBox) || TPL_HERO[it.tpl]); if (hb) { const ky = H / 1920; box = { x: hb.x, y: hb.y * ky, w: hb.w, h: hb.h * ky * (post ? 1.03 : 1) }; }
+  const hero = placeHero(page, box, A, W, H, hb ? null : slot);
   if (hero && LT(it.tpl)) { const ringOf = /^(Cerchio logo|Anello ospite|Anello logo|Anello|Arco)$/; page.els = page.els.filter(e => e === slot || !((e.type === 'image' && e.frame && !e.asset) || (e.type === 'shape' && ringOf.test(e.name || '')))); idx = page.els.indexOf(slot); }
-  if (hero) { if (idx >= 0) page.els.splice(idx, 1, hero); else { const ft = page.els.findIndex(e => e.type === 'text'); page.els.splice(ft < 0 ? page.els.length : ft, 0, hero); } await addAura(page, hero, A, W, H); }
+  if (hero) { if (hb && idx >= 0) { page.els.splice(idx, 1); idx = -1; } if (idx >= 0) page.els.splice(idx, 1, hero); else { const ft = page.els.findIndex(e => e.type === 'text'); page.els.splice(ft < 0 ? page.els.length : ft, 0, hero); } await addAura(page, hero, A, W, H); }
   return page;
 }
 async function addAura(page, hero, A, W, H) { // measure the real background luminance behind the figure
@@ -17284,7 +17362,7 @@ async function buildMineItem(it, A, T) {
   const slots = page.els.filter(x => x.type === 'image' && (x.frame || x.autoCut || !x.asset || x.role === 'photoSlot'));
   const slot = slots.sort((a, b) => b.w * b.h - a.w * a.h)[0];
   const box = slot ? { x: slot.x, y: slot.y, w: slot.w, h: slot.h } : freeArea(page, W, H);
-  const hero = placeHero(page, box, A, W, H);
+  const hero = placeHero(page, box, A, W, H, slot);
   if (hero) { if (slot) { page.els.splice(page.els.indexOf(slot), 1, hero); } else { const ft = page.els.findIndex(x => x.type === 'text'); page.els.splice(ft < 0 ? page.els.length : ft, 0, hero); } await addAura(page, hero, A, W, H); }
   return page;
 }
@@ -17326,7 +17404,9 @@ async function fontsReady() {
   try { await Promise.race([SV.ensureFonts([pg]), new Promise(r => setTimeout(r, 6000))]); } catch (e) {}
   try { await Promise.all(['900 40px Cinzel', 'italic 400 40px "Playfair Display"', '900 40px Montserrat', '800 40px Montserrat', '400 40px Anton'].map(f => document.fonts.load(f))); } catch (e) {}
 }
-async function buildAny(it, A, T) { if (it.kind === 'tpl') return buildTplItem(it, A, T); if (it.kind === 'mine') return buildMineItem(it, A, T); return build(it, A, T); }
+async function buildAny0(it, A, T) { if (it.kind === 'tpl') return buildTplItem(it, A, T); if (it.kind === 'mine') return buildMineItem(it, A, T); return build(it, A, T); }
+async function buildAny(it, A, T) { const pg = await buildAny0(it, A, T); if (!SV._autoLegacy) { try { await SV.ensureFonts([pg]); } catch (e) {} try { await SV.ensureLegible(pg, 1080, A.format === 'post' ? 1350 : 1920); } catch (e) { console.warn('legibility', e); } } return pg; }
+SV._autoT = { buildAny, placeHero };
 async function makeItem(A, c, batch) { const it = Object.assign({ id: uid('ap'), kind: 'recipe', seed: Math.round(Math.random() * 1e6), batch }, c); delete it.pri; it.name = itemName(it); it.layout = layoutOf(it);
   try { it.pages = [await buildAny(it, A)]; } catch (e) { console.warn('auto item', e); return null; }
   try { await SV.ensureFonts(it.pages); } catch (e) {}
