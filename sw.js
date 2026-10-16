@@ -1,4 +1,4 @@
-const CACHE = 'volantino-studio-202610150828';
+const CACHE = 'volantino-studio-202610161650';
 const ASSETS = [
   './',
   './index.html',
@@ -27,6 +27,8 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   // Network-first for the page itself so updates show up immediately (cache = offline fallback)
+  // Shared flyer projects (p/<id>.json): always from network, never cached
+  if (url.pathname.includes('/p/') && url.pathname.endsWith('.json')) { e.respondWith(fetch(e.request)); return; }
   if (e.request.mode === 'navigate' || url.pathname.endsWith('/') || url.pathname.endsWith('.html')) {
     e.respondWith(
       fetch(e.request).then((res) => {

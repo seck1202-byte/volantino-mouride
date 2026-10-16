@@ -12897,6 +12897,8 @@ SV.init = function () {
     more.parentNode.insertBefore(ob, more);
   }
   // start
+  const linkRef = SV.projectLinkParam && SV.projectLinkParam();
+  if (linkRef && SV.openProjectFromURL) { SV.openProjectFromURL(linkRef); return; }
   let last = 'studio'; try { last = localStorage.getItem('sv-last') || 'studio'; } catch (e) {}
   if (last === 'studio') {
     let scr = 'home', pid = null; try { scr = localStorage.getItem('sv-screen'); pid = localStorage.getItem('sv-open'); } catch (e) {}
@@ -14247,6 +14249,41 @@ SV.imageToTemplate = async function (file) {
     SV.busy(false); SV.toast('Modello creato: modifica i testi e salva');
     return t;
   } catch (e) { SV.busy(false); console.error(e); SV.toast('Errore: ' + e.message); throw e; }
+};
+
+/* ---- open a shared project by link: ?progetto=p/<id>.json (same-origin only) ---- */
+SV.importProjectData = async function (d) {
+  let src = null;
+  if (d && d.format === 'volantino-mouride-project' && d.project) src = d.project;
+  else if (d && d.format === 'volantino-mouride-templates' && Array.isArray(d.templates) && d.templates[0]) src = d.templates[0];
+  if (!src || !Array.isArray(src.pages) || !src.w || !src.h) throw new Error('File progetto non valido');
+  for (const [id, a] of Object.entries(d.assets || {})) {
+    if (!a || !a.data || await SV.dbGet('assets', id)) continue;
+    const u = unb64(a.data);
+    await SV.dbPut('assets', { id, buf: u.buffer, type: a.type || 'image/png', w: a.w, h: a.h, kind: a.kind || 'upload', name: a.name || '', created: Date.now() });
+  }
+  const p = SV.newProject(src.w, src.h, src.name || 'Volantino', src.sizeId); p.pages = pagesFor(src);
+  await SV.dbPut('projects', p); return p;
+};
+SV.projectLinkParam = function () { try { return new URLSearchParams(location.search).get('progetto'); } catch (e) { return null; } };
+SV.openProjectFromURL = async function (ref) {
+  const clearParam = () => { try { const u = new URL(location.href); u.searchParams.delete('progetto'); history.replaceState(null, '', u.pathname + (u.search || '') + u.hash); } catch (e) {} };
+  let url;
+  try { url = new URL(ref, location.href); } catch (e) { url = null; }
+  if (!url || url.origin !== location.origin || !/\.json$/i.test(url.pathname)) { clearParam(); SV.toast('Link del volantino non valido'); return SV.open(); }
+  const key = 'sv-link:' + url.pathname;
+  let known = null; try { known = localStorage.getItem(key); } catch (e) {}
+  if (known && await SV.dbGet('projects', known).catch(() => null)) { clearParam(); return SV.open({ project: known }); }
+  SV.busy(true, 'Apro il volantino…');
+  try {
+    const r = await fetch(url.href, { cache: 'no-cache' }); if (!r.ok) throw new Error('Volantino non trovato (' + r.status + ')');
+    const p = await SV.importProjectData(await r.json());
+    try { localStorage.setItem(key, p.id); } catch (e) {}
+    if (SV.ensureFonts) await Promise.race([SV.ensureFonts(p.pages), new Promise(res => setTimeout(res, 4000))]);
+    SV.busy(false); clearParam();
+    await SV.open({ project: p.id });
+    SV.toast('Volantino aperto: tocca un elemento per modificarlo');
+  } catch (e) { console.error(e); SV.busy(false); clearParam(); SV.toast(e.message || 'Errore'); SV.open(); }
 };
 
 function pick(accept, multi) { return new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.multiple = !!multi; i.style.display = 'none'; document.body.appendChild(i); i.onchange = () => { res([...i.files]); i.remove(); }; i.click(); }); }
