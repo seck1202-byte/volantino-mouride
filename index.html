@@ -900,6 +900,15 @@ textarea.sv-in{height:auto;padding:8px 10px;min-height:70px}
 .sv-zoom button[data-a="viewMenu"]{width:auto;padding:0 10px;font-size:12px;font-weight:700}
 .sv-zoom button[data-a="zoomFit"]{width:auto;padding:0 8px;font-size:12px;font-weight:700}
 
+/* Motivi arabi */
+.sv-mg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:6px 0 10px}
+.sv-mc{display:flex;flex-direction:column;align-items:center;gap:4px;padding:5px 4px 6px;border:1px solid var(--line);border-radius:12px;background:#fff;font:600 11px/1.15 inherit;color:var(--ink);text-align:center;cursor:pointer;min-height:44px;-webkit-tap-highlight-color:transparent}
+.sv-mc img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;display:block;background:#eee}
+.sv-mc:active{transform:scale(.96)}.sv-mc.on{outline:2px solid var(--p)}
+.sv-mbox{border:1px solid var(--line);background:#fafafa;border-radius:12px;padding:10px;margin:6px 0 12px}
+.sv-mbox>b{display:block;font-size:13px;margin-bottom:4px}
+.sv-mh{color:var(--mut);font-size:12px;margin:2px 0 8px}
+
 </style>
 </head>
 <body>
@@ -11403,6 +11412,7 @@ function drawShape(c, el, w, h) {
   const sw = el.sw || 0, stroke = sw > 0 ? (el.stroke || '#000') : null;
   const fin = () => {
     if (fill) { c.fillStyle = fill; c.fill(); }
+    if (el.pat && SV.fillPattern) { c.save(); c.clip(); SV.fillPattern(c, el.pat, x, y, w, h, Math.min(w, h)); c.restore(); }
     if (stroke) { c.strokeStyle = stroke; c.lineWidth = sw; if (el.dash) c.setLineDash(el.dash === 'dot' ? [sw, sw * 1.6] : [sw * 3, sw * 2]); c.stroke(); c.setLineDash([]); }
   };
   c.lineJoin = 'round';
@@ -11536,6 +11546,7 @@ SV.drawBg = function (c, page, W, H, opt) {
       if (bg.tint && bg.tint.a) { c.fillStyle = rgba(bg.tint.c || '#0d5c2e', bg.tint.a / 100); c.fillRect(0, 0, W, H); }
     }
   }
+  if (bg.pat && SV.fillPattern) SV.fillPattern(c, bg.pat, 0, 0, W, H, Math.min(W, H));
   c.restore();
 };
 /** Render a page into ctx (already scaled so that 1 unit = 1 design px). */
@@ -13613,11 +13624,11 @@ const kk = () => Math.min(W(), H()) / 1080;
 SV.h = { page, els, sel, one, W, H, kk };
 
 const TABS = [
-  ['modelli', '▦', 'Modelli'], ['elementi', '◆', 'Elementi'], ['testo', 'T', 'Testo'], ['testo3d', '🅃', 'Testo 3D'], ['caricamenti', '☁︎', 'Foto'],
+  ['modelli', '▦', 'Modelli'], ['elementi', '◆', 'Elementi'], ['motivi', '❖', 'Motivi'], ['testo', 'T', 'Testo'], ['testo3d', '🅃', 'Testo 3D'], ['caricamenti', '☁︎', 'Foto'],
   ['sfondo', '🎨', 'Sfondo'], ['livelli', '☰', 'Livelli'], ['pagine', '❐', 'Pagine'], ['combo', '🌈', 'Colori'], ['kit', '★', 'Kit'],
 ];
 const TITLES = {
-  modelli: 'Modelli', elementi: 'Elementi', testo: 'Testo', testo3d: 'Testo 3D', caricamenti: 'Caricamenti', sfondo: 'Sfondo', livelli: 'Livelli', pagine: 'Pagine', kit: 'Kit del marchio', combo: 'Combinazioni colori',
+  modelli: 'Modelli', elementi: 'Elementi', motivi: 'Motivi arabi', testo: 'Testo', testo3d: 'Testo 3D', caricamenti: 'Caricamenti', sfondo: 'Sfondo', livelli: 'Livelli', pagine: 'Pagine', kit: 'Kit del marchio', combo: 'Combinazioni colori',
   font: 'Carattere', colore: 'Colore', effetti: 'Effetti testo', spaziatura: 'Spaziatura', foto: 'Modifica foto', posizione: 'Posizione', trasparenza: 'Trasparenza', qr: 'Codice QR', forma: 'Forma e bordo', linea: 'Linea',
 };
 SV.buildRail = function () {
@@ -13628,7 +13639,7 @@ SV.openPanel = function (id, arg) {
   U.panel = id; U.panelArg = arg != null ? arg : null;
   $('svPanel').hidden = false;
   $('svPanelTitle').textContent = TITLES[id] || '';
-  if (SV.isMobile()) $('svEditor').style.setProperty('--sheetH', ['font', 'modelli', 'elementi', 'caricamenti', 'livelli', 'pagine', 'kit'].includes(id) ? '58%' : '44%');
+  if (SV.isMobile()) $('svEditor').style.setProperty('--sheetH', ['font', 'modelli', 'elementi', 'motivi', 'caricamenti', 'livelli', 'pagine', 'kit'].includes(id) ? '58%' : '44%');
   SV.refreshPanel(true);
   SV.buildRail();
   requestAnimationFrame(() => SV.fit());
@@ -13708,7 +13719,7 @@ function renderCtx() {
       h += common(el);
     } else if (el.type === 'shape' || el.type === 'orn' || el.type === 'icon') {
       h = `<button class="sv-tb" data-a="panel" data-p="colore" data-arg="fill">${colorDot(el.fill || '#d4af37', el.g)}<span class="lb">Colore</span></button>` +
-        (el.type === 'shape' ? tb('panel', '▢', 'Bordo', 'data-p="forma"', U.panel === 'forma') : '') + tb('flipX', '⇋', 'Capovolgi') + common(el);
+        (el.type === 'shape' ? tb('panel', '▢', 'Bordo', 'data-p="forma"', U.panel === 'forma') : '') + (el.type === 'orn' && /^(m_|pat_)/.test(el.kind) ? `<button class="sv-tb" data-a="panel" data-p="colore" data-arg="stroke">${colorDot(el.stroke || '#0d5c2e')}<span class="lb">Colore 2</span></button>` + tb('panel', '❖', 'Motivi', 'data-p="motivi"', U.panel === 'motivi') : '') + tb('flipX', '⇋', 'Capovolgi') + common(el);
     } else if (el.type === 'line') {
       h = `<button class="sv-tb" data-a="panel" data-p="colore" data-arg="stroke">${colorDot(el.stroke || '#d4af37')}<span class="lb">Colore</span></button>` + tb('panel', '━', 'Stile linea', 'data-p="linea"', U.panel === 'linea') + common(el);
     } else if (el.type === 'qr') {
@@ -14938,6 +14949,632 @@ SV.catalog = function () {
   return items;
 };
 
+})();
+
+/* ===== Motivi arabi: ~45 vector motifs + 9 seamless tile patterns ===== */
+(function () {
+const U = SV.U, H = SV.h, TAU = Math.PI * 2, PI = Math.PI, cos = Math.cos, sin = Math.sin;
+SV.ORN_EXT = SV.ORN_EXT || {};
+const REG = [];
+const CATS = ['Stelle e girih', 'Rosoni e medaglioni', 'Archi e mihrab', 'Lanterne e luna', 'Angoli', 'Cornici', 'Divisori', 'Mashrabiya e zellige'];
+const CAT_ICON = { 'Stelle e girih': '✴️', 'Rosoni e medaglioni': '🏵️', 'Archi e mihrab': '🕌', 'Lanterne e luna': '🏮', 'Angoli': '◸', 'Cornici': '▣', 'Divisori': '➖', 'Mashrabiya e zellige': '▦' };
+const THEMES = {
+  oro: { l: 'Oro su verde', c1: '#d4af37', c2: '#0d5c2e', bg: '#0d5c2e' },
+  blu: { l: 'Oro su blu', c1: '#d4af37', c2: '#0b1f4a', bg: '#0b1f4a' },
+  bianco: { l: 'Bianco su verde', c1: '#ffffff', c2: '#0d5c2e', bg: '#0d5c2e' },
+  marrone: { l: 'Marrone su crema', c1: '#6b4423', c2: '#f5e6c8', bg: '#f5e6c8' },
+  verde: { l: 'Verde su bianco', c1: '#0d5c2e', c2: '#f5e6c8', bg: '#ffffff' },
+};
+SV.MOTIF_THEMES = THEMES;
+/* ---------- drawing helpers ---------- */
+function pg(c, cx, cy, r, n, rot) { c.beginPath(); for (let i = 0; i < n; i++) { const a = (rot || 0) + i * TAU / n; c[i ? 'lineTo' : 'moveTo'](cx + cos(a) * r, cy + sin(a) * r); } c.closePath(); }
+function st(c, cx, cy, R, r, n, rot) { c.beginPath(); for (let i = 0; i < n * 2; i++) { const a = (rot || 0) + i * PI / n, q = i % 2 ? r : R; c[i ? 'lineTo' : 'moveTo'](cx + cos(a) * q, cy + sin(a) * q); } c.closePath(); }
+function ci(c, cx, cy, r) { c.beginPath(); c.arc(cx, cy, r, 0, TAU); }
+function fl(c, col, a) { c.fillStyle = col; if (a != null && a < 1) { const o = c.globalAlpha; c.globalAlpha = o * a; c.fill(); c.globalAlpha = o; } else c.fill(); }
+function sk(c, col, w, a) { c.strokeStyle = col; c.lineWidth = w; c.lineJoin = 'round'; c.lineCap = 'round'; if (a != null && a < 1) { const o = c.globalAlpha; c.globalAlpha = o * a; c.stroke(); c.globalAlpha = o; } else c.stroke(); }
+function el2(c, cx, cy, rx, ry, rot) { c.beginPath(); c.ellipse(cx, cy, Math.max(.1, rx), Math.max(.1, ry), rot || 0, 0, TAU); }
+function leaf(c, x1, y1, x2, y2, bulge) { const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, dx = x2 - x1, dy = y2 - y1, nx = -dy * bulge, ny = dx * bulge; c.beginPath(); c.moveTo(x1, y1); c.quadraticCurveTo(mx + nx, my + ny, x2, y2); c.quadraticCurveTo(mx - nx, my - ny, x1, y1); c.closePath(); }
+function spiral(c, cx, cy, r0, turns, a0, dir) { const n = 40; c.beginPath(); for (let i = 0; i <= n; i++) { const t = i / n, a = a0 + dir * t * turns * TAU, r = r0 * (1 - t * .86); c[i ? 'lineTo' : 'moveTo'](cx + cos(a) * r, cy + sin(a) * r); } }
+function def(id, l, cat, r, draw, o) {
+  o = o || {};
+  REG.push({ id, l, cat, r, kw: o.kw || '', lwk: o.lwk || 0.012, size: o.size || 'sq' });
+  SV.ORN_EXT['m_' + id] = (c, x, y, w, h, el) => {
+    const u = Math.min(w, h), msw = (el && el.msw) || 1;
+    const g = { c, x, y, w, h, cx: x + w / 2, cy: y + h / 2, u, c1: el && el.fill && el.fill !== 'none' ? el.fill : '#d4af37', c2: el && el.stroke && el.stroke !== 'none' ? el.stroke : '#0d5c2e' };
+    g.lw = Math.max(1, (o.lwk ? (o.lwk > 0.03 ? h : u) * o.lwk : u * 0.012) * msw);
+    c.save(); try { draw(g); } finally { c.restore(); }
+  };
+}
+/* ---------- arches ---------- */
+function archPath(c, x, y, w, h, t) {
+  const cx = x + w / 2, b = y + h;
+  c.beginPath();
+  if (t === 'horse') {
+    const R = w * 0.5, a1 = Math.atan2(.6, -.8), a2 = Math.atan2(.6, .8) + TAU;
+    c.moveTo(cx - .8 * R, b); c.lineTo(cx - .8 * R, y + R + .6 * R); c.arc(cx, y + R, R, a1, a2, false); c.lineTo(cx + .8 * R, b);
+  } else if (t === 'round') {
+    const R = w / 2; c.moveTo(x, b); c.lineTo(x, y + R); c.arc(cx, y + R, R, PI, 0, false); c.lineTo(x + w, b);
+  } else if (t === 'lancet') {
+    const ys = y + h * .52; c.moveTo(x, b); c.lineTo(x, ys); c.quadraticCurveTo(x, y + h * .12, cx, y); c.quadraticCurveTo(x + w, y + h * .12, x + w, ys); c.lineTo(x + w, b);
+  } else { /* ogee / pointed */
+    const ys = y + h * .5; c.moveTo(x, b); c.lineTo(x, ys); c.bezierCurveTo(x, y + h * .22, cx - w * .06, y + h * .2, cx, y); c.bezierCurveTo(cx + w * .06, y + h * .2, x + w, y + h * .22, x + w, ys); c.lineTo(x + w, b);
+  }
+  c.closePath();
+}
+function muq(c, x, y, w, h, col, lw) { /* stalactite cups, clipped by caller */
+  const rows = 5;
+  for (let j = 0; j < rows; j++) {
+    const n = 3 + j, rw = w * (0.5 + j * 0.13), r = rw / n / 2, yy = y + h * 0.05 + j * r * 1.45;
+    for (let i = 0; i < n; i++) {
+      const px = x + w / 2 - rw / 2 + r + i * 2 * r + (j % 2 ? 0 : 0);
+      c.beginPath(); c.arc(px, yy + r * .3, r * .96, 0, PI); sk(c, col, lw);
+      c.beginPath(); c.arc(px, yy + r * .3, r * .5, 0, PI); sk(c, col, lw * .7, .7);
+    }
+  }
+}
+/* ---------- STELLE E GIRIH ---------- */
+function lstar(g, n, k, rot) {
+  const { c, cx, cy, u, c1, c2, lw } = g, R = u * .48;
+  st(c, cx, cy, R, R * k, n, rot == null ? -PI / 2 : rot); fl(c, c1); sk(c, c2, lw * 1.2);
+  st(c, cx, cy, R * .66, R * .66 * k, n, (rot == null ? -PI / 2 : rot) + PI / n); fl(c, c2); sk(c, c1, lw);
+  st(c, cx, cy, R * .4, R * .4 * k, n, rot == null ? -PI / 2 : rot); fl(c, c1); sk(c, c2, lw);
+  ci(c, cx, cy, R * .1); fl(c, c2);
+}
+def('star8', 'Stella 8 punte', CATS[0], 1, g => lstar(g, 8, .64), { kw: 'stella otto punte' });
+def('star10', 'Stella 10 punte', CATS[0], 1, g => lstar(g, 10, .74), { kw: 'stella dieci punte' });
+def('star12', 'Stella 12 punte', CATS[0], 1, g => lstar(g, 12, .8), { kw: 'stella dodici punte' });
+def('star16', 'Stella 16 punte', CATS[0], 1, g => { lstar(g, 16, .86); const { c, cx, cy, u, c1 } = g; for (let i = 0; i < 32; i++) { const a = i * TAU / 32; ci(c, cx + cos(a) * u * .495, cy + sin(a) * u * .495, u * .008); fl(c, c1); } }, { kw: 'stella sedici punte' });
+def('khatam', 'Stella Khatam (2 quadrati)', CATS[0], 1, g => {
+  const { c, cx, cy, u, c1, c2, lw } = g, R = u * .5;
+  pg(c, cx, cy, R * .72, 4, PI / 4); fl(c, c1); pg(c, cx, cy, R * .72, 4, 0); fl(c, c1);
+  pg(c, cx, cy, R * .72, 4, PI / 4); sk(c, c2, lw * 1.4); pg(c, cx, cy, R * .72, 4, 0); sk(c, c2, lw * 1.4);
+  pg(c, cx, cy, R * .5, 8, PI / 8); fl(c, c2); sk(c, c1, lw);
+  st(c, cx, cy, R * .38, R * .18, 8, -PI / 2); fl(c, c1); ci(c, cx, cy, R * .07); fl(c, c2);
+}, { kw: 'khatam stella due quadrati ottagono' });
+def('star6', 'Sigillo a 6 punte', CATS[0], 1, g => {
+  const { c, cx, cy, u, c1, c2, lw } = g, R = u * .48;
+  pg(c, cx, cy, R, 3, -PI / 2); fl(c, c1); pg(c, cx, cy, R, 3, PI / 2); fl(c, c1);
+  pg(c, cx, cy, R, 3, -PI / 2); sk(c, c2, lw * 1.3); pg(c, cx, cy, R, 3, PI / 2); sk(c, c2, lw * 1.3);
+  pg(c, cx, cy, R * .5, 6, 0); fl(c, c2); sk(c, c1, lw); ci(c, cx, cy, R * .16); fl(c, c1);
+}, { kw: 'stella di davide sigillo esagramma' });
+def('girih10', 'Girih decagono', CATS[0], 1, g => {
+  const { c, cx, cy, u, c1, c2, lw } = g, R = u * .48;
+  pg(c, cx, cy, R, 10, -PI / 2); fl(c, c1); sk(c, c2, lw * 1.5);
+  c.beginPath(); for (let i = 0; i < 10; i++) { const a = -PI / 2 + i * TAU / 10, b = a + 3 * TAU / 10; c.moveTo(cx + cos(a) * R, cy + sin(a) * R); c.lineTo(cx + cos(b) * R, cy + sin(b) * R); } sk(c, c2, lw * 1.2);
+  pg(c, cx, cy, R * .618, 10, -PI / 2); fl(c, c2, .9); sk(c, c1, lw);
+  st(c, cx, cy, R * .4, R * .2, 10, -PI / 2); fl(c, c1); ci(c, cx, cy, R * .07); fl(c, c2);
+}, { kw: 'girih decagono piastrella geometrica' });
+def('girih5', 'Girih pentagono', CATS[0], 1, g => {
+  const { c, cx, cy, u, c1, c2, lw } = g, R = u * .5;
+  pg(c, cx, cy + R * .06, R, 5, -PI / 2); fl(c, c1); sk(c, c2, lw * 1.5);
+  c.beginPath(); for (let i = 0; i < 5; i++) { const a = -PI / 2 + i * TAU / 5, b = a + 2 * TAU / 5; c.moveTo(cx + cos(a) * R, cy + R * .06 + sin(a) * R); c.lineTo(cx + cos(b) * R, cy + R * .06 + sin(b) * R); } sk(c, c2, lw * 1.2);
+  pg(c, cx, cy + R * .06, R * .382, 5, PI / 2); fl(c, c2); sk(c, c1, lw); ci(c, cx, cy + R * .06, R * .08); fl(c, c1);
+}, { kw: 'girih pentagono piastrella' });
+def('girihbow', 'Girih farfalla', CATS[0], 1.6, g => {
+  const { c, cx, cy, w, h, c1, c2, lw } = g, a = Math.min(w, h * 1.6) / 2, hh = a / 1.6;
+  c.beginPath(); c.moveTo(cx - a, cy - hh * .95); c.lineTo(cx, cy - hh * .3); c.lineTo(cx + a, cy - hh * .95); c.lineTo(cx + a, cy + hh * .95); c.lineTo(cx, cy + hh * .3); c.lineTo(cx - a, cy + hh * .95); c.closePath(); fl(c, c1); sk(c, c2, lw * 1.5);
+  c.beginPath(); c.moveTo(cx - a * .7, cy - hh * .55); c.lineTo(cx - a * .1, cy); c.lineTo(cx - a * .7, cy + hh * .55); c.moveTo(cx + a * .7, cy - hh * .55); c.lineTo(cx + a * .1, cy); c.lineTo(cx + a * .7, cy + hh * .55); sk(c, c2, lw * 1.2);
+  ci(c, cx - a * .55, cy, hh * .16); fl(c, c2); ci(c, cx + a * .55, cy, hh * .16); fl(c, c2);
+}, { kw: 'girih farfalla bowtie' });
+def('girihrh', 'Girih rombo', CATS[0], 1, g => {
+  const { c, cx, cy, u, c1, c2, lw } = g, a = u * .27, b = u * .46;
+  const P = k => { c.beginPath(); c.moveTo(cx, cy - b * k); c.lineTo(cx + a * k, cy); c.lineTo(cx, cy + b * k); c.lineTo(cx - a * k, cy); c.closePath(); };
+  P(1); fl(c, c1); sk(c, c2, lw * 1.5); P(.62); fl(c, c2); sk(c, c1, lw); P(.28); fl(c, c1);
+  c.beginPath(); c.moveTo(cx, cy - b); c.lineTo(cx, cy - b * .62); c.moveTo(cx, cy + b); c.lineTo(cx, cy + b * .62); c.moveTo(cx - a, cy); c.lineTo(cx - a * .62, cy); c.moveTo(cx + a, cy); c.lineTo(cx + a * .62, cy); sk(c, c2, lw);
+}, { kw: 'girih rombo losanga' });
+/* ---------- ROSONI E MEDAGLIONI ---------- */
+def('rosette8', 'Rosone a 8 petali', CATS[1], 1, g => {
+  const { c, cx, cy, u, c1, c2, lw } = g, R = u * .48;
+  for (let i = 0; i < 8; i++) { const a = i * TAU / 8; leaf(c, cx + cos(a) * R * .18, cy + sin(a) * R * .18, cx + cos(a) * R, cy + sin(a) * R, .22); fl(c, c1); sk(c, c2, lw * 1.2); }
+  for (let i = 0; i < 8; i++) { const a = i * TAU / 8 + PI / 8; leaf(c, cx + cos(a) * R * .12, cy + sin(a) * R * .12, cx + cos(a) * R * .62, cy + sin(a) * R * .62, .2); fl(c, c2); sk(c, c1, lw); }
+  ci(c, cx, cy, R * .17); fl(c, c1); sk(c, c2, lw); ci(c, cx, cy, R * .07); fl(c, c2);
+}, { kw: 'rosone fiore petali' });
+def('lotus12', 'Loto a 12 petali', CATS[1], 1, g => {
+  const { c, cx, cy, u, c1, c2, lw } = g, R = u * .48;
+  for (let i = 0; i < 12; i++) { const a = i * TAU / 12; leaf(c, cx + cos(a) * R * .3, cy + sin(a) * R * .3, cx + cos(a) * R, cy + sin(a) * R, .14); fl(c, c1); sk(c, c2, lw); }
+  ci(c, cx, cy, R * .42); fl(c, c2); sk(c, c1, lw * 1.3);
+  for (let i = 0; i < 12; i++) { const a = i * TAU / 12 + PI / 12; leaf(c, cx + cos(a) * R * .08, cy + sin(a) * R * .08, cx + cos(a) * R * .36, cy + sin(a) * R * .36, .2); fl(c, c1); }
+  ci(c, cx, cy, R * .07); fl(c, c2);
+}, { kw: 'loto fiore dodici petali' });
+def('shamsa', 'Shamsa (sole ornato)', CATS[1], 1, g => {
+  const { c, cx, cy, u, c1, c2, lw } = g, R = u * .48, n = 24;
+  c.beginPath(); for (let i = 0; i < n; i++) { const a0 = i * TAU / n, a1 = (i + 1) * TAU / n, am = (a0 + a1) / 2; c.arc(cx + cos(am) * R * .9, cy + sin(am) * R * .9, R * .1, am - PI * .95, am + PI * .95, false); } c.closePath(); fl(c, c1); sk(c, c2, lw);
+  ci(c, cx, cy, R * .8); fl(c, c2); sk(c, c1, lw * 1.4); ci(c, cx, cy, R * .72); sk(c, c1, lw * .8);
+  st(c, cx, cy, R * .68, R * .44, 16, -PI / 2); fl(c, c1); sk(c, c2, lw);
+  ci(c, cx, cy, R * .3); fl(c, c2); sk(c, c1, lw); st(c, cx, cy, R * .26, R * .13, 8, -PI / 2); fl(c, c1);
+}, { kw: 'shamsa sole medaglione manoscritto' });
+def('floral6', 'Rosone floreale', CATS[1], 1, g => {
+  const { c, cx, cy, u, c1, c2, lw } = g, R = u * .48;
+  for (let i = 0; i < 6; i++) { const a = i * TAU / 6; ci(c, cx + cos(a) * R * .52, cy + sin(a) * R * .52, R * .4); fl(c, c1); sk(c, c2, lw * 1.2); }
+  ci(c, cx, cy, R * .52); fl(c, c2); sk(c, c1, lw * 1.3);
+  for (let i = 0; i < 6; i++) { const a = i * TAU / 6 + PI / 6; leaf(c, cx + cos(a) * R * .06, cy + sin(a) * R * .06, cx + cos(a) * R * .46, cy + sin(a) * R * .46, .24); fl(c, c1); }
+  ci(c, cx, cy, R * .1); fl(c, c2); sk(c, c1, lw);
+}, { kw: 'rosone floreale sei petali fiore' });
+def('medstar', 'Medaglione a stella', CATS[1], 1, g => {
+  const { c, cx, cy, u, c1, c2, lw } = g, R = u * .48;
+  ci(c, cx, cy, R); fl(c, c2); sk(c, c1, lw * 2); ci(c, cx, cy, R * .9); sk(c, c1, lw);
+  for (let i = 0; i < 32; i++) { const a = i * TAU / 32; ci(c, cx + cos(a) * R * .8, cy + sin(a) * R * .8, R * .028); fl(c, c1); }
+  st(c, cx, cy, R * .7, R * .45, 8, -PI / 2); fl(c, c1); sk(c, c2, lw); ci(c, cx, cy, R * .27); fl(c, c2); sk(c, c1, lw); st(c, cx, cy, R * .22, R * .11, 8, -PI / 2 + PI / 8); fl(c, c1);
+}, { kw: 'medaglione stella cerchio' });
+def('cartouche', 'Cartiglio (spazio per testo)', CATS[1], 1.7, g => {
+  const { c, cx, cy, w, h, c1, c2, lw } = g, a = Math.min(w / 2, h * .85), b = a * .55;
+  const L = k => { c.beginPath(); c.moveTo(cx - a * k, cy); c.quadraticCurveTo(cx, cy - b * 2 * k, cx + a * k, cy); c.quadraticCurveTo(cx, cy + b * 2 * k, cx - a * k, cy); c.closePath(); };
+  L(1); fl(c, c2); sk(c, c1, lw * 2.2); L(.9); sk(c, c1, lw * 1.1);
+  for (const s of [-1, 1]) { ci(c, cx + s * a * 1.08, cy, b * .22); fl(c, c1); leaf(c, cx + s * a * 1.12, cy, cx + s * a * 1.34, cy, .35); fl(c, c1); }
+  for (const s of [-1, 1]) { st(c, cx + s * a * .78, cy, b * .24, b * .11, 8, 0); fl(c, c1); }
+}, { kw: 'cartiglio ovale etichetta targa' });
+/* ---------- ARCHI E MIHRAB ---------- */
+function archBand(g, type, band, inner) {
+  const { c, x, y, w, h, c1, c2, lw } = g, bw = w * band;
+  archPath(c, x, y, w, h, type); fl(c, c1);
+  archPath(c, x + bw, y + bw, w - 2 * bw, h - bw, type); fl(c, inner || c2);
+  archPath(c, x + bw * 0.5, y + bw * 0.5, w - bw, h - bw * 0.5, type); sk(c, c2, lw * 1.1);
+}
+def('mihrab', 'Mihrab con muqarnas', CATS[2], .72, g => {
+  const { c, x, y, w, h, cx, c1, c2, lw } = g; const bw = w * .08;
+  archBand(g, 'ogee', .08);
+  c.save(); archPath(c, x + bw, y + bw, w - 2 * bw, h - bw, 'ogee'); c.clip(); muq(c, x + bw, y + bw * 1.6, w - 2 * bw, h * .5, c1, lw * 1.1);
+  c.beginPath(); c.moveTo(cx, y + h * .64); c.lineTo(cx, y + h * .98); sk(c, c1, lw, .0);
+  /* lamp */
+  ci(c, cx, y + h * .66, w * .035); fl(c, c1); c.beginPath(); c.moveTo(cx, y + h * .66); c.lineTo(cx, y + h * .78); sk(c, c1, lw);
+  leaf(c, cx - w * .06, y + h * .86, cx + w * .06, y + h * .86, .5); fl(c, c1); st(c, cx, y + h * .93, w * .08, w * .035, 8, 0); fl(c, c1);
+  c.restore();
+}, { kw: 'mihrab nicchia arco muqarnas stalattiti', size: 'arch' });
+def('arch_ogee', 'Arco ogivale', CATS[2], .74, g => {
+  const { c, x, y, w, h, cx, c1, c2, lw } = g; archBand(g, 'ogee', .06);
+  archPath(c, x + w * .13, y + w * .13, w * .74, h - w * .13, 'ogee'); sk(c, c1, lw * 1.2);
+  st(c, cx, y + h * .42, w * .17, w * .1, 8, -PI / 2); fl(c, c1); ci(c, cx, y + h * .42, w * .03); fl(c, c2);
+  c.beginPath(); c.moveTo(x + w * .2, y + h * .98); c.lineTo(x + w * .2, y + h * .62); c.moveTo(x + w * .8, y + h * .98); c.lineTo(x + w * .8, y + h * .62); sk(c, c1, lw * 1.4);
+}, { kw: 'arco ogivale finestra', size: 'arch' });
+def('arch_lancet', 'Arco a lancetta', CATS[2], .6, g => {
+  const { c, x, y, w, h, cx, c1, c2, lw } = g; archBand(g, 'lancet', .07);
+  for (let i = 1; i <= 3; i++) { archPath(c, x + w * (.07 + i * .045), y + w * (.07 + i * .05), w * (.86 - i * .09), h - w * (.07 + i * .05), 'lancet'); sk(c, c1, lw * (i === 1 ? 1.2 : .8), i === 3 ? .6 : 1); }
+  ci(c, cx, y + h * .33, w * .07); fl(c, c1);
+}, { kw: 'arco lancetta gotico islamico finestra', size: 'arch' });
+def('arch_horse', 'Arco a ferro di cavallo', CATS[2], .62, g => {
+  const { c, x, y, w, h, cx, c1, c2, lw } = g; archBand(g, 'horse', .08);
+  archPath(c, x + w * .16, y + w * .16, w * .68, h - w * .16, 'horse'); sk(c, c1, lw * 1.2);
+  c.save(); archPath(c, x + w * .16, y + w * .16, w * .68, h - w * .16, 'horse'); c.clip();
+  for (let i = 0; i < 9; i++) { const yy = y + w * .22 + i * w * .13; c.beginPath(); c.moveTo(x, yy); c.lineTo(x + w, yy); sk(c, c1, lw * .7, .45); }
+  for (let i = 0; i < 6; i++) { const xx = x + w * .2 + i * w * .12; c.beginPath(); c.moveTo(xx, y); c.lineTo(xx, y + h); sk(c, c1, lw * .7, .45); }
+  c.restore();
+}, { kw: 'arco ferro di cavallo moresco andaluso', size: 'arch' });
+def('arch_triple', 'Tre archi', CATS[2], 1.5, g => {
+  const { c, x, y, w, h, c1, c2, lw } = g, aw = w / 3.15;
+  c.beginPath(); c.rect(x, y, w, h); fl(c, c1);
+  for (let i = 0; i < 3; i++) { const ax = x + w * .03 + i * (aw + w * .03), top = y + h * (i === 1 ? .08 : .2); archPath(c, ax, top, aw, h * .92 - (top - y), 'ogee'); fl(c, c2); archPath(c, ax + aw * .1, top + aw * .1, aw * .8, h * .92 - (top - y) - aw * .1, 'ogee'); sk(c, c1, lw);
+    st(c, ax + aw / 2, top + (h * .92 - (top - y)) * .45, aw * .2, aw * .11, 8, -PI / 2); fl(c, c1); }
+  c.beginPath(); c.rect(x, y + h * .93, w, h * .07); fl(c, c1);
+}, { kw: 'tre archi portico loggia', size: 'wide' });
+def('window_star', 'Finestra con stella', CATS[2], .8, g => {
+  const { c, x, y, w, h, cx, c1, c2, lw } = g; archBand(g, 'round', .07);
+  const R = w * .3, cy = y + h * .5; c.save(); archPath(c, x + w * .07, y + w * .07, w * .86, h - w * .07, 'round'); c.clip();
+  st(c, cx, cy, R, R * .62, 8, -PI / 2); fl(c, c1); st(c, cx, cy, R * .56, R * .35, 8, -PI / 2 + PI / 8); fl(c, c2); ci(c, cx, cy, R * .1); fl(c, c1);
+  for (let i = 0; i < 4; i++) { const a = PI / 4 + i * PI / 2; ci(c, cx + cos(a) * R * 1.12, cy + sin(a) * R * 1.12, R * .12); sk(c, c1, lw); }
+  c.restore();
+}, { kw: 'finestra stella arco tondo', size: 'arch' });
+/* ---------- LANTERNE E LUNA ---------- */
+def('fanus', 'Lanterna Fanous', CATS[3], .56, g => {
+  const { c, x, y, w, h, cx, c1, c2, lw } = g, W = Math.min(w, h * .56), s = W / .56 / 100;
+  const X = v => cx + v * s, Y = v => y + (h - W / .56) / 2 + v * s;
+  c.beginPath(); c.moveTo(X(0), Y(0)); c.lineTo(X(0), Y(14)); sk(c, c1, lw * 1.4); ci(c, X(0), Y(3), 3.5 * s); sk(c, c1, lw * 1.2);
+  c.beginPath(); c.moveTo(X(-6), Y(16)); c.bezierCurveTo(X(-6), Y(8), X(-3), Y(14), X(0), Y(6)); c.bezierCurveTo(X(3), Y(14), X(6), Y(8), X(6), Y(16)); c.closePath(); fl(c, c1);
+  c.beginPath(); c.moveTo(X(-16), Y(24)); c.bezierCurveTo(X(-16), Y(14), X(-6), Y(19), X(0), Y(11)); c.bezierCurveTo(X(6), Y(19), X(16), Y(14), X(16), Y(24)); c.closePath(); fl(c, c1); sk(c, c2, lw);
+  c.beginPath(); c.moveTo(X(-17), Y(24)); c.lineTo(X(17), Y(24)); c.lineTo(X(24), Y(54)); c.lineTo(X(17), Y(84)); c.lineTo(X(-17), Y(84)); c.lineTo(X(-24), Y(54)); c.closePath(); fl(c, c2); sk(c, c1, lw * 2.2);
+  c.save(); c.clip(); const gr = c.createRadialGradient(X(0), Y(54), 0, X(0), Y(54), 30 * s); gr.addColorStop(0, c1); gr.addColorStop(1, 'rgba(255,255,255,0)'); c.globalAlpha *= .55; c.fillStyle = gr; c.fillRect(X(-30), Y(20), 60 * s, 70 * s); c.globalAlpha = 1;
+  st(c, X(0), Y(54), 13 * s, 7 * s, 8, -PI / 2); fl(c, c1);
+  c.beginPath(); for (const v of [-9, 9]) { c.moveTo(X(v), Y(24)); c.lineTo(X(v * 1.35), Y(84)); } for (const v of [38, 70]) { c.moveTo(X(-24), Y(v)); c.lineTo(X(24), Y(v)); } sk(c, c1, lw * 1.1); c.restore();
+  c.beginPath(); c.moveTo(X(-20), Y(84)); c.lineTo(X(20), Y(84)); c.lineTo(X(15), Y(92)); c.lineTo(X(-15), Y(92)); c.closePath(); fl(c, c1);
+  ci(c, X(0), Y(95), 3 * s); fl(c, c1); c.beginPath(); c.moveTo(X(0), Y(92)); c.lineTo(X(0), Y(100)); sk(c, c1, lw);
+}, { kw: 'lanterna fanous fanoos ramadan lume', size: 'tall' });
+def('lantern_round', 'Lanterna rotonda', CATS[3], .62, g => {
+  const { c, x, y, w, h, cx, c1, c2, lw } = g, W = Math.min(w, h * .62), s = W / .62 / 100;
+  const X = v => cx + v * s, Y = v => y + (h - W / .62) / 2 + v * s;
+  c.beginPath(); c.moveTo(X(0), Y(0)); c.lineTo(X(0), Y(16)); sk(c, c1, lw * 1.4);
+  c.beginPath(); c.moveTo(X(-18), Y(30)); c.bezierCurveTo(X(-18), Y(18), X(-5), Y(24), X(0), Y(14)); c.bezierCurveTo(X(5), Y(24), X(18), Y(18), X(18), Y(30)); c.closePath(); fl(c, c1);
+  ci(c, X(0), Y(60), 31 * s); fl(c, c2); sk(c, c1, lw * 2.2);
+  c.save(); ci(c, X(0), Y(60), 31 * s); c.clip(); const gr = c.createRadialGradient(X(0), Y(60), 0, X(0), Y(60), 31 * s); gr.addColorStop(0, c1); gr.addColorStop(1, 'rgba(255,255,255,0)'); c.globalAlpha *= .5; c.fillStyle = gr; c.fillRect(X(-35), Y(25), 70 * s, 70 * s); c.globalAlpha = 1;
+  st(c, X(0), Y(60), 24 * s, 12 * s, 8, -PI / 2); fl(c, c1); ci(c, X(0), Y(60), 6 * s); fl(c, c2);
+  for (let i = 0; i < 8; i++) { const a = i * PI / 4 + PI / 8; ci(c, X(cos(a) * 20), Y(60 + sin(a) * 20), 2.3 * s); fl(c, c2); } c.restore();
+  c.beginPath(); c.moveTo(X(-14), Y(88)); c.lineTo(X(14), Y(88)); c.lineTo(X(8), Y(97)); c.lineTo(X(-8), Y(97)); c.closePath(); fl(c, c1);
+}, { kw: 'lanterna rotonda sfera lume', size: 'tall' });
+def('crescent_star', 'Mezzaluna e stella', CATS[3], 1, g => {
+  const { c, cx, cy, u, c1, c2, lw } = g, R = u * .46;
+  c.beginPath(); c.arc(cx - R * .06, cy, R, 0, TAU); c.arc(cx + R * .3, cy, R * .78, 0, TAU, true); c.fillStyle = c1; c.fill('evenodd');
+  st(c, cx + R * .38, cy, R * .3, R * .12, 5, -PI / 2); fl(c, c1);
+}, { kw: 'mezzaluna stella islam ramadan eid' });
+def('crescent_orn', 'Mezzaluna ornata', CATS[3], 1, g => {
+  const { c, cx, cy, u, c1, c2, lw } = g, R = u * .46;
+  const path = (k, off) => { c.beginPath(); c.arc(cx - R * .1 * k, cy, R * k, 0, TAU); c.arc(cx + R * (.26 + off) * k, cy, R * .78 * k, 0, TAU, true); };
+  path(1, 0); c.fillStyle = c1; c.fill('evenodd'); path(.9, 0); sk(c, c2, lw * 1.2);
+  for (let i = 0; i < 9; i++) { const a = PI * .56 + i * PI * .105, rr = R * .8; ci(c, cx - R * .1 + cos(a) * rr * 1.0, cy + sin(a) * rr, R * .028); fl(c, c2); }
+  st(c, cx + R * .42, cy, R * .17, R * .08, 8, 0); fl(c, c1); sk(c, c2, lw * .5);
+}, { kw: 'mezzaluna ornata luna' });
+def('crescent_badge', 'Luna nel medaglione', CATS[3], 1, g => {
+  const { c, cx, cy, u, c1, c2, lw } = g, R = u * .48;
+  ci(c, cx, cy, R); fl(c, c2); sk(c, c1, lw * 2.2); ci(c, cx, cy, R * .88); sk(c, c1, lw * .9);
+  for (let i = 0; i < 16; i++) { const a = i * TAU / 16; st(c, cx + cos(a) * R * .75, cy + sin(a) * R * .75, R * .06, R * .025, 4, a); fl(c, c1); }
+  const r = R * .5; c.beginPath(); c.arc(cx - r * .1, cy, r, 0, TAU); c.arc(cx + r * .32, cy, r * .78, 0, TAU, true); c.fillStyle = c1; c.fill('evenodd'); st(c, cx + r * .42, cy, r * .26, r * .1, 5, -PI / 2); fl(c, c1);
+}, { kw: 'luna medaglione stemma badge' });
+/* ---------- ANGOLI (drawn for the top-left corner; rotate for the others) ---------- */
+function Lline(c, x, y, s, f, col, w) { c.beginPath(); c.moveTo(x + f * s * .0, y + s); c.lineTo(x, y); c.lineTo(x + s, y); sk(c, col, w); }
+def('c_arab', 'Angolo arabesco', CATS[4], 1, g => {
+  const { c, x, y, w, h, c1, c2, lw } = g, s = Math.min(w, h);
+  Lline(c, x + s * .02, y + s * .02, s * .96, 0, c1, lw * 2.6); Lline(c, x + s * .07, y + s * .07, s * .66, 0, c1, lw * .9);
+  for (let i = 0; i < 5; i++) { const a = (i + .5) * PI / 10; leaf(c, x + cos(a) * s * .08 + s * .05, y + sin(a) * s * .08 + s * .05, x + cos(a) * s * .42 + s * .05, y + sin(a) * s * .42 + s * .05, .2); fl(c, c1); sk(c, c2, lw * .6); }
+  spiral(c, x + s * .66, y + s * .15, s * .09, 1.6, PI, 1); sk(c, c1, lw * 1.5); spiral(c, x + s * .15, y + s * .66, s * .09, 1.6, -PI / 2, -1); sk(c, c1, lw * 1.5);
+  c.beginPath(); c.arc(x + s * .05, y + s * .05, s * .5, .08, PI / 2 - .08); sk(c, c1, lw); c.beginPath(); c.arc(x + s * .05, y + s * .05, s * .58, .1, PI / 2 - .1); sk(c, c1, lw * .7, .7);
+  ci(c, x + s * .05, y + s * .05, s * .05); fl(c, c1);
+}, { kw: 'angolo arabesco ornamento cornice' });
+def('c_geo', 'Angolo geometrico', CATS[4], 1, g => {
+  const { c, x, y, w, h, c1, c2, lw } = g, s = Math.min(w, h);
+  Lline(c, x + s * .02, y + s * .02, s * .96, 0, c1, lw * 2.6); Lline(c, x + s * .1, y + s * .1, s * .7, 0, c1, lw * 1.1);
+  st(c, x + s * .22, y + s * .22, s * .2, s * .12, 8, -PI / 2); fl(c, c1); sk(c, c2, lw * .6); ci(c, x + s * .22, y + s * .22, s * .035); fl(c, c2);
+  for (let i = 0; i < 4; i++) { const t = .5 + i * .12; pg(c, x + s * t, y + s * .1, s * .028, 4, PI / 4); fl(c, c1); pg(c, x + s * .1, y + s * t, s * .028, 4, PI / 4); fl(c, c1); }
+}, { kw: 'angolo geometrico stella' });
+def('c_floral', 'Angolo floreale', CATS[4], 1, g => {
+  const { c, x, y, w, h, c1, c2, lw } = g, s = Math.min(w, h);
+  Lline(c, x + s * .03, y + s * .03, s * .94, 0, c1, lw * 1.8);
+  for (let i = 0; i < 4; i++) { const t = .32 + i * .17; leaf(c, x + s * t, y + s * .04, x + s * (t + .07), y + s * .16, .35); fl(c, c1); leaf(c, x + s * .04, y + s * t, x + s * .16, y + s * (t + .07), .35); fl(c, c1); }
+  for (let i = 0; i < 6; i++) { const a = i * TAU / 6; leaf(c, x + s * .18, y + s * .18, x + s * .18 + cos(a) * s * .17, y + s * .18 + sin(a) * s * .17, .3); fl(c, c1); sk(c, c2, lw * .5); }
+  ci(c, x + s * .18, y + s * .18, s * .04); fl(c, c2); sk(c, c1, lw);
+}, { kw: 'angolo floreale foglie' });
+def('c_scallop', 'Angolo a festoni', CATS[4], 1, g => {
+  const { c, x, y, w, h, c1, c2, lw } = g, s = Math.min(w, h);
+  /* concentric quarter arcs with scalloped rim */
+  for (let k = 3; k >= 1; k--) { c.beginPath(); c.moveTo(x, y); c.arc(x, y, s * (.28 + k * .22), 0, PI / 2); c.closePath(); fl(c, k % 2 ? c1 : c2); sk(c, c1, lw); }
+  for (let i = 0; i < 6; i++) { const aa = (i + .5) * (PI / 2) / 6; ci(c, x + cos(aa) * s * .98, y + sin(aa) * s * .98, s * .045); fl(c, c1); }
+  st(c, x, y, s * .26, s * .14, 8, 0); fl(c, c1); sk(c, c2, lw * .7);
+}, { kw: 'angolo festoni archetti' });
+/* ---------- CORNICI (full-box) ---------- */
+function frameRect(g, k, w2, col) { const { c, x, y, w, h } = g, m = Math.min(w, h) * k; c.beginPath(); c.rect(x + m, y + m, w - 2 * m, h - 2 * m); sk(c, col, w2); }
+def('f_single', 'Cornice singola', CATS[5], .75, g => {
+  const { c, x, y, w, h, c1, c2, lw } = g, u = g.u; frameRect(g, .035, lw * 4, c1); frameRect(g, .05, lw * 1.2, c1);
+  for (const [px, py] of [[.035, .035], [.965, .035], [.035, .965], [.965, .965]]) { pg(c, x + w * (px < .5 ? .035 : 1 - .035 * h / w * 1), y + h * py, u * .03, 4, PI / 4); }
+  for (const [ax, ay] of [[0, 0], [1, 0], [0, 1], [1, 1]]) { const m = u * .035; pg(c, x + m + ax * (w - 2 * m), y + m + ay * (h - 2 * m), u * .035, 4, PI / 4); fl(c, c1); sk(c, c2, lw * .8); }
+}, { kw: 'cornice singola bordo', lwk: .004, size: 'page' });
+def('f_double', 'Cornice doppia con stelle', CATS[5], .75, g => {
+  const { c, x, y, w, h, c1, c2, lw } = g, u = g.u; frameRect(g, .03, lw * 4, c1); frameRect(g, .055, lw * 1.4, c1);
+  for (const [ax, ay] of [[0, 0], [1, 0], [0, 1], [1, 1]]) { const m = u * .042; st(c, x + m + ax * (w - 2 * m), y + m + ay * (h - 2 * m), u * .046, u * .028, 8, 0); fl(c, c1); sk(c, c2, lw); }
+  for (const t of [.5]) { const m = u * .042; for (const [px, py] of [[x + w * t, y + m], [x + w * t, y + h - m], [x + m, y + h * t], [x + w - m, y + h * t]]) { pg(c, px, py, u * .022, 4, 0); fl(c, c1); sk(c, c2, lw * .7); } }
+}, { kw: 'cornice doppia stelle bordo', lwk: .004, size: 'page' });
+def('f_stars', 'Cornice a stelline', CATS[5], .75, g => {
+  const { c, x, y, w, h, c1, c2, lw } = g, u = g.u, m = u * .045, step = u * .075;
+  frameRect(g, .028, lw * 3, c1); frameRect(g, .065, lw * 1.2, c1);
+  const row = (x1, y1, x2, y2) => { const L = Math.hypot(x2 - x1, y2 - y1), n = Math.max(1, Math.round(L / step)); for (let i = 0; i <= n; i++) { const t = i / n; st(c, x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, u * .017, u * .008, 8, 0); fl(c, c1); } };
+  row(x + m * 1.5, y + m, x + w - m * 1.5, y + m); row(x + m * 1.5, y + h - m, x + w - m * 1.5, y + h - m); row(x + m, y + m * 2.5, x + m, y + h - m * 2.5); row(x + w - m, y + m * 2.5, x + w - m, y + h - m * 2.5);
+}, { kw: 'cornice stelle stelline bordo', lwk: .004, size: 'page' });
+def('f_arches', 'Cornice ad archetti', CATS[5], .75, g => {
+  const { c, x, y, w, h, c1, c2, lw } = g, u = g.u, m = u * .03, n = Math.max(4, Math.round(w / (u * .09))), r = (w - 2 * m) / n / 2;
+  frameRect(g, .03, lw * 4, c1);
+  const sc = (x0, y0, ang, len, k) => { c.save(); c.translate(x0, y0); c.rotate(ang); const nn = Math.max(3, Math.round(len / (r * 2))), rr = len / nn / 2; for (let i = 0; i < nn; i++) { c.beginPath(); c.arc(rr + i * rr * 2, 0, rr * .96, 0, PI); fl(c, c1); c.beginPath(); c.arc(rr + i * rr * 2, 0, rr * .6, 0, PI); sk(c, c2, lw * .8); } c.restore(); };
+  sc(x + m * 1.2, y + m * 1.2, 0, w - 2.4 * m, 1); sc(x + w - m * 1.2, y + h - m * 1.2, PI, w - 2.4 * m, 1); sc(x + w - m * 1.2, y + m * 1.2, PI / 2, h - 2.4 * m, 1); sc(x + m * 1.2, y + h - m * 1.2, -PI / 2, h - 2.4 * m, 1);
+}, { kw: 'cornice archetti festoni bordo', lwk: .004, size: 'page' });
+def('f_octa', 'Cornice a angoli smussati', CATS[5], .75, g => {
+  const { c, x, y, w, h, c1, c2, lw } = g, u = g.u;
+  for (const [k, ww] of [[.03, 4], [.058, 1.3]]) { const m = u * k, q = u * .07; c.beginPath(); c.moveTo(x + m + q, y + m); c.lineTo(x + w - m - q, y + m); c.arc(x + w - m - q, y + m + q, q, -PI / 2, 0, true); c.lineTo(x + w - m, y + h - m - q); c.arc(x + w - m - q, y + h - m - q, q, 0, PI / 2, true); c.lineTo(x + m + q, y + h - m); c.arc(x + m + q, y + h - m - q, q, PI / 2, PI, true); c.lineTo(x + m, y + m + q); c.arc(x + m + q, y + m + q, q, PI, PI * 1.5, true); c.closePath(); sk(c, c1, lw * ww); }
+  for (const [ax, ay] of [[0, 0], [1, 0], [0, 1], [1, 1]]) { const m = u * .03; ci(c, x + m + ax * (w - 2 * m), y + m + ay * (h - 2 * m), u * .012); fl(c, c1); }
+}, { kw: 'cornice angoli smussati ottagonale bordo', lwk: .004, size: 'page' });
+/* ---------- DIVISORI ---------- */
+function hline(g, y0, w2, a, b) { const { c, x, w } = g; c.beginPath(); c.moveTo(x + w * a, y0); c.lineTo(x + w * b, y0); sk(c, g.c1, w2); }
+def('d_arab', 'Divisore arabesco', CATS[6], 8, g => {
+  const { c, x, w, h, cx, cy, c1, c2, lw } = g;
+  for (const s of [-1, 1]) {
+    c.beginPath(); c.moveTo(cx + s * h * .8, cy); c.lineTo(cx + s * w * .38, cy); sk(c, c1, lw * 1.2);
+    spiral(c, cx + s * w * .43, cy - h * .12, h * .2, 1.7, s > 0 ? PI * .5 : PI * .5, s > 0 ? 1 : -1); sk(c, c1, lw * 1.2);
+    c.beginPath(); c.moveTo(cx + s * w * .38, cy); c.quadraticCurveTo(cx + s * w * .42, cy + h * .2, cx + s * w * .47, cy); sk(c, c1, lw * 1.2);
+    leaf(c, cx + s * w * .12, cy, cx + s * w * .22, cy - h * .3, .35); fl(c, c1); leaf(c, cx + s * w * .22, cy, cx + s * w * .3, cy + h * .3, .35); fl(c, c1);
+  }
+  st(c, cx, cy, h * .42, h * .24, 8, -PI / 2); fl(c, c1); ci(c, cx, cy, h * .09); fl(c, c2);
+}, { kw: 'divisore arabesco separatore linea', lwk: .06, size: 'div' });
+def('d_stars', 'Divisore a stelle', CATS[6], 10, g => {
+  const { c, x, w, h, cx, cy, c1, c2, lw } = g, n = Math.max(3, Math.round(w / (h * 1.6)) | 1);
+  c.beginPath(); c.moveTo(x, cy); c.lineTo(x + w, cy); sk(c, c1, lw * .8);
+  for (let i = 0; i < n; i++) { const px = x + w * (i + .5) / n; ci(c, px, cy, h * .2); fl(c, c2); st(c, px, cy, h * .38, h * .2, 8, -PI / 2); fl(c, c1); sk(c, c2, lw * .5); }
+}, { kw: 'divisore stelle separatore', lwk: .06, size: 'div' });
+def('d_rombi', 'Divisore a rombi', CATS[6], 10, g => {
+  const { c, x, w, h, cx, cy, c1, c2, lw } = g, n = Math.max(3, Math.round(w / (h * 1.3)));
+  for (let i = 0; i < n; i++) { const px = x + w * (i + .5) / n; pg(c, px, cy, h * (i % 2 ? .22 : .38), 4, 0); fl(c, c1); if (!(i % 2)) { pg(c, px, cy, h * .18, 4, 0); fl(c, c2); } }
+  c.beginPath(); c.moveTo(x, cy); c.lineTo(x + w * .5 / n * .6, cy); c.moveTo(x + w, cy); c.lineTo(x + w - w * .5 / n * .6, cy); sk(c, c1, lw);
+}, { kw: 'divisore rombi losanghe separatore', lwk: .06, size: 'div' });
+def('d_medal', 'Divisore con rosone', CATS[6], 10, g => {
+  const { c, x, w, h, cx, cy, c1, c2, lw } = g;
+  for (const s of [-1, 1]) { c.beginPath(); c.moveTo(cx + s * h * .8, cy); c.lineTo(cx + s * w * .42, cy); sk(c, c1, lw); for (let i = 1; i <= 3; i++) { ci(c, cx + s * (h * .8 + i * h * .5), cy, h * .06); fl(c, c1); } leaf(c, cx + s * w * .42, cy, cx + s * w * .5, cy, .5); fl(c, c1); }
+  for (let i = 0; i < 8; i++) { const a = i * TAU / 8; leaf(c, cx + cos(a) * h * .08, cy + sin(a) * h * .08, cx + cos(a) * h * .5, cy + sin(a) * h * .5, .25); fl(c, c1); sk(c, c2, lw * .4); }
+  ci(c, cx, cy, h * .12); fl(c, c2); sk(c, c1, lw * .7);
+}, { kw: 'divisore rosone separatore', lwk: .06, size: 'div' });
+def('d_wave', 'Divisore a onde con foglie', CATS[6], 10, g => {
+  const { c, x, w, h, cx, cy, c1, c2, lw } = g, n = Math.max(4, Math.round(w / (h * 1.4))), seg = w / n;
+  c.beginPath(); for (let i = 0; i <= 60; i++) { const t = i / 60; c[i ? 'lineTo' : 'moveTo'](x + t * w, cy + sin(t * n * PI) * h * .22); } sk(c, c1, lw * 1.2);
+  for (let i = 0; i < n; i++) { const px = x + seg * (i + .5), up = i % 2 ? -1 : 1; leaf(c, px, cy + up * h * .22 * .0, px + seg * .22, cy - up * h * .38, .3); fl(c, c1); }
+  for (let i = 1; i < n; i++) { ci(c, x + seg * i, cy, h * .06); fl(c, c2); sk(c, c1, lw * .6); }
+}, { kw: 'divisore onde foglie vite separatore', lwk: .06, size: 'div' });
+/* ---------- MASHRABIYA E ZELLIGE ---------- */
+def('mashrabiya', 'Pannello mashrabiya', CATS[7], 1, g => {
+  const { c, x, y, w, h, c1, c2, lw } = g, u = g.u, n = 6, cw = w / n, ch = h / n;
+  c.beginPath(); c.rect(x, y, w, h); fl(c, c2); c.save(); c.clip();
+  c.beginPath(); for (let i = -n; i <= n * 2; i++) { c.moveTo(x + i * cw, y); c.lineTo(x + i * cw + w, y + h); c.moveTo(x + i * cw, y + h); c.lineTo(x + i * cw + w, y); } sk(c, c1, lw * 1.3);
+  for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) { if ((i + j) % 2) continue; ci(c, x + i * cw, y + j * ch, Math.min(cw, ch) * .13); fl(c, c1); }
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { if ((i + j) % 2 === 0) continue; st(c, x + (i + .5) * cw, y + (j + .5) * ch, Math.min(cw, ch) * .22, Math.min(cw, ch) * .1, 4, PI / 4); fl(c, c1); }
+  c.restore(); c.beginPath(); c.rect(x + lw, y + lw, w - 2 * lw, h - 2 * lw); sk(c, c1, lw * 3);
+}, { kw: 'mashrabiya grata reticolo legno traforo', size: 'panel' });
+def('zel_tile', 'Piastrella zellige', CATS[7], 1, g => {
+  const { c, x, y, w, h, cx, cy, c1, c2, u, lw } = g, s = u * .94, X = cx - s / 2, Y = cy - s / 2;
+  c.beginPath(); c.rect(X, Y, s, s); fl(c, c2); sk(c, c1, lw * 3);
+  const a = s * .2929; pg(c, cx, cy, s * .5412, 8, PI / 8); fl(c, c1, .22);
+  st(c, cx, cy, s * .5412, s * .5412 * .541, 8, PI / 8); fl(c, c1); sk(c, c2, lw * 1.1);
+  pg(c, cx, cy, s * .16, 8, PI / 8); fl(c, c2); sk(c, c1, lw);
+  for (const [px, py] of [[X, Y], [X + s, Y], [X, Y + s], [X + s, Y + s]]) { pg(c, px, py, s * .12, 4, 0); fl(c, c1); }
+}, { kw: 'zellige piastrella marocchina mosaico', size: 'sq' });
+def('zel_cross', 'Piastrella croce e stella', CATS[7], 1, g => {
+  const { c, cx, cy, c1, c2, u, lw } = g, s = u * .94, X = cx - s / 2, Y = cy - s / 2;
+  c.beginPath(); c.rect(X, Y, s, s); fl(c, c2); sk(c, c1, lw * 3);
+  c.beginPath(); const t = s * .12, L = s * .42; c.rect(cx - t, cy - L, 2 * t, 2 * L); c.rect(cx - L, cy - t, 2 * L, 2 * t); fl(c, c1); sk(c, c2, lw);
+  pg(c, cx, cy, s * .24, 4, PI / 4); fl(c, c2); sk(c, c1, lw); st(c, cx, cy, s * .2, s * .08, 8, -PI / 2); fl(c, c1);
+  for (const [px, py] of [[X + s * .17, Y + s * .17], [X + s * .83, Y + s * .17], [X + s * .17, Y + s * .83], [X + s * .83, Y + s * .83]]) { st(c, px, py, s * .09, s * .045, 8, 0); fl(c, c1); }
+}, { kw: 'zellige piastrella croce stella', size: 'sq' });
+def('rosetile', 'Piastrella con rosone', CATS[7], 1, g => {
+  const { c, cx, cy, c1, c2, u, lw } = g, s = u * .94, X = cx - s / 2, Y = cy - s / 2;
+  c.beginPath(); c.rect(X, Y, s, s); fl(c, c1); sk(c, c2, lw * 3);
+  for (let i = 0; i < 8; i++) { const a = i * PI / 4; leaf(c, cx + cos(a) * s * .08, cy + sin(a) * s * .08, cx + cos(a) * s * .38, cy + sin(a) * s * .38, .2); fl(c, c2); }
+  ci(c, cx, cy, s * .09); fl(c, c1); sk(c, c2, lw);
+  for (const [px, py] of [[X, Y], [X + s, Y], [X, Y + s], [X + s, Y + s]]) { ci(c, px, py, s * .16); fl(c, c2); ci(c, px, py, s * .09); fl(c, c1); }
+}, { kw: 'piastrella rosone azulejo', size: 'sq' });
+SV.MOTIFS = REG; SV.MOTIF_CATS = CATS; SV.MOTIF_CAT_ICON = CAT_ICON;
+/* ===================== TILE PATTERNS (seamless) ===================== */
+const PAT = {};
+const PATL = [];
+function pdef(k, l, r, draw) { PAT[k] = { r, draw }; PATL.push({ k, l }); }
+const OCT = (c, W, H, f) => { /* regular-octagon cell geometry for 4.8.8 tiling */ f(W / 2, H / 2, W * .5412, W); };
+pdef('star8', 'Stelle a 8 punte', 1, (c, W, H, c1, lw) => {
+  const cx = W / 2, cy = H / 2, R = W * .5412;
+  c.beginPath(); for (let i = 0; i < 4; i++) { const px = [0, W, W, 0][i], py = [0, 0, H, H][i]; c.moveTo(px, py); c.lineTo(px + (px ? -1 : 1) * W * .2929, py); c.lineTo(px, py + (py ? -1 : 1) * H * .2929); c.closePath(); } fl(c, c1, .35);
+  pg(c, cx, cy, R, 8, PI / 8); sk(c, c1, lw);
+  c.beginPath(); for (let i = 0; i < 8; i++) { const a = PI / 8 + i * PI / 4, b = a + 3 * PI / 4; c.moveTo(cx + cos(a) * R, cy + sin(a) * R); c.lineTo(cx + cos(b) * R, cy + sin(b) * R); } sk(c, c1, lw * .8);
+  pg(c, cx, cy, R * .38, 8, PI / 8); fl(c, c1, .5);
+});
+pdef('zellige', 'Zellige (stelle piene)', 1, (c, W, H, c1, lw) => {
+  const cx = W / 2, cy = H / 2, R = W * .5412;
+  pg(c, cx, cy, R, 8, PI / 8); fl(c, c1, .2); sk(c, c1, lw * .7);
+  st(c, cx, cy, R, R * .541, 8, PI / 8); fl(c, c1, .85); sk(c, c1, lw * .8, 0);
+  st(c, cx, cy, R * .5, R * .27, 8, PI / 8 + PI / 8 * 0); c.globalCompositeOperation = 'destination-out'; c.fillStyle = '#000'; c.globalAlpha = .6; c.fill(); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+  ci(c, cx, cy, R * .12); fl(c, c1);
+});
+pdef('hex6', 'Stelle a 6 punte', Math.sqrt(3), (c, W, H, c1, lw) => {
+  const R = W / 2;
+  for (const [x, y] of [[0, 0], [W, 0], [0, H], [W, H], [W / 2, H / 2]]) {
+    pg(c, x, y, R, 3, -PI / 2); sk(c, c1, lw); pg(c, x, y, R, 3, PI / 2); sk(c, c1, lw);
+    pg(c, x, y, R * .5, 6, 0); fl(c, c1, .3); sk(c, c1, lw * .7); ci(c, x, y, R * .1); fl(c, c1);
+  }
+});
+pdef('lattice', 'Reticolo mashrabiya', 1, (c, W, H, c1, lw) => {
+  c.beginPath(); c.moveTo(0, H / 2); c.lineTo(W / 2, 0); c.lineTo(W, H / 2); c.lineTo(W / 2, H); c.closePath(); sk(c, c1, lw);
+  c.beginPath(); c.moveTo(W * .12, H / 2); c.lineTo(W / 2, H * .12); c.lineTo(W * .88, H / 2); c.lineTo(W / 2, H * .88); c.closePath(); sk(c, c1, lw * .6, .7);
+  st(c, W / 2, H / 2, W * .16, W * .07, 4, PI / 4); fl(c, c1);
+  for (const [x, y] of [[0, H / 2], [W / 2, 0], [W, H / 2], [W / 2, H]]) { ci(c, x, y, W * .045); fl(c, c1); }
+});
+pdef('star4', 'Stelle a 4 punte', 1, (c, W, H, c1, lw) => {
+  for (const [x, y] of [[W / 2, H / 2], [0, 0], [W, 0], [0, H], [W, H]]) {
+    c.beginPath(); c.moveTo(x, y - H * .5); c.quadraticCurveTo(x, y, x + W * .5, y); c.quadraticCurveTo(x, y, x, y + H * .5); c.quadraticCurveTo(x, y, x - W * .5, y); c.quadraticCurveTo(x, y, x, y - H * .5); c.closePath(); fl(c, c1, x === W / 2 ? .5 : .15); sk(c, c1, lw);
+  }
+  ci(c, W / 2, H / 2, W * .05); fl(c, c1);
+});
+pdef('scales', 'Squame marocchine', 1, (c, W, H, c1, lw) => {
+  for (const [x, y] of [[0, 0], [W, 0], [W / 2, H / 2], [0, H], [W, H], [W / 2, -H / 2], [W / 2, H * 1.5]]) {
+    for (const [k, a] of [[.5, 1], [.38, .7], [.26, .5]]) { c.beginPath(); c.arc(x, y, W * k, 0, TAU); sk(c, c1, lw * (k === .5 ? 1 : .7), a); }
+    ci(c, x, y, W * .05); fl(c, c1);
+  }
+});
+pdef('arches', 'Archi ogivali', 1, (c, W, H, c1, lw) => {
+  const h = H / 2;
+  for (const [ox, oy] of [[0, 0], [W / 2, h], [-W / 2, h], [0, H], [W / 2, h + H], [W / 2, -h]]) {
+    for (const [k, a] of [[1, 1], [.78, .6]]) { const x0 = ox + W * (1 - k) / 2, w = W * k, y0 = oy + h * (1 - k) * .5 + (k < 1 ? h * .12 : 0), hh = h * k; c.beginPath(); c.moveTo(x0, y0 + hh); c.quadraticCurveTo(x0, y0 + hh * .15, x0 + w / 2, y0); c.quadraticCurveTo(x0 + w, y0 + hh * .15, x0 + w, y0 + hh); sk(c, c1, lw * (k === 1 ? 1 : .7), a); }
+    ci(c, ox + W / 2, oy + h * .55, W * .05); fl(c, c1);
+  }
+});
+pdef('rosette', 'Rosoncini e rombi', 1, (c, W, H, c1, lw) => {
+  const R = W * .29;
+  for (const [x, y] of [[W / 2, H / 2], [0, 0], [W, 0], [0, H], [W, H]]) {
+    for (let i = 0; i < 8; i++) { const a = i * PI / 4; leaf(c, x + cos(a) * R * .15, y + sin(a) * R * .15, x + cos(a) * R, y + sin(a) * R, .22); fl(c, c1, .75); sk(c, c1, lw * .6); }
+    ci(c, x, y, R * .16); fl(c, c1);
+  }
+  for (const [x, y] of [[W / 2, 0], [W / 2, H], [0, H / 2], [W, H / 2]]) { pg(c, x, y, W * .07, 4, 0); fl(c, c1); }
+});
+pdef('croci', 'Croci e rombi', 1, (c, W, H, c1, lw) => {
+  const t = W * .1, L = W * .36;
+  c.beginPath(); c.rect(W / 2 - t, H / 2 - L, 2 * t, 2 * L); c.rect(W / 2 - L, H / 2 - t, 2 * L, 2 * t); fl(c, c1, .22); sk(c, c1, lw);
+  pg(c, W / 2, H / 2, W * .12, 4, PI / 4); fl(c, c1);
+  for (const [x, y] of [[0, 0], [W, 0], [0, H], [W, H]]) { pg(c, x, y, W * .24, 4, 0); sk(c, c1, lw); pg(c, x, y, W * .11, 4, 0); fl(c, c1, .8); }
+});
+const _tiles = new Map();
+function tileFor(k, col, wk) {
+  const key = k + '|' + col + '|' + wk; if (_tiles.has(key)) return _tiles.get(key);
+  const T = PAT[k], tw = 640, th = Math.round(tw * T.r), cv = document.createElement('canvas'); cv.width = tw; cv.height = th;
+  const x = cv.getContext('2d'); x.beginPath(); x.rect(0, 0, tw, th); x.clip();
+  for (const dx of [-tw, 0, tw]) for (const dy of [-th, 0, th]) { x.save(); x.translate(dx, dy); try { T.draw(x, tw, th, col, Math.max(1.5, tw * 0.012 * wk)); } catch (e) { } x.restore(); }
+  if (_tiles.size > 40) _tiles.delete(_tiles.keys().next().value);
+  _tiles.set(key, cv); return cv;
+}
+/** Fill the rect (x,y,w,h) with a seamless tile pattern. pat = {k, c, s (tile size as fraction of base), a (0..1), w (line weight factor)} */
+SV.fillPattern = function (c, pat, x, y, w, h, base) {
+  if (!pat || !PAT[pat.k]) return;
+  const tile = tileFor(pat.k, pat.c || '#d4af37', pat.w || 1), sz = Math.max(6, (pat.s || .16) * base), sc = sz / tile.width;
+  const p = c.createPattern(tile, 'repeat'); if (!p) return;
+  if (p.setTransform) p.setTransform(new DOMMatrix([sc, 0, 0, sc, x, y]));
+  c.save(); c.globalAlpha *= pat.a != null ? pat.a : 1; c.fillStyle = p; c.fillRect(x, y, w, h); c.restore();
+};
+PATL.forEach(({ k }) => { SV.ORN_EXT['pat_' + k] = (c, x, y, w, h, el) => {
+  if (el.stroke && el.stroke !== 'none') { c.fillStyle = el.stroke; c.fillRect(x, y, w, h); }
+  SV.fillPattern(c, { k, c: el.fill && el.fill !== 'none' ? el.fill : '#d4af37', s: el.ps || .2, w: el.pw || 1.2, a: 1 }, x, y, w, h, Math.min(w, h)); }; });
+SV.PATTERNS = PATL;
+/* ===================== CATALOG, PANEL, ACTIONS ===================== */
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+const PATCAT = 'Sfondi a ripetizione';
+const PALM = ['#d4af37', '#f0d060', '#ffffff', '#f5e6c8', '#6b4423', '#8a6216', '#0d5c2e', '#1a7a43', '#0b1f4a', '#1e88e5', '#7a1f2b', '#000000'];
+const theme = () => THEMES[U.mTheme] || THEMES.oro;
+const isM = e => e && e.type === 'orn' && /^m_/.test(e.kind);
+const isPO = e => e && e.type === 'orn' && /^pat_/.test(e.kind);
+function mThumb(m, tid) {
+  const th = THEMES[tid || 'oro'];
+  return SV.thumbCanvas('mo' + m.id + tid, (c, w, h) => {
+    c.fillStyle = th.bg; c.fillRect(0, 0, w, h);
+    const rr = m.size === 'div' ? 4.5 : m.r; let ew = w * .9, eh = h * .9; if (rr > 1) eh = ew / rr; else ew = eh * rr;
+    SV.drawElement(c, { type: 'orn', kind: 'm_' + m.id, fill: th.c1, stroke: th.c2, x: (w - ew) / 2, y: (h - eh) / 2, w: ew, h: eh, rot: 0, op: 1 }, {});
+  }, 112, 112);
+}
+function pThumb(k, tid) {
+  const th = THEMES[tid || 'oro'];
+  return SV.thumbCanvas('mp' + k + tid, (c, w, h) => { c.fillStyle = th.bg; c.fillRect(0, 0, w, h); SV.fillPattern(c, { k, c: th.c1, s: .5, a: 1, w: 1.4 }, 0, 0, w, h, w); }, 112, 112);
+}
+function mkEl(m) {
+  const W = H.W(), Hh = H.H(), s = Math.min(W, Hh), th = theme(), id = 'm_' + m.id;
+  const base = { kind: id, fill: th.c1, stroke: th.c2, name: m.l };
+  if (m.cat === 'Angoli') {
+    const sz = s * .26, mg = s * .03, g = SV.uid('g');
+    return [[mg, mg, 0], [W - mg - sz, mg, 90], [W - mg - sz, Hh - mg - sz, 180], [mg, Hh - mg - sz, 270]].map(([x, y, rot], i) => { const e = SV.newEl('orn', Object.assign({}, base, { name: m.l + ' ' + (i + 1), w: sz, h: sz, gid: g }), W, Hh); e.x = x; e.y = y; e.rot = rot; return e; });
+  }
+  let w, h;
+  if (m.size === 'page') { w = W; h = Hh; }
+  else if (m.size === 'div') { w = W * .7; h = w / m.r; }
+  else if (m.size === 'wide') { w = Math.min(W * .7, s * .8); h = w / m.r; }
+  else if (m.size === 'arch') { h = s * .6; w = h * m.r; }
+  else if (m.size === 'tall') { h = s * .55; w = h * m.r; }
+  else if (m.size === 'panel') { w = h = s * .6; }
+  else if (m.r > 1) { w = s * .5; h = w / m.r; } else { w = s * .42; h = w / m.r > s * .6 ? s * .6 : w / m.r; }
+  const e = SV.newEl('orn', Object.assign({}, base, { w, h }), W, Hh);
+  if (m.size === 'page') { e.x = 0; e.y = 0; }
+  return e;
+}
+function mkPanel(k) {
+  const W = H.W(), Hh = H.H(), th = theme(), l = (PATL.find(p => p.k === k) || {}).l;
+  return SV.newEl('orn', { kind: 'pat_' + k, fill: th.c1, stroke: th.c2, name: 'Pannello ' + l, ps: .2, pw: 1.2, w: W * .9, h: Math.min(Hh * .4, W * .6) }, W, Hh);
+}
+const _cat = SV.catalog;
+SV.catalog = function () {
+  const it = _cat.apply(this, arguments);
+  REG.forEach(m => it.push({ cat: 'Motivi arabi', l: m.l, kw: 'arabo arabi islamico motivo ornamento ' + m.kw + ' ' + m.cat, th: mThumb(m, 'oro'), make: () => mkEl(m) }));
+  PATL.forEach(p => it.push({ cat: 'Motivi arabi', l: 'Pannello: ' + p.l, kw: 'arabo motivo sfondo ripetizione pannello pattern ' + p.l, th: pThumb(p.k, 'oro'), make: () => mkPanel(p.k) }));
+  return it;
+};
+/* ---- page background + shape fill hooks live in core.js (SV.fillPattern) ---- */
+const page = () => H.page();
+function patGet(tg) {
+  if (tg === 'bg') return (page().bg || {}).pat || null;
+  const e = H.one(); if (!e) return null;
+  if (isPO(e)) return { k: e.kind.slice(4), c: e.fill, s: e.ps || .2, w: e.pw || 1.2, a: e.op != null ? e.op : 1 };
+  return e.pat || null;
+}
+function patSet(tg, f, v) {
+  SV.live('mp' + tg + f, () => {
+    if (tg === 'bg') { const bg = page().bg = Object.assign({}, page().bg); bg.pat = Object.assign({}, bg.pat, { [f]: v }); }
+    else H.sel().forEach(e => { if (isPO(e)) { if (f === 'c') e.fill = v; else if (f === 's') e.ps = v; else if (f === 'w') e.pw = v; else if (f === 'a') e.op = v; } else if (e.pat) e.pat = Object.assign({}, e.pat, { [f]: v }); });
+  });
+}
+function patBox(tg) {
+  const p = patGet(tg); if (!p) return '';
+  const nm = (PATL.find(x => x.k === p.k) || {}).l || '';
+  const sl = (lab, f, val, min, max) => `<label class="sv-sl"><span>${lab}</span><input type="range" data-in="mp" data-tg="${tg}" data-f="${f}" min="${min}" max="${max}" step="1" value="${val}"><output>${val}%</output></label>`;
+  const sw = PALM.map(c => `<button data-a="mCol" data-tg="${tg}" data-c="${c}" class="${String(p.c).toLowerCase() === c ? 'on' : ''}" style="background:${c}" title="${c}"></button>`).join('');
+  return `<div class="sv-mbox"><b>🎚️ ${tg === 'bg' ? 'Sfondo' : 'Riempimento'}: ${esc(nm)}</b>
+    ${sl('Grandezza del motivo', 's', Math.round((p.s || .16) * 100), 4, 80)}${sl('Trasparenza (più basso = più leggero)', 'a', Math.round((p.a != null ? p.a : 1) * 100), 5, 100)}${sl('Spessore linee', 'w', Math.round((p.w || 1) * 10), 4, 40)}
+    <div class="sv-lbl">Colore del motivo</div><div class="sv-sw"><label class="add" title="Colore personalizzato"><input type="color" data-ch="mpColC" data-tg="${tg}" value="${/^#[0-9a-f]{6}$/i.test(p.c) ? p.c : '#d4af37'}"></label>${sw}</div>
+    <button class="sv-btn danger" data-a="mPatRem" data-tg="${tg}" style="margin-top:8px">🗑️ Togli il motivo</button></div>`;
+}
+const OLD = { arch: 'arch', border: 'f', frame: 'f', pattern: 'pat', divider: 'd', dividerStar: 'd', corner: 'c', rosette: 'r', medallion: 'r', lantern: 'l', crescent: 'l', star8: 's' };
+function simmilar(e) {
+  if (isM(e)) { const m = REG.find(x => 'm_' + x.id === e.kind); return m ? REG.filter(x => x.cat === m.cat && x.size === m.size && x.id !== m.id) : []; }
+  const g = OLD[e.kind]; if (!g) return [];
+  const catOf = { arch: 'Archi e mihrab', f: 'Cornici', d: 'Divisori', c: 'Angoli', r: 'Rosoni e medaglioni', l: 'Lanterne e luna', s: 'Stelle e girih' }[g];
+  return g === 'pat' ? [] : REG.filter(x => x.cat === catOf && (g !== 'arch' || x.size === 'arch'));
+}
+function selBox() {
+  const e = H.one(); if (!e || e.type !== 'orn') return '';
+  const th = theme(); let h = '';
+  if (isM(e) || isPO(e)) {
+    const sw = (t, cur) => `<div class="sv-sw"><label class="add" title="Colore personalizzato"><input type="color" data-ch="customColor" data-t="${t}" value="${/^#[0-9a-f]{6}$/i.test(cur || '') ? cur : '#d4af37'}"></label>${PALM.map(c => `<button data-a="setColor" data-t="${t}" data-c="${c}" class="${String(cur || '').toLowerCase() === c ? 'on' : ''}" style="background:${c}" title="${c}"></button>`).join('')}</div>`;
+    h += `<div class="sv-mbox"><b>✏️ Motivo selezionato: ${esc(e.name || '')}</b>
+      <div class="sv-lbl">${isPO(e) ? 'Colore del motivo' : 'Colore 1 (linee e forme)'}</div>${sw('fill', e.fill)}
+      <div class="sv-lbl">${isPO(e) ? 'Colore dello sfondo del pannello' : 'Colore 2 (fondo e dettagli)'}</div>${sw('stroke', e.stroke)}
+      ${isM(e) ? `<label class="sv-sl"><span>Spessore linee</span><input type="range" data-in="mSw" min="30" max="400" step="5" value="${Math.round((e.msw || 1) * 100)}"><output>${Math.round((e.msw || 1) * 100)}%</output></label>` : ''}
+      <label class="sv-sl"><span>Trasparenza</span><input type="range" data-in="mOp" min="5" max="100" step="1" value="${Math.round((e.op != null ? e.op : 1) * 100)}"><output>${Math.round((e.op != null ? e.op : 1) * 100)}%</output></label>
+      <div class="sv-row" style="margin-top:8px"><button class="sv-btn sec" data-a="mRot" title="Ruota di 45 gradi">↻ Ruota 45°</button><button class="sv-btn sec" data-a="flipX">⇋ Specchia</button></div>
+      <p class="sv-mh">Ingrandisci e sposta trascinando gli angoli sul design.</p></div>`;
+    if (isPO(e)) h += patBox('orn');
+  }
+  const sim = simmilar(e);
+  if (sim.length) h += `<div class="sv-lbl">${isM(e) ? '🔁 Sostituisci con un motivo simile' : '🔁 Trasforma in stile arabo'}</div><div class="sv-mg">${sim.map(m => `<button class="sv-mc" data-a="mSwap" data-id="${m.id}"><img src="${mThumb(m, U.mTheme || 'oro')}" alt=""><span>${esc(m.l)}</span></button>`).join('')}</div>`;
+  void th; return h;
+}
+P_motivi();
+function P_motivi() {
+  SV.P.motivi = function () {
+    const tid = U.mTheme || 'oro', cat = U.mCat || 'all', e = H.one();
+    let h = `<p class="sv-mh">Tocca un motivo per aggiungerlo. Poi cambia colori, spessore e trasparenza qui sotto.</p>`;
+    h += selBox();
+    if (!(e && e.type === 'orn')) { const t = e && e.type === 'shape' && e.pat ? patBox('el') : ((page().bg || {}).pat ? patBox('bg') : ''); h += t; }
+    h += `<div class="sv-lbl">🎨 Colori dei nuovi motivi <small style="font-weight:500;color:var(--mut)">(cambia anche quello selezionato)</small></div><div class="sv-chips">${Object.keys(THEMES).map(k => `<button class="sv-chip ${tid === k ? 'on' : ''}" data-a="mTheme" data-id="${k}"><i style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${THEMES[k].bg};border:2px solid ${THEMES[k].c1};vertical-align:-2px"></i> ${THEMES[k].l}</button>`).join('')}</div>`;
+    h += `<div class="sv-lbl">📂 Categoria</div><div class="sv-chips">${[['all', 'Tutti'], ...CATS.map(c => [c, CAT_ICON[c] + ' ' + c]), ['pat', '▦ ' + PATCAT]].map(([k, l]) => `<button class="sv-chip ${cat === k ? 'on' : ''}" data-a="mCat" data-id="${k}">${esc(l)}</button>`).join('')}</div>`;
+    const list = cat === 'all' ? REG : cat === 'pat' ? [] : REG.filter(m => m.cat === cat);
+    const card = m => `<button class="sv-mc" data-a="mAdd" data-id="${m.id}" title="${esc(m.l)}"><img src="${mThumb(m, tid)}" alt=""><span>${esc(m.l)}</span></button>`;
+    if (cat === 'Angoli') h += `<p class="sv-mh">Un tocco aggiunge i 4 angoli della pagina (puoi eliminare quelli che non servono).</p>`;
+    if (list.length) h += `<div class="sv-mg">${list.map(card).join('')}</div>`;
+    if (cat === 'all' || cat === 'pat') {
+      h += `<div class="sv-lbl">▦ ${PATCAT} <small style="font-weight:500;color:var(--mut)">per sfondo o forme</small></div>
+        <p class="sv-mh">Applica a:</p>${SV.seg('mScope', U.mScope || 'bg', [['bg', '🖼️ Sfondo pagina'], ['forma', '◆ Forma selezionata'], ['pannello', '▭ Nuovo pannello']])}
+        <div class="sv-mg">${PATL.map(p => `<button class="sv-mc" data-a="mPat" data-k="${p.k}" title="${esc(p.l)}"><img src="${pThumb(p.k, tid)}" alt=""><span>${esc(p.l)}</span></button>`).join('')}</div>`;
+    }
+    return h;
+  };
+}
+/* background chooser section */
+const _psf = SV.P.sfondo;
+SV.P.sfondo = function () {
+  const tid = U.mTheme || 'oro', bgp = (page().bg || {}).pat;
+  return _psf.apply(this, arguments) + `<div class="sv-lbl">❖ Motivi arabi a ripetizione</div><p class="sv-mh">Tocca un motivo per riempire lo sfondo di questa pagina.</p>
+    <div class="sv-mg">${PATL.map(p => `<button class="sv-mc ${bgp && bgp.k === p.k ? 'on' : ''}" data-a="mPatBg" data-k="${p.k}"><img src="${pThumb(p.k, tid)}" alt=""><span>${esc(p.l)}</span></button>`).join('')}</div>${patBox('bg')}
+    <button class="sv-btn sec" data-a="tab" data-tab="motivi" style="margin-top:8px">❖ Tutti i motivi arabi…</button>`;
+};
+/* ---- actions ---- */
+const refresh = () => SV.refreshPanel(true);
+function applyPat(tg, k) {
+  const th = theme();
+  SV.change(() => {
+    if (tg === 'bg') { const bg = page().bg = Object.assign({}, page().bg), old = bg.pat; const col = bg.color && bg.color.toLowerCase() === th.c1.toLowerCase() ? th.c2 : th.c1; bg.pat = { k, c: old ? old.c : col, s: old ? old.s : .2, a: old ? old.a : .5, w: old ? old.w : 1.2 }; }
+    else H.sel().forEach(e => { if (e.type === 'shape') { const old = e.pat; e.pat = { k, c: old ? old.c : th.c1, s: old ? old.s : .3, a: old ? old.a : 1, w: old ? old.w : 1.2 }; } });
+  });
+  refresh();
+}
+const MM = {
+  mTheme(d) { U.mTheme = d.id; const th = theme(); const t = H.sel().filter(e => isM(e) || isPO(e)); if (t.length) SV.change(() => t.forEach(e => { e.fill = th.c1; e.stroke = th.c2; })); refresh(); },
+  mCat(d) { U.mCat = d.id; refresh(); },
+  mScope(d) { U.mScope = d.v; refresh(); },
+  mAdd(d) { const m = REG.find(x => x.id === d.id); if (!m) return; const e = mkEl(m); SV.addEls(Array.isArray(e) ? e : [e], { keepPanel: !SV.isMobile() }); if (!SV.isMobile()) refresh(); },
+  mPat(d) {
+    const sc = U.mScope || 'bg';
+    if (sc === 'pannello') { SV.addEls([mkPanel(d.k)], { keepPanel: !SV.isMobile() }); if (!SV.isMobile()) refresh(); return; }
+    if (sc === 'forma') { if (!H.sel().some(e => e.type === 'shape')) { SV.toast('Seleziona prima una forma (rettangolo, cerchio…) sul design'); return; } applyPat('el', d.k); return; }
+    applyPat('bg', d.k);
+  },
+  mPatBg(d) { applyPat('bg', d.k); },
+  mPatRem(d) { SV.change(() => { if (d.tg === 'bg') { const bg = page().bg = Object.assign({}, page().bg); delete bg.pat; } else H.sel().forEach(e => { if (e.pat) delete e.pat; }); }); refresh(); },
+  mCol(d) { patSet(d.tg, 'c', d.c); refresh(); },
+  mRot() { SV.change(() => H.sel().forEach(e => { if (isM(e) || isPO(e)) e.rot = ((e.rot || 0) + 45) % 360; })); },
+  mSwap(d) { const m = REG.find(x => x.id === d.id); if (!m) return; const th = theme(); SV.change(() => H.sel().forEach(e => { if (e.type !== 'orn') return; const wasOld = !isM(e); e.kind = 'm_' + m.id; e.name = m.l; if (wasOld) { delete e.alpha; if (!e.stroke) e.stroke = th.c2; } })); refresh(); },
+};
+const _act = SV.act;
+SV.act = function (a, d, b, ev) { const h = MM[a]; return h ? h(d || {}, b, ev) : _act.apply(this, arguments); };
+const _inp = SV.inp;
+SV.inp = function (k, v, d, t, committed) {
+  if (k === 'mSw' || k === 'mOp' || k === 'mp' || k === 'mpColC') {
+    if (t && t.type === 'range') { const o = t.parentNode.querySelector('output'); if (o) o.textContent = v + '%'; SV._sliding = true; clearTimeout(SV._slt); SV._slt = setTimeout(() => { SV._sliding = false; }, 400); }
+    if (k === 'mSw') SV.live('mSw', () => H.sel().forEach(e => { if (isM(e)) e.msw = +v / 100; }));
+    else if (k === 'mOp') SV.live('mOp', () => H.sel().forEach(e => { if (isM(e) || isPO(e)) e.op = +v / 100; }));
+    else if (k === 'mp') { const f = d.f; patSet(d.tg, f, f === 'w' ? +v / 10 : +v / 100); }
+    else if (/^#[0-9a-f]{6}$/i.test(v)) patSet(d.tg, 'c', v);
+    return;
+  }
+  return _inp.apply(this, arguments);
+};
 })();
 
 /* Gomma: erase/restore refine panel (non-destructive alpha mask) */
