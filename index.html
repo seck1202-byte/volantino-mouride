@@ -909,6 +909,8 @@ textarea.sv-in{height:auto;padding:8px 10px;min-height:70px}
 .sv-mbox>b{display:block;font-size:13px;margin-bottom:4px}
 .sv-mh{color:var(--mut);font-size:12px;margin:2px 0 8px}
 
+.sv-recent .sv-tcard .more{width:36px;height:36px;font-size:18px}.sv-recent .sv-tcard small{display:block}
+
 </style>
 </head>
 <body>
@@ -12659,6 +12661,8 @@ SV.showHome = async function () {
     <label class="sv-search">🔍<input id="svHomeSearch" placeholder="Cerca modelli: Magal, Ziar, Gamou…" enterkeyhint="search"></label>
   </div>
   <div class="sv-wrap">
+    <div class="sv-h2">🕘 Progetti recenti <span style="font-size:12px;color:var(--mut);font-weight:600">${list.length ? list.length + (list.length === 1 ? ' design' : ' design · ordinati per ultima modifica') : ''}</span></div>
+    <div class="sv-grid sv-recent" id="svProjects">${list.length ? list.map(projCard).join('') : '<div class="sv-empty" style="grid-column:1/-1">📂 Nessun progetto ancora.<br><small>I tuoi design si salvano da soli e compariranno qui. Scegli una misura o un modello per iniziare.</small></div>'}</div>
     <div class="sv-h2">Crea un design</div>
     <div class="sv-sizes">
       ${SV.SIZES.map(s => `<button class="sv-size" data-a="newSize" data-id="${s.id}"><div class="ic">${sizeIcon(s)}</div><b>${esc(s.n)}</b><small>${esc(s.d)}</small></button>`).join('')}
@@ -12667,9 +12671,7 @@ SV.showHome = async function () {
     <button class="sv-quick" data-a="quick"><span class="q">⚡</span><span><b>Volantino veloce</b><small>Carica la foto, scrivi i dati e ottieni 3 proposte automatiche</small></span></button>
     <div class="sv-h2">Modelli Mouride <button data-a="gallery">Vedi tutti ›</button></div>
     <div class="sv-grid" id="svHomeTpl">${tp.map(t => tplCard(t, false)).join('')}</div>
-    <div class="sv-h2">I tuoi progetti <span style="font-size:12px;color:var(--mut);font-weight:600">${list.length ? list.length + ' design' : ''}</span></div>
-    <div class="sv-grid" id="svProjects">${list.length ? list.map(projCard).join('') : '<div class="sv-empty" style="grid-column:1/-1">Nessun progetto ancora. Scegli una misura o un modello per iniziare.</div>'}</div>
-  </div>`;
+</div>`;
   const si = $('svHomeSearch');
   si.onkeydown = e => { if (e.key === 'Enter') { U.gallerySearch = si.value; SV.showGallery(); } };
   fillThumbs();
@@ -12682,9 +12684,13 @@ function tplCard(t, post) {
   const th = U.thumbs[t.id + (post ? '-p' : '')];
   return `<button class="sv-tcard ${post ? 'post' : ''}" data-a="useTpl" data-id="${t.id}"><div class="th" data-th="${t.id}${post ? '-p' : ''}">${th ? `<img src="${th}" alt="">` : ''}</div><span class="more" role="button" data-a="tplMenu" data-id="${t.id}" title="Rinomina / duplica">⋯</span><b>${esc(t.name)}</b><small>${esc(tplEvLabel(t) || t.desc)}</small></button>`;
 }
+function whenIt(d) {
+  const n = new Date(), t0 = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime(), dd = Math.round((t0(n) - t0(d)) / 864e5), hm = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+  return dd <= 0 ? 'Oggi ' + hm : dd === 1 ? 'Ieri ' + hm : d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: d.getFullYear() === n.getFullYear() ? undefined : 'numeric' });
+}
 function projCard(p) {
   const d = new Date(p.updated);
-  return `<div class="sv-tcard" style="cursor:pointer" data-a="openProj" data-id="${p.id}"><div class="th" style="aspect-ratio:${p.w}/${p.h};background:#fff">${p.thumb ? `<img src="${p.thumb}" alt="" style="object-fit:contain">` : ''}</div><button class="more" data-a="projMenu" data-id="${p.id}" aria-label="Opzioni">⋯</button><b>${esc(p.name)}</b><small>${p.w}×${p.h} · ${p.pages.length} pag. · ${d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}</small></div>`;
+  return `<div class="sv-tcard" style="cursor:pointer" data-a="openProj" data-id="${p.id}"><div class="th" style="aspect-ratio:${p.w}/${p.h};background:#fff">${p.thumb ? `<img src="${p.thumb}" alt="" style="object-fit:contain">` : ''}</div><button class="more" data-a="projMenu" data-id="${p.id}" aria-label="Opzioni: rinomina, duplica, elimina" title="Rinomina · Duplica · Elimina">⋯</button><b>${esc(p.name)}</b><small>🕘 ${whenIt(d)}</small><small>${p.w}×${p.h} · ${p.pages.length} pag.</small></div>`;
 }
 let _thumbBusy = false;
 async function fillThumbs() {
