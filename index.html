@@ -782,7 +782,7 @@ textarea.sv-in{height:auto;padding:8px 10px;min-height:70px}
   .sv-grab{display:block;width:44px;height:5px;border-radius:3px;background:#d0d3d8;margin:8px auto 0;flex:0 0 auto}
   .sv-grab:before{content:"";display:block;height:26px;margin-top:-12px}
   .sv-panel-h{padding:6px 14px 4px}
-  .sv-zoom{display:none}
+  .sv-zoom{top:8px;bottom:auto;right:8px;opacity:.95}.sv-zoom button[data-a="viewMenu"]{display:none}
   .sv-toast{bottom:calc(120px + var(--sb))}
   .sv-grid{grid-template-columns:repeat(2,1fr)}
   .sv-hero h1{font-size:22px}
@@ -898,6 +898,7 @@ textarea.sv-in{height:auto;padding:8px 10px;min-height:70px}
 .sv-cm button:hover{background:#f0f1f4}.sv-cm hr{border:0;border-top:1px solid #e6e8eb;margin:4px 2px}
 .sv-kb{width:100%;border-collapse:collapse;margin:8px 0;font-size:13px}.sv-kb td{padding:5px 4px;border-bottom:1px solid #eef0f2}.sv-kb kbd{background:#f0f1f4;border-radius:5px;padding:2px 6px;font-size:12px;white-space:nowrap}
 .sv-zoom button[data-a="viewMenu"]{width:auto;padding:0 10px;font-size:12px;font-weight:700}
+.sv-zoom button[data-a="zoomFit"]{width:auto;padding:0 8px;font-size:12px;font-weight:700}
 
 </style>
 </head>
@@ -8635,7 +8636,7 @@ if ('serviceWorker' in navigator) {
         <canvas id="svOverlay"></canvas>
         <textarea id="svTextEdit" spellcheck="false" autocapitalize="off" hidden></textarea>
         <div class="sv-zoom" id="svZoom">
-          <button data-a="zoom" data-d="-1" title="Riduci">−</button><span id="svZoomVal">100%</span><button data-a="zoom" data-d="1" title="Ingrandisci">+</button><button data-a="zoomFit" title="Adatta">⤧</button><button data-a="viewMenu" title="Righelli, griglia, margini e guide">📐 Guide</button>
+          <button data-a="zoom" data-d="-1" title="Riduci">−</button><span id="svZoomVal">100%</span><button data-a="zoom" data-d="1" title="Ingrandisci">+</button><button data-a="zoomFit" title="Adatta la pagina allo schermo">⤧ Adatta</button><button data-a="viewMenu" title="Righelli, griglia, margini e guide">📐 Guide</button>
         </div>
       </main>
     </div>
@@ -13365,16 +13366,28 @@ function movePinch() {
   U.view.panY = mid.sy - dp.y * k1 - (V.ch - U.proj.h * k1) / 2;
   SV.fit();
 }
+SV.zoomSens = (() => { try { const v = parseFloat(localStorage.getItem('sv-zoomsens')); return v >= 0.2 && v <= 2.5 ? v : 1; } catch (e) { return 1; } })();
+let _zT = null, _zP = null, _zRaf = 0;
+function zoomStep() {
+  _zRaf = 0; if (_zT == null) return;
+  const z0 = U.view.zoom, z = Math.abs(_zT - z0) < 0.002 ? _zT : z0 + (_zT - z0) * 0.35, p = _zP;
+  const dp = SV.toDesign(p.sx, p.sy);
+  U.view.zoom = z; SV.fit();
+  const s = SV.toScreen(dp.x, dp.y);
+  U.view.panX += p.sx - s.x; U.view.panY += p.sy - s.y; if (z > 1) SV.fit();
+  if (z === _zT) _zT = null; else _zRaf = requestAnimationFrame(zoomStep);
+}
 function onWheel(e) {
   if (!U.proj) return;
   e.preventDefault();
   if (e.ctrlKey || e.metaKey) {
-    const p = stagePt(e);
-    const z0 = U.view.zoom, z = SV.clamp(z0 * Math.exp(-e.deltaY * 0.01), 0.3, 6);
-    const dp = SV.toDesign(p.sx, p.sy);
-    U.view.zoom = z; SV.fit();
-    const s = SV.toScreen(dp.x, dp.y);
-    U.view.panX += p.sx - s.x; U.view.panY += p.sy - s.y; if (z > 1) SV.fit();
+    /* gentle zoom: ~5% per mouse-wheel notch, smooth trackpad pinch, clamped per event, eased */
+    const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+    const pinch = e.deltaMode === 0 && Math.abs(dy) < 40;
+    let ld = pinch ? -dy * 0.006 : -Math.sign(dy) * Math.log(1.05) * Math.min(3, Math.max(1, Math.abs(dy) / 100));
+    ld = SV.clamp(ld * SV.zoomSens, -0.1, 0.1);
+    _zT = SV.clamp((_zT == null ? U.view.zoom : _zT) * Math.exp(ld), 0.3, 6); _zP = stagePt(e);
+    if (!_zRaf) _zRaf = requestAnimationFrame(zoomStep);
   } else if (U.view.zoom > 1) { U.view.panX -= e.deltaX; U.view.panY -= e.deltaY; SV.fit(); }
 }
 SV.zoomBy = function (dir) {
@@ -13454,7 +13467,7 @@ function onKey(e) {
   if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? SV.redo() : SV.undo(); return; }
   if (mod && k === 'y') { e.preventDefault(); SV.redo(); return; }
   if (mod && k === 'c') { e.preventDefault(); SV.act('copy'); return; }
-  if (mod && k === 'v') { e.preventDefault(); SV.act('paste'); return; }
+  if (mod && k === 'v') return; /* il gestore 'paste' (extras.js) decide: immagine, testo o livello */
   if (mod && k === 'd') { e.preventDefault(); SV.act('dup'); return; }
   if (mod && k === 'a') { e.preventDefault(); SV.select(els().map(x => x.id)); return; }
   if (mod && k === 'g') { e.preventDefault(); SV.act(e.shiftKey ? 'ungroup' : 'group'); return; }
@@ -14570,16 +14583,20 @@ function resizeDialog() {
   SV.modal(`<h3>Ridimensiona</h3><p>Adatta il design a un altro formato: testi, foto e decorazioni vengono riposizionati.</p>
   ${SV.SIZES.map(s => `<button class="sv-opt ${U.proj.w === s.w && U.proj.h === s.h ? 'on' : ''}" data-a="resizeTo" data-id="${s.id}" data-v="${U._resizeCopy ? 'copy' : ''}"><span style="font-size:20px">${s.ic}</span><span><b>${esc(s.n)}</b><small>${esc(s.d)} · ${s.w}×${s.h}px</small></span></button>`).join('')}
   <button class="sv-opt" id="svRzC"><span style="font-size:20px">＋</span><span><b>Personalizzata…</b></span></button>
+  ${U.proj.pages.length > 1 ? `<div class="sv-lbl">Applica a</div><div class="sv-seg" id="svRzScope"><button data-rz="page" class="${U._rzScope === 'all' ? '' : 'on'}">📄 Solo questa pagina (nuova copia)</button><button data-rz="all" class="${U._rzScope === 'all' ? 'on' : ''}">📚 Tutte le pagine</button></div><p style="font-size:11.5px;color:#8a8f96;margin:4px 0 8px">Il formato vale per tutto il design: “Solo questa pagina” crea una copia con la sola pagina corrente nel nuovo formato e lascia intatto l’originale.</p>` : ''}
   <label class="sv-check"><input type="checkbox" id="svRzCopy" ${U._resizeCopy ? 'checked' : ''}> Crea una copia (lascia intatto l’originale)</label>
   <button class="sv-btn sec" data-a="closeModal">Annulla</button>`);
+  document.querySelectorAll('#svRzScope button').forEach(b => { b.onclick = () => { U._rzScope = b.dataset.rz; document.querySelectorAll('#svRzScope button').forEach(x => x.classList.toggle('on', x === b)); }; });
   $('svRzCopy').onchange = e => { U._resizeCopy = e.target.checked; document.querySelectorAll('[data-a="resizeTo"]').forEach(b => { b.dataset.v = U._resizeCopy ? 'copy' : ''; }); };
   $('svRzC').onclick = () => customSize(true);
 }
 async function doResize(sizeId, copy, cw, ch) {
   const s = sizeId ? SV.sizeById(sizeId) : { w: cw, h: ch, id: null, n: cw + '×' + ch };
   SV.closeModal();
-  if (copy) {
-    const c = SV.clone(U.proj); c.id = SV.uid('pr'); c.name = U.proj.name + ' – ' + s.n; c.sizeId = s.id; c.thumb = null;
+  const onlyPage = U.proj.pages.length > 1 && U._rzScope !== 'all';
+  if (copy || onlyPage) {
+    const c = SV.clone(U.proj); c.id = SV.uid('pr'); c.name = U.proj.name + ' – ' + s.n;
+    if (onlyPage) { c.pages = [c.pages[U.pi]]; c.name = U.proj.name + ' – pag. ' + (U.pi + 1) + ' – ' + s.n; } c.sizeId = s.id; c.thumb = null;
     SV.resizeProject(c, s.w, s.h);
     await SV.saveNow(); await SV.dbPut('projects', c); await SV.openProject(c.id, c); SV.toast('Copia creata: ' + s.n);
   } else {
@@ -14711,7 +14728,8 @@ X.fontDel = async d => { SV.myFonts = SV.myFonts.filter(f => f.name !== d.f); aw
 
 X.fxAuto = () => { SV.change(() => SV.selEls().forEach(e => { if (e.type === 'image') e.fx = Object.assign({}, e.fx, { auto: !(e.fx && e.fx.auto) }); })); SV.refreshPanel && SV.refreshPanel(true); };
 /* ---------- cut ---------- */
-X.cut = () => { if (!U.sel.length) return; _act.call(SV, 'copy', {}); _act.call(SV, 'del', {}); };
+X.cut = () => { if (!U.sel.length) return; _act.call(SV, 'copy', {}); sysMark(); _act.call(SV, 'del', {}); };
+X.copy = () => { _act.call(SV, 'copy', {}); if (U.sel.length) sysMark(); };
 
 /* ---------- right-click menu ---------- */
 function closeCtx() { const m = $('svCtxMenu'); if (m) m.remove(); }
@@ -14783,9 +14801,12 @@ window.addEventListener('pointerup', e => { if (!gd) return; const p = stPt(e), 
   if (p.sx < RUL || p.sy < RUL || v < -2 || v > lim + 2) arr.splice(gd.i, 1); gd = null; SV.dirty && SV.dirty(); SV.render(); }, true);
 const vm = (k, l) => `<button data-a="viewTog" data-k="${k}">${VW[k] ? '✅' : '⬜'} ${l}</button>`;
 X.viewMenu = (d, b) => { closeCtx(); const r = b.getBoundingClientRect(); const m = document.createElement('div'); m.id = 'svCtxMenu'; m.className = 'sv-cm';
-  m.innerHTML = vm('rul', 'Righelli e guide (trascina dal bordo)') + vm('grid', 'Griglia') + vm('mar', 'Margini di sicurezza (5%)') + '<hr><button data-a="guideClr">🧹 Cancella le guide</button>'; $('sv').appendChild(m);
+  m.innerHTML = vm('rul', 'Righelli e guide (trascina dal bordo)') + vm('grid', 'Griglia') + vm('mar', 'Margini di sicurezza (5%)') + '<hr><button data-a="guideClr">🧹 Cancella le guide</button><button data-a="zoomSet">🔍 Sensibilità zoom…</button>'; $('sv').appendChild(m);
   m.style.left = Math.max(4, Math.min(r.left, innerWidth - m.offsetWidth - 4)) + 'px'; m.style.top = Math.max(4, r.top - m.offsetHeight - 8) + 'px'; m.addEventListener('click', () => setTimeout(closeCtx, 0)); };
 X.viewTog = d => { VW[d.k] = VW[d.k] ? 0 : 1; saveVW(); SV.render(); SV.toast((VW[d.k] ? 'Attivato' : 'Disattivato')); };
+X.zoomSet = () => SV.modal(`<h3>🔍 Sensibilità zoom</h3><p style="font-size:13px;color:#6b7280;margin:0 0 10px">Zoom con Ctrl/⌘ + rotellina o pizzico sul trackpad. Più basso = più dolce.</p><label class="sv-sl"><span>Dolce</span><input type="range" data-in="zoomSens" min="20" max="200" step="5" value="${Math.round(SV.zoomSens * 100)}"><output>${Math.round(SV.zoomSens * 100)}%</output></label><div class="sv-row" style="margin-top:12px"><button class="sv-btn sec" data-a="zoomSensReset">Normale (100%)</button><button class="sv-btn" data-a="closeModal">Fatto</button></div>`);
+X.zoomSensReset = () => { SV.zoomSens = 1; try { localStorage.setItem('sv-zoomsens', '1'); } catch (e) {} X.zoomSet(); };
+const _inp0 = SV.inp; SV.inp = function (k, v, d, t) { if (k === 'zoomSens') { SV.zoomSens = Math.max(0.2, Math.min(2.5, +v / 100)); try { localStorage.setItem('sv-zoomsens', String(SV.zoomSens)); } catch (e) {} const o = t && t.parentNode && t.parentNode.querySelector('output'); if (o) o.textContent = Math.round(SV.zoomSens * 100) + '%'; return; } return _inp0.apply(this, arguments); };
 X.guideClr = () => { const g = UG(); if (g) { g.v = []; g.h = []; SV.dirty && SV.dirty(); SV.render(); } };
 
 /* ---------- keyboard shortcuts ---------- */
@@ -14813,6 +14834,60 @@ window.addEventListener('keydown', e => {
   else if (l === 'c') { e.preventDefault(); addShape('circle'); }
   else if (l === 'l') { e.preventDefault(); SV.addEls([SV.newEl('line', { stroke: '#d4af37', sw: 8 * SV.h.kk(), name: 'Linea', h: 30 * SV.h.kk(), w: SV.h.W() * 0.5 }, SV.h.W(), SV.h.H())]); }
 });
+/* ---------- Incolla: immagini, testo, livelli (Ctrl/Cmd+V, drag & drop, pulsante Incolla) ---------- */
+const MARK = '__volantino_layer__';
+function sysMark() { U._copyPending = true; try { document.execCommand('copy'); } catch (e) {} U._copyPending = false; }
+document.addEventListener('copy', e => { if (U._copyPending && e.clipboardData) { e.clipboardData.setData('text/plain', MARK); e.preventDefault(); } });
+const editorOpen = () => U.proj && $('sv') && !$('sv').hidden && $('svEditor') && !$('svEditor').hidden && $('svModal').hidden;
+const typing = t => !!t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable) || U.mode === 'text';
+async function addImageFiles(files, where) {
+  files = [...files].filter(f => /^image\//.test(f.type) || /\.(jpe?g|png|webp|heic|gif)$/i.test(f.name || ''));
+  if (!files.length) return false;
+  SV.busy(true, 'Aggiungo l’immagine…');
+  let n = 0;
+  try { for (const f of files) { try { const rec = await SV.addAsset(f, 'upload', f.name || 'Incollata'); SV.addImage(rec, n++); } catch (e) { SV.toast('Formato non supportato'); } } } finally { SV.busy(false); }
+  if (n) { SV.toast(n > 1 ? n + ' immagini aggiunte ✓' : 'Immagine incollata ✓ — spostala o ridimensionala'); SV.refreshPanel && SV.refreshPanel(); }
+  return !!n;
+}
+function addTextLayer(txt) {
+  txt = String(txt || '').replace(/\r/g, '').trim().slice(0, 3000); if (!txt) return false;
+  const kf = (U.kit && U.kit.fonts) || {}, bg = (SV.h.page().bg || {}).color || '#ffffff';
+  const t = SV.newText(txt, { font: kf.body || 'Montserrat', size: txt.length > 60 ? 48 : 64, bold: txt.length <= 60, color: /^#[0-9a-f]{6}$/i.test(bg) && (parseInt(bg.slice(1,3),16)*0.299+parseInt(bg.slice(3,5),16)*0.587+parseInt(bg.slice(5,7),16)*0.114)/255 > 0.6 ? '#1d1f23' : '#ffffff' }, SV.h.W(), SV.h.H());
+  SV.addEls([t]); SV.toast('Testo incollato ✓ — toccalo due volte per modificarlo'); return true;
+}
+document.addEventListener('paste', async e => {
+  if (!editorOpen() || typing(e.target)) return;
+  const cd = e.clipboardData; if (!cd) return;
+  const files = [...(cd.files || [])].filter(f => /^image\//.test(f.type));
+  if (!files.length && cd.items) [...cd.items].forEach(i => { if (i.kind === 'file' && /^image\//.test(i.type)) { const f = i.getAsFile(); if (f) files.push(f); } });
+  const txt = cd.getData('text/plain') || '';
+  e.preventDefault();
+  if (files.length) { await addImageFiles(files); return; }
+  if (txt && txt.trim() !== MARK) { if (addTextLayer(txt)) return; }
+  _act.call(SV, 'paste', {});
+});
+X.paste = async () => {
+  if (!editorOpen()) return _act.call(SV, 'paste', {});
+  try {
+    if (navigator.clipboard && navigator.clipboard.read) {
+      const items = await navigator.clipboard.read();
+      for (const it of items) { const ty = it.types.find(t => /^image\//.test(t)); if (ty) { const b = await it.getType(ty); await addImageFiles([new File([b], 'Incollata.' + (ty.split('/')[1] || 'png'), { type: ty })]); return; } }
+      for (const it of items) if (it.types.includes('text/plain')) { const tx = await (await it.getType('text/plain')).text(); if (tx.trim() === MARK) return _act.call(SV, 'paste', {}); if (addTextLayer(tx)) return; }
+    } else if (navigator.clipboard && navigator.clipboard.readText) { const tx = await navigator.clipboard.readText(); if (tx.trim() !== MARK && addTextLayer(tx)) return; }
+  } catch (err) {
+    if (U.clip || localStorage.getItem('sv-clip')) return _act.call(SV, 'paste', {});
+    SV.toast('Il browser blocca l’incolla: usa Ctrl/⌘+V oppure “Carica foto”', 4500); return;
+  }
+  if (U.clip || localStorage.getItem('sv-clip')) return _act.call(SV, 'paste', {});
+  SV.toast('Niente da incollare: copia prima un’immagine, un testo o un elemento', 3500);
+};
+/* drag & drop dei file ovunque nell'editor (non solo sulla pagina) */
+window.addEventListener('dragover', e => { if (editorOpen() && e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files')) e.preventDefault(); });
+window.addEventListener('drop', e => { if (!editorOpen() || e.defaultPrevented) return; const fl = e.dataTransfer && e.dataTransfer.files; if (fl && fl.length) { e.preventDefault(); addImageFiles(fl); } });
+/* pulsante "Incolla" ben visibile nei pannelli Elementi e Foto */
+const PASTE_BTN = `<button class="sv-btn sec" data-a="paste" style="margin:0 0 10px">📋 Incolla immagine, testo o elemento</button>`;
+const _pe = P.elementi; P.elementi = function () { return PASTE_BTN + _pe.apply(this, arguments); };
+const _pc = P.caricamenti; P.caricamenti = function () { return _pc.apply(this, arguments) + `<div style="height:8px"></div>` + PASTE_BTN.replace('margin:0 0 10px', 'margin:6px 0 0'); };
 })();
 
 /* ---------- Tabelle e grafici (one-tap presets, editable shapes + text) ---------- */
@@ -14862,6 +14937,7 @@ SV.catalog = function () {
     make: () => { const e = fn(SV.h.W(), SV.h.H()); setTimeout(() => SV.toast('Tocca due volte un testo per modificarlo. "Separa" per muovere le singole celle.', 4200), 300); return e; } }));
   return items;
 };
+
 })();
 
 /* Gomma: erase/restore refine panel (non-destructive alpha mask) */
@@ -17100,7 +17176,7 @@ SV.colorUtil = { h2r, r2h, HSL, hsl, contrast, fixC };
 const ROLES = [['bg', 'Sfondo'], ['title', 'Titolo'], ['text', 'Testo'], ['accent', 'Accenti'], ['shape', 'Forme / pillole'], ['outline', 'Contorni']];
 
 /* ---- role extraction from current page ---- */
-function page() { return U.proj && U.proj.pages[U.pageIx || 0]; }
+function page() { return U.proj && U.proj.pages[U.pi || 0]; }
 function textColor(e) { const st = e.st || {}; if (st.color && st.color !== 'transparent') return st.color; if (st.grad === 'gold') return '#d4af37'; return st.stroke ? st.stroke.c : '#ffffff'; }
 function classify(pg) {
   const W = U.proj.w, H = U.proj.h, els = pg.els.filter(e => !e.hidden);
@@ -17246,15 +17322,16 @@ SV.P.combo = function () {
   const base = cache.length; cache = cache.concat(kitP);
   return `<div class="cp-head"><button class="sv-btn gold" data-a="palShuffle">🔀 Mescola</button><button class="sv-btn" data-a="undo">↶ Annulla</button></div>
   <div class="cp-leg">${ROLES.map(([k, l]) => `<span>${l}</span>`).join('')}</div>
-  <label class="cp-all"><input type="checkbox" id="cpAll" ${U._palAll ? 'checked' : ''}> Applica a tutte le pagine</label>
+  <div class="sv-lbl">Applica a</div><div class="sv-seg"><button data-a="palScope" data-v="0" class="${U._palAll ? '' : 'on'}">📄 Solo questa pagina</button><button data-a="palScope" data-v="1" class="${U._palAll ? 'on' : ''}">📚 Tutte le pagine</button></div>
   <div class="sv-lbl">Suggerite</div>${cache.slice(0, base).map(row).join('')}
   ${kitP.length ? `<div class="sv-lbl">Dal Kit</div>${kitP.map((P, j) => row(P, base + j)).join('')}` : ''}
-  <p class="cp-tip">Tocca una riga per ricolorare tutto il design (sfondo, titoli, testi, accenti, forme, contorni). ↶ per tornare indietro.</p>`;
+  <p class="cp-tip">Tocca una riga per ricolorare la pagina che stai modificando (sfondo, titoli, testi, accenti, forme, contorni). ↶ per tornare indietro.</p>`;
 };
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-a^="pal"]'); if (!b || !document.getElementById('svPanelBody') || !document.getElementById('svPanelBody').contains(b)) return;
   e.stopPropagation(); e.preventDefault();
-  const a = b.dataset.a, all = !!(document.getElementById('cpAll') || {}).checked; U._palAll = all;
+  const a = b.dataset.a, all = !!U._palAll;
+  if (a === 'palScope') { U._palAll = b.dataset.v === '1'; SV.refreshPanel(true); return; }
   if (a === 'palKit') { const P = cache && cache[+b.dataset.i]; if (P) SV.savePaletteKit(P); return; }
   if (a === 'palApply') { const P = cache && cache[+b.dataset.i]; if (!P) return; SV.applyPalette(P, { all }); SV.refreshPanel(true); document.querySelectorAll('.cp-row').forEach(r => r.classList.toggle('on', r.dataset.i === b.dataset.i && !P.orig)); return; }
   if (a === 'palShuffle') { U._palShuffle = SV.shufflePalette(); SV.applyPalette(U._palShuffle, { all }); SV.refreshPanel(true); const r = document.querySelector('.cp-row[data-i="1"]'); if (r) r.classList.add('on'); }
