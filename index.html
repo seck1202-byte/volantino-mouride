@@ -4566,8 +4566,7 @@ function renderProg(ctx, W, H, d) {
   const nice = dateStr ? dateStr.toLowerCase().split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ') : '';
   ctx.fillText(nice, W*0.29, by + bh*0.65);
   ctx.fillStyle = '#fff';
-  ctx.font = `800 ${W*0.028}px Montserrat, sans-serif`;
-  ctx.fillText((d.luogo || 'TOUBA').toUpperCase(), W*0.72, by + bh*0.55);
+  { const lt = (d.luogo || 'TOUBA').toUpperCase(); let fs = W*0.028; ctx.font = `800 ${fs}px Montserrat, sans-serif`; while (fs > W*0.012 && ctx.measureText(lt).width > W*0.38) { fs *= 0.94; ctx.font = `800 ${fs}px Montserrat, sans-serif`; } ctx.fillText(lt, W*0.72, by + bh*0.55); }
   if (d.indirizzo) {
     ctx.font = `500 ${W*0.016}px Montserrat, sans-serif`;
     ctx.fillText(d.indirizzo, W*0.72, by + bh*0.85);
@@ -4612,6 +4611,7 @@ function renderProg(ctx, W, H, d) {
   }
 
   const progLines = lines.filter(l => !l.includes('|')).slice(0, 8);
+  if (progLines.length) {
   const boxX = W*0.52, boxY = H*0.62, boxW = W*0.43, boxH = H*0.30;
   roundRect(ctx, boxX, boxY, boxW, boxH, 10);
   ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fill();
@@ -4628,6 +4628,7 @@ function renderProg(ctx, W, H, d) {
       startSize: W*0.02, minSize: W*0.012, weight:'600', fillStyle:'#0a3d20', align:'left', maxLines:2
     });
   });
+  }
   if (d.telefoni) {
     drawSafeText(ctx, d.telefoni, W/2, H*0.96, safeMaxW(W), {
       startSize: W*0.02, minSize: W*0.012, weight:'600', fillStyle:'#0a3d20', maxLines:1
@@ -18818,7 +18819,7 @@ SV.autoBuild = build;
 
 /* ================= existing templates (built-in + I miei modelli) ================= */
 const TPL_LAYOUT = { verde: 'center', bianco: 'center', noir: 'center', gammu: 'center-badge', seppia: 'phototop', scuro: 'phototop', soleil: 'phototop', ciel: 'phototop-box', bordeaux: 'arch', arch: 'arch', touba: 'side', navy: 'side', fatiha: 'panel', anni: 'special-anni', sass: 'special-sass', prog: 'special-prog', waxtaan: 'special-wax', kazu: 'special-kazu', collecte: 'special-coll', teal: 'special-teal' };
-const TPL_HERO = { teal: { x: 50, y: 650, w: 480, h: 640 }, prog: { x: 240, y: 380, w: 600, h: 680 }, fatiha: { x: 240, y: 110, w: 600, h: 690 }, collecte: { x: 240, y: 370, w: 600, h: 770 }, sass: { x: 160, y: 130, w: 680, h: 850 } }; // legacy templates without a photo frame
+const TPL_HERO = { teal: { x: 40, y: 650, w: 440, h: 630 }, prog: { x: 250, y: 370, w: 580, h: 620 }, fatiha: { x: 240, y: 110, w: 600, h: 690 }, collecte: { x: 240, y: 370, w: 600, h: 770 }, sass: { x: 160, y: 130, w: 680, h: 850 } }; // legacy templates without a photo frame
 const TPL_ONLY = { anni: ['anni'], sass: ['collecte', 'magal'], prog: ['programme', 'kazu', 'waxtaan'], waxtaan: ['waxtaan'], kazu: ['kazu', 'programme'], collecte: ['collecte'], teal: ['programme', 'waxtaan'], fatiha: ['fatiha'], touba: ['magal'], gammu: ['gamou'] };
 const EV_ALIAS = { gamou: ['gamou', 'gammu', 'gammug', 'mawlid'], waxtaan: ['waxtaan', 'conference', 'conférence'], fatiha: ['fatiha', 'condoglianze'], anni: ['anni', 'anniversaire', 'joyeux'], collecte: ['collecte', 'sass'], programme: ['programme', 'xassida'], dahira: ['dahira', 'thiant'], ziar: ['ziar', 'dadje', 'dadjé'], magal: ['magal'], kazu: ['kazu', 'safar'] };
 const tplMatches = (id, ev) => { const s = SV.TPL_EVENTS && SV.TPL_EVENTS[id]; return !!(s && (EV_ALIAS[ev] || [ev]).some(k => s.has(k))); };
@@ -19001,7 +19002,7 @@ async function candidates(A) {
   const ev = A.data.ev, out = { mine: [], tpl: [], rec: [] };
   const mine = (await SV.myTpls().catch(() => [])) || [];
   mine.filter(t => t.cat === ev).concat(mine.filter(t => t.cat !== ev)).forEach(t => out.mine.push({ kind: 'mine', mine: t.id, mineName: t.name, pri: t.cat === ev ? 0 : 2 }));
-  const T0 = (SV.allTemplates ? SV.allTemplates() : TEMPLATES).filter(t => tplAllowed(t.id, ev));
+  const T0 = (SV.allTemplates ? SV.allTemplates() : TEMPLATES).filter(t => tplAllowed(t.id, ev) && !(t.id === 'px_programme' && !A.data.programma)); // schedule board needs a list, else half the page stays empty
   T0.filter(t => tplMatches(t.id, ev)).concat(T0.filter(t => !tplMatches(t.id, ev))).forEach(t => out.tpl.push({ kind: 'tpl', tpl: t.id, pri: (tplMatches(t.id, ev) ? 1 : 3) + (LT(t.id) ? -0.3 + (LT(t.id).prio || 0) * 0.05 : 0) }));
   const pals = palsFor(ev).concat(Object.keys(PAL).filter(k => !palsFor(ev).includes(k)));
   const styleOrder = ['split', 'medal', 'banner', 'arco', 'avorio', 'notte', 'patch'];
