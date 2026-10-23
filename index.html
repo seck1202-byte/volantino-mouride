@@ -910,6 +910,11 @@ textarea.sv-in{height:auto;padding:8px 10px;min-height:70px}
 .sv-mh{color:var(--mut);font-size:12px;margin:2px 0 8px}
 
 .sv-recent .sv-tcard .more{width:36px;height:36px;font-size:18px}.sv-recent .sv-tcard small{display:block}
+.sv-mg.cp{grid-template-columns:repeat(2,1fr)}
+.sv-mc.cp img{aspect-ratio:4/5;object-fit:contain;background:#1b1b1b}
+.sv-mc.cp.st img{aspect-ratio:9/16}
+.sv-mc.cp.on{outline:2px solid var(--p)}
+.sv-mt{display:flex;gap:6px;margin:2px 0 8px}.sv-mt button{flex:1;min-height:44px;border:1px solid var(--line);border-radius:12px;background:#fff;font:700 13px/1.1 inherit;color:var(--ink);cursor:pointer}.sv-mt button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 
 </style>
 </head>
@@ -13812,7 +13817,7 @@ function thumbCanvas(key, fn, w, h) {
   const x = c.getContext('2d'); try { fn(x, c.width, c.height); } catch (e) {}
   return (_th[key] = c.toDataURL());
 }
-SV.thumbCanvas = thumbCanvas;
+SV.thumbCanvas = thumbCanvas; SV.thumbCache = _th;
 function shapeThumb(k) { return thumbCanvas('s' + k, (c, w, h) => { const wide = k === 'banner' || k === 'ribbon' || k === 'arrow'; SV.drawElement(c, { type: 'shape', shape: k, fill: '#8a8f98', x: w * 0.12, y: wide ? h * 0.32 : h * 0.12, w: w * 0.76, h: wide ? h * 0.36 : h * 0.76 }, {}); }); }
 function lineThumb(o) { return thumbCanvas('l' + JSON.stringify(o), (c, w, h) => { SV.drawElement(c, Object.assign({ type: 'line', stroke: '#6b7280', sw: 4, x: 8, y: h / 2 - 10, w: w - 16, h: 20 }, o), {}); }); }
 function frameThumb(k) { return thumbCanvas('f' + k, (c, w, h) => { SV.maskPath(c, k, 14, 10, w - 28, h - 20); c.fillStyle = '#c4c9d0'; c.fill(); c.font = '26px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('🖼️', w / 2, h / 2); }); }
@@ -14986,7 +14991,7 @@ function def(id, l, cat, r, draw, o) {
   REG.push({ id, l, cat, r, kw: o.kw || '', lwk: o.lwk || 0.012, size: o.size || 'sq' });
   SV.ORN_EXT['m_' + id] = (c, x, y, w, h, el) => {
     const u = Math.min(w, h), msw = (el && el.msw) || 1;
-    const g = { c, x, y, w, h, cx: x + w / 2, cy: y + h / 2, u, c1: el && el.fill && el.fill !== 'none' ? el.fill : '#d4af37', c2: el && el.stroke && el.stroke !== 'none' ? el.stroke : '#0d5c2e' };
+    const g = { c, x, y, w, h, cx: x + w / 2, cy: y + h / 2, u, c1: el && el.mg && el.mgFill === el.fill ? SV.makeG(c, el.mg, x, y, w, h) : (el && el.fill && el.fill !== 'none' ? el.fill : '#d4af37'), c2: el && el.stroke && el.stroke !== 'none' ? el.stroke : '#0d5c2e' };
     g.lw = Math.max(1, (o.lwk ? (o.lwk > 0.03 ? h : u) * o.lwk : u * 0.012) * msw);
     c.save(); try { draw(g); } finally { c.restore(); }
   };
@@ -15961,6 +15966,171 @@ pdef('crossstar', 'Croci a stella', 1, (c, W, H, c1, lw) => {
   c.beginPath(); for (let i = 0; i < 8; i++) { const a = i * PI / 4 - PI / 2, r = i % 2 ? W * .2 : W * .5; c[i ? 'lineTo' : 'moveTo'](cx + cos(a) * r, cy + sin(a) * r); } c.closePath(); fl(c, c1, .3); sk(c, c1, lw);
   pg(c, cx, cy, W * .16, 4, PI / 4); fl(c, c1); for (const [x, y] of [[0, 0], [W, 0], [0, H], [W, H]]) { pg(c, x, y, W * .25, 4, PI / 4); sk(c, c1, lw); ci(c, x, y, W * .05); fl(c, c1); }
 });
+})();
+
+/* ===== Composizioni arabe: ready-made layered page decorations (gradients, glows, frames, corners, medallions, mosques) ===== */
+(function () {
+const SV = window.SV, U = SV.U, H = SV.h, esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+const REG = SV.MOTIFS, RM = id => REG.find(m => m.id === id);
+const rgba = (hex, a) => { const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(hex || '#000000') || [0, 0, 0, 0]; return `rgba(${parseInt(m[1], 16)},${parseInt(m[2], 16)},${parseInt(m[3], 16)},${a})`; };
+/* soft glow and vignette (custom ornament kinds) */
+SV.ORN_EXT.cg_glow = (c, x, y, w, h, el) => { const col = el.fill || '#ffd76a', cx = x + w / 2, cy = y + h / 2, r = Math.max(w, h) / 2, g = c.createRadialGradient(cx, cy, 0, cx, cy, r);
+  g.addColorStop(0, rgba(col, 1)); g.addColorStop(.3, rgba(col, .5)); g.addColorStop(.65, rgba(col, .14)); g.addColorStop(1, rgba(col, 0)); c.fillStyle = g; c.fillRect(x, y, w, h); };
+SV.ORN_EXT.cg_vig = (c, x, y, w, h, el) => { const col = el.fill || '#000000', cx = x + w / 2, cy = y + h / 2, g = c.createRadialGradient(cx, cy, Math.min(w, h) * .28, cx, cy, Math.hypot(w, h) / 2);
+  g.addColorStop(0, rgba(col, 0)); g.addColorStop(1, rgba(col, 1)); c.fillStyle = g; c.fillRect(x, y, w, h); };
+/* ---------- colour themes (gradients) ---------- */
+const CT = {
+  smeraldo: { l: 'Smeraldo e oro', sw: ['#0e7a4b', '#e2b842'], bgA: '#0f8052', bgB: '#03281a', mid: '#0a6b43', c1: '#e8c04c', c2: '#05301d', mg: { c1: '#fbe7a1', c2: '#b9861a', ang: 135 }, glow: '#ffd76a', vig: '#01150c', pat: '#e8c04c' },
+  blu: { l: 'Blu e turchese', sw: ['#0a1f5c', '#18b6c0'], bgA: '#0a1f5c', bgB: '#10a1ad', mid: '#0c3a86', c1: '#f0cf6a', c2: '#071a4a', mg: { c1: '#fff0b0', c2: '#c3902a', ang: 135 }, glow: '#8af0ff', vig: '#030b26', pat: '#f0cf6a' },
+  marrone: { l: 'Marrone e oro', sw: ['#4a2511', '#d9a441'], bgA: '#8b5a22', bgB: '#33180b', mid: '#6a3d17', c1: '#f3d27a', c2: '#2c1508', mg: { c1: '#ffe9a8', c2: '#c08a2a', ang: 135 }, glow: '#ffc56a', vig: '#1a0b04', pat: '#f3d27a' },
+  crema: { l: 'Bianco e crema', sw: ['#fffaf0', '#c9972b'], bgA: '#fffdf6', bgB: '#ecd9a8', mid: '#fff6dc', c1: '#bd8a1f', c2: '#fff6dc', mg: { c1: '#e2b94d', c2: '#8d6212', ang: 135 }, glow: '#fff3c0', vig: '#b98f3a', pat: '#c49a35' },
+  verde: { l: 'Verde e bianco', sw: ['#046b4f', '#ffffff'], bgA: '#10b585', bgB: '#044a38', mid: '#07765a', c1: '#fff8e2', c2: '#04523c', mg: { c1: '#ffffff', c2: '#eadca8', ang: 135 }, glow: '#c8ffe8', vig: '#02261c', pat: '#e9f7ee' },
+};
+SV.COMP_THEMES = CT;
+/* ---------- builder ---------- */
+function make(comp, th, W, Hh) {
+  const S = Hh / W > 1.5, els = [], gid = { bg: SV.uid('g'), fr: SV.uid('g'), dt: SV.uid('g') }, B = { W, H: Hh, th, S, els };
+  const add = (kind, x, y, w, h, o) => { o = o || {}; const grp = o.grp || 'dt'; delete o.grp; const e = SV.newEl('orn', Object.assign({ kind, w, h, comp: comp.id, gid: gid[grp] }, o), W, Hh); e.x = x; e.y = y; e.w = w; e.h = h; els.push(e); return e; };
+  const mo = o => Object.assign({ fill: th.c1, stroke: th.c2, mg: th.mg, mgFill: th.c1 }, o || {});
+  B.shadow = { c: rgba(th.vig, .55), b: 14, x: 0, y: 6 };
+  B.m = (id, x, y, w, h, o) => { const e = add('m_' + id, x, y, w, h, Object.assign({ name: RM(id).l }, mo(o))); return e; };
+  const dims = (id, mw, mh) => { const r = RM(id).r; let w = mw, h = w / r; if (h > mh) { h = mh; w = h * r; } return [w, h]; };
+  B.fitC = (id, cx, cy, mw, mh, o) => { const [w, h] = dims(id, mw, mh); return B.m(id, cx - w / 2, cy - h / 2, w, h, o); };
+  B.fitB = (id, cx, bot, mw, mh, o) => { const [w, h] = dims(id, mw, mh); return B.m(id, cx - w / 2, bot - h, w, h, o); };
+  B.fitT = (id, cx, top, mw, mh, o) => { const [w, h] = dims(id, mw, mh); return B.m(id, cx - w / 2, top, w, h, o); };
+  B.glow = (cx, cy, r, col, op) => add('cg_glow', cx - r, cy - r, 2 * r, 2 * r, { fill: col || th.glow, op: op == null ? .4 : op, grp: 'bg', name: 'Alone di luce' });
+  B.vig = op => add('cg_vig', 0, 0, W, Hh, { fill: th.vig, op: op == null ? .6 : op, grp: 'bg', name: 'Vignettatura' });
+  B.rect = (x, y, w, h, g, o) => { const e = SV.newEl('shape', Object.assign({ shape: 'rect', fill: '#000000', g, comp: comp.id, gid: gid.bg, name: 'Fascia sfumata' }, o || {}), W, Hh); e.x = x; e.y = y; e.w = w; e.h = h; els.push(e); return e; };
+  B.ground = (h, op) => B.rect(0, Hh - h, W, h, { c1: rgba(th.vig, 0), c2: rgba(th.vig, op == null ? .7 : op), ang: 180 });
+  B.band = (k, y, h, o) => add('pat_' + k, 0, y, W, h, Object.assign({ fill: th.pat, stroke: th.mid, ps: .2, pw: 1.1, name: 'Fascia a motivo', grp: 'bg' }, o || {}));
+  B.corner = (id, sz, mg, o) => { const pos = [[mg, mg, 0], [W - mg - sz, mg, 90], [W - mg - sz, Hh - mg - sz, 180], [mg, Hh - mg - sz, 270]]; pos.forEach(([x, y, rot], i) => B.m(id, x, y, sz, sz, Object.assign({ rot, grp: 'fr', name: RM(id).l + ' ' + (i + 1) }, o))); };
+  B.frame = (id, mg, o) => B.m(id, mg, mg, W - 2 * mg, Hh - 2 * mg, Object.assign({ grp: 'fr' }, o));
+  B.bg = { g: { c1: th.bgA, c2: th.bgB, ang: 180 }, color: th.bgB }; B.clear = { x: .1, y: .3, w: .8, h: .5 };
+  B.pat = (k, s, a, w) => { B.bg.pat = { k, c: th.pat, s: s || .4, a: a == null ? .16 : a, w: w || 1.1 }; };
+  B.radial = () => { B.bg.g = { c1: th.bgA, c2: th.bgB, radial: true }; };
+  comp.build(B, comp.v, { W, H: Hh, S });
+  return { els, bg: B.bg, clear: B.clear };
+}
+/* ---------- layouts ---------- */
+const LAY = {
+  regal(B, v, { W, H }) { B.pat(v.pat, .42, .16); B.radial(); B.vig(.55); B.glow(W / 2, H * .13, W * .5, B.th.glow, .38);
+    B.frame(v.frame, W * .03); B.corner(v.corner, Math.min(W * .27, H * .2), W * .05);
+    B.fitT(v.med, W / 2, H * .045, W * .36, H * .17, { shadow: B.shadow }); B.fitC(v.div, W / 2, H * .265, W * .62, H * .05); B.fitC(v.div, W / 2, H * .915, W * .62, H * .05, { rot: 180 });
+    B.clear = { x: .12, y: .31, w: .76, h: .57 }; },
+  night(B, v, { W, H }) { B.pat(v.pat, .5, .12); B.vig(.5); B.glow(W / 2, H * .15, W * .62, B.th.glow, .42); B.ground(H * .3, .55); B.glow(W / 2, H * .9, W * .7, B.th.glow, .22);
+    B.frame(v.frame, W * .026); B.fitC(v.moon, W / 2, H * .14, W * .38, H * .17, { shadow: B.shadow }); B.fitB(v.mosque, W / 2, H * .975, W * .98, H * .31, { shadow: B.shadow });
+    B.clear = { x: .1, y: .27, w: .8, h: .41 }; },
+  arch(B, v, { W, H }) { B.pat(v.pat, .4, .14); B.radial(); B.vig(.55); B.glow(W / 2, H * .55, W * .7, B.th.glow, .3); B.fitB(v.arch, W / 2, H * .985, W * .92, H * .86, { shadow: B.shadow });
+    B.fitT(v.lamp, W * .1, 0, W * .15, H * .3); B.fitT(v.lamp, W * .9, 0, W * .15, H * .22); B.frame(v.frame, W * .018, { op: .8 });
+    B.clear = { x: .2, y: v.cy || .58, w: .6, h: .36 }; },
+  medal(B, v, { W, H }) { B.pat(v.pat, .5, .12); B.radial(); B.vig(.5); B.fitC(v.med, W / 2, H * .5, W * 1.3, H * 1.05, { op: .2, rot: 0, grp: 'bg' }); B.glow(W / 2, H * .5, W * .6, B.th.glow, .22);
+    B.frame(v.frame, W * .03); B.corner(v.corner, Math.min(W * .2, H * .15), W * .05); B.fitC(v.div, W / 2, H * .085, W * .55, H * .05); B.fitC(v.div, W / 2, H * .915, W * .55, H * .05, { rot: 180 });
+    B.clear = { x: .1, y: .15, w: .8, h: .7 }; },
+  lamps(B, v, { W, H }) { B.pat(v.pat, .45, .13); B.vig(.55); B.glow(W * .17, H * .26, W * .35, B.th.glow, .4); B.glow(W * .83, H * .2, W * .3, B.th.glow, .35); B.ground(H * .22, .55);
+    B.fitT(v.lamp, W * .17, 0, W * .24, H * .36, { shadow: B.shadow }); B.fitT(v.lamp, W * .83, 0, W * .2, H * .28, { shadow: B.shadow }); B.fitC(v.moon, W / 2, H * .1, W * .26, H * .12, { shadow: B.shadow });
+    B.fitB(v.bottom, W / 2, H * .985, W * .96, H * .2, { shadow: B.shadow }); B.frame(v.frame, W * .022, { op: .85 });
+    B.clear = { x: .1, y: .31, w: .8, h: .47 }; },
+  bands(B, v, { W, H }) { B.pat(v.pat, .5, .08); B.radial(); B.vig(.5);
+    B.rect(0, 0, W, H * .14, { c1: B.th.c2, c2: B.th.mid, ang: 180 }); B.band(v.pat2, 0, H * .14, { op: .55 }); B.rect(0, H * .905, W, H * .095, { c1: B.th.mid, c2: B.th.c2, ang: 180 }); B.band(v.pat2, H * .905, H * .095, { op: .55 });
+    B.fitC(v.div, W / 2, H * .142, W, H * .035); B.fitC(v.div, W / 2, H * .905, W, H * .035); B.fitC(v.med, W / 2, H * .12, W * .24, H * .1, { shadow: B.shadow });
+    B.corner(v.corner, Math.min(W * .16, H * .1), W * .02);
+    B.clear = { x: .08, y: .22, w: .84, h: .62 }; },
+  oasis(B, v, { W, H }) { B.pat(v.pat, .45, .1); B.vig(.45); B.glow(W / 2, H * .66, W * .8, B.th.glow, .42); B.fitC(v.moon, W * .78, H * .11, W * .28, H * .13, { shadow: B.shadow });
+    B.fitB('mosque_skyline', W / 2, H * .9, W * 1.0, H * .16, { op: .6 }); B.ground(H * .24, .6); B.fitB('palms2', W / 2, H * .985, W * .9, H * .3, { shadow: B.shadow }); B.frame(v.frame, W * .025, { op: .85 });
+    B.clear = { x: .1, y: .22, w: .8, h: .48 }; },
+  minarets(B, v, { W, H }) { B.pat(v.pat, .42, .13); B.radial(); B.vig(.5); B.glow(W / 2, H * .5, W * .7, B.th.glow, .2);
+    B.fitB('minaret', W * .08, H * .985, W * .22, H * .7, { shadow: B.shadow }); B.fitB('minaret', W * .92, H * .985, W * .22, H * .7, { shadow: B.shadow }); B.fitB(v.mosque, W / 2, H * .985, W * .62, H * .26, { shadow: B.shadow });
+    B.fitC(v.div, W / 2, H * .055, W * .6, H * .045); B.frame(v.frame, W * .022, { op: .8 }); B.clear = { x: .22, y: .12, w: .56, h: .6 }; },
+  cart(B, v, { W, H }) { B.pat(v.pat, .45, .13); B.radial(); B.vig(.55); B.glow(W / 2, H * .14, W * .5, B.th.glow, .38); B.ground(H * .2, .5);
+    B.fitC(v.med, W / 2, H * .14, W * .36, H * .17, { shadow: B.shadow }); B.fitC(v.cart, W / 2, H * .31, W * .86, H * .11, { shadow: B.shadow }); B.fitB(v.mosque, W / 2, H * .985, W * 1.0, H * .2, { shadow: B.shadow });
+    B.frame(v.frame, W * .025, { op: .85 }); B.clear = { x: .1, y: .4, w: .8, h: .4 }; },
+  girih(B, v, { W, H }) { B.pat(v.pat, .55, .5, 1.25); B.radial(); B.glow(W / 2, H * .5, Math.max(W * .62, H * .38), B.th.mid, .97); B.glow(W / 2, H * .5, W * .6, B.th.mid, .8); B.vig(.35);
+    B.frame(v.frame, W * .028); B.corner(v.corner, Math.min(W * .24, H * .17), W * .045); B.fitC(v.div, W / 2, H * .1, W * .5, H * .045); B.fitC(v.div, W / 2, H * .9, W * .5, H * .045, { rot: 180 });
+    B.clear = { x: .16, y: .16, w: .68, h: .68 }; },
+  filigree(B, v, { W, H }) { B.pat(v.pat, .4, .1); B.radial(); B.vig(.5); B.glow(W / 2, H * .5, W * .8, B.th.glow, .14);
+    B.frame(v.frame, W * .02); B.corner(v.corner, Math.min(W * .26, H * .19), W * .04); B.fitC('d_vine', W / 2, H * .075, W * .56, H * .04); B.fitC('d_vine', W / 2, H * .925, W * .56, H * .04, { rot: 180 });
+    B.fitC(v.med, W / 2, H * .5, W * .9, H * .6, { op: .08, grp: 'bg' }); B.clear = { x: .12, y: .14, w: .76, h: .72 }; },
+};
+/* ---------- the catalogue: 24 compositions ---------- */
+LAY.double = LAY.arch;
+const CAT = [];
+const C = (lay, id, name, theme, v) => CAT.push({ id: lay + '_' + id, name, lay, theme, v, build: LAY[lay] });
+C('regal', 'a', 'Cornice regale', 'smeraldo', { pat: 'star8', frame: 'f_ornate', corner: 'c_filigree', med: 'mandala16', div: 'd_filigree' });
+C('regal', 'b', 'Cornice dorata', 'marrone', { pat: 'zellige', frame: 'f_filigree', corner: 'c_arab2', med: 'medal_laurel', div: 'd_chain' });
+C('night', 'a', 'Notte a Touba', 'blu', { pat: 'star4', frame: 'f_zellige', moon: 'crescent_3stars', mosque: 'mosque_touba' });
+C('night', 'b', 'Moschea e luna', 'smeraldo', { pat: 'star12', frame: 'f_rope', moon: 'crescent_wreath', mosque: 'mosque_dome' });
+C('arch', 'a', 'Arco dei lumi', 'smeraldo', { pat: 'ogee', frame: 'f_plaque', arch: 'arch_double', lamp: 'lamp_hang', cy: .38 });
+C('arch', 'b', 'Mihrab muqarnas', 'crema', { pat: 'lattice', frame: 'f_dots', arch: 'arch_muq', lamp: 'lantern_star', cy: .6 });
+C('medal', 'a', 'Grande medaglione', 'blu', { pat: 'diamond8', frame: 'f_ornate', corner: 'c_andalus', med: 'rosette24', div: 'd_arcade' });
+C('medal', 'b', 'Mandala dorato', 'marrone', { pat: 'honey', frame: 'f_laurel', corner: 'c_lotus', med: 'mandala_geo', div: 'd_crescent' });
+C('lamps', 'a', 'Lanterne di Ramadan', 'blu', { pat: 'star8', frame: 'f_zellige', lamp: 'lamp_hang', moon: 'crescent_3stars', bottom: 'palms2' });
+C('lamps', 'b', 'Luci e minareti', 'marrone', { pat: 'crossstar', frame: 'f_filigree', lamp: 'lantern_star', moon: 'crescent_orn', bottom: 'mosque_skyline' });
+C('bands', 'a', 'Fasce zellige', 'smeraldo', { pat: 'zellige', pat2: 'star8', div: 'd_zig', med: 'medal_octa', corner: 'c_diamond' });
+C('bands', 'b', 'Fasce andaluse', 'crema', { pat: 'quatrefoil', pat2: 'rosette', div: 'd_chain', med: 'medal_quatre', corner: 'c_fleuron' });
+C('oasis', 'a', "Oasi al tramonto", 'marrone', { pat: 'scales', frame: 'f_dots', moon: 'crescent_wreath' });
+C('oasis', 'b', 'Oasi smeraldo', 'verde', { pat: 'arches', frame: 'f_rope', moon: 'crescent_3stars' });
+C('minarets', 'a', 'Minareti gemelli', 'blu', { pat: 'lattice', frame: 'f_filigree', mosque: 'mosque_gate', div: 'd_arcade' });
+C('minarets', 'b', 'Torri di Touba', 'verde', { pat: 'star12', frame: 'f_ornate', mosque: 'mosque_dome', div: 'd_ribbon' });
+C('cart', 'a', 'Cartiglio e moschea', 'smeraldo', { pat: 'rosette', frame: 'f_plaque', med: 'medal_laurel', cart: 'cart_ogee', mosque: 'mosque_skyline' });
+C('cart', 'b', 'Targa e cupola', 'crema', { pat: 'ogee', frame: 'f_laurel', med: 'medal_scallop', cart: 'plaque_octa', mosque: 'mosque_skyline' });
+C('girih', 'a', 'Girih a 12 punte', 'blu', { pat: 'star12', frame: 'f_ornate', corner: 'c_arab2', div: 'd_filigree' });
+C('girih', 'b', 'Zellige reale', 'verde', { pat: 'zellige', frame: 'f_zellige', corner: 'c_vine', div: 'd_chain' });
+C('double', 'a', 'Arco doppio', 'marrone', { pat: 'arches', frame: 'f_plaque', arch: 'arch_double', lamp: 'lamp_hang', cy: .4 });
+C('double', 'b', 'Nicchia con colonne', 'blu', { pat: 'honey', frame: 'f_filigree', arch: 'mihrab_cols', lamp: 'lantern_star', cy: .55 });
+C('filigree', 'a', 'Filigrana oro', 'smeraldo', { pat: 'diamond8', frame: 'f_filigree', corner: 'c_vine', med: 'medal_floral' });
+C('filigree', 'b', 'Arabesco ricco', 'crema', { pat: 'crossstar', frame: 'f_ornate', corner: 'c_arab2', med: 'rosette24' });
+SV.COMPS = CAT;
+SV.compBuild = (id, themeId, W, Hh) => { const c = CAT.find(x => x.id === id); if (!c) return null; const th = CT[themeId || c.theme]; const r = make(c, th, W, Hh); r.th = th; return r; };
+/* ---------- thumbnails ---------- */
+const TW = 150;
+function thumb(c, tid, fmt) {
+  const th = tid === 'auto' ? c.theme : tid, key = 'cmp' + c.id + th + fmt, W = 540, Hh = fmt === 'story' ? 960 : 675;
+  return SV.thumbCanvas(key, (cx, w, h) => { const r = SV.compBuild(c.id, th, W, Hh); const bg = r.bg; cx.save(); cx.scale(w / W, h / Hh);
+    SV.drawBg(cx, { bg }, W, Hh, {}); r.els.forEach(e => SV.drawElement(cx, e, {}));
+    cx.setLineDash([10, 7]); cx.lineWidth = 3; cx.strokeStyle = 'rgba(255,255,255,.85)'; cx.fillStyle = 'rgba(255,255,255,.07)'; const z = r.clear; cx.beginPath(); cx.rect(z.x * W, z.y * Hh, z.w * W, z.h * Hh); cx.fill(); cx.stroke(); cx.restore(); }, TW * 2, Math.round(TW * 2 * Hh / W));
+}
+const BLANK = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+const peek = (c, tid, fmt) => SV.thumbCache ? (SV.thumbCache['cmp' + c.id + (tid === 'auto' ? c.theme : tid) + fmt] || BLANK) : BLANK;
+let _tk = 0;
+SV.P.motivi_after = function () { const my = ++_tk, imgs = [...document.querySelectorAll('img[data-cp]')].filter(i => i.src === BLANK || i.src.length < 100);
+  const step = () => { if (my !== _tk) return; const im = imgs.shift(); if (!im) return; const c = CAT.find(x => x.id === im.dataset.cp); if (c && im.isConnected) im.src = thumb(c, im.dataset.t, im.dataset.f); setTimeout(step, 8); }; setTimeout(step, 30); };
+/* ---------- panel ---------- */
+const page = () => H.page();
+const curComp = () => { const p = page(); const e = p.els.find(x => x.comp); return e ? e.comp : null; };
+const pageFmt = () => { const p = U.proj; return p.h / p.w > 1.5 ? 'story' : 'post'; };
+function compPanel() {
+  const tid = U.cTheme || 'auto', fmt = U.cFmt || pageFmt(), cur = curComp();
+  let h = `<p class="sv-mh">Tocca per applicare a <b>questa pagina</b>. Foto e testi restano sopra; l'area tratteggiata è libera.</p>`;
+  h += `<div class="sv-lbl">🎨 Colori</div><div class="sv-chips"><button class="sv-chip ${tid === 'auto' ? 'on' : ''}" data-a="cTheme" data-id="auto">✨ Originali</button>${Object.keys(CT).map(k => `<button class="sv-chip ${tid === k ? 'on' : ''}" data-a="cTheme" data-id="${k}"><i style="display:inline-block;width:12px;height:12px;border-radius:50%;background:linear-gradient(135deg,${CT[k].sw[0]},${CT[k].sw[1]});border:1px solid #0003;vertical-align:-2px"></i> ${CT[k].l}</button>`).join('')}</div>`;
+  h += `<div class="sv-lbl">📐 Anteprima <small style="font-weight:500;color:var(--mut)">(si adatta alla tua pagina)</small></div>${SV.seg('cFmt', fmt, [['post', '🖼️ Post 4:5'], ['story', '📱 Storia 9:16']])}`;
+  if (cur) h += `<button class="sv-btn sec" data-a="cRemove" style="margin-bottom:8px">🗑️ Togli la composizione da questa pagina</button>`;
+  h += `<div class="sv-mg cp ${fmt === 'story' ? 'st' : ''}">${CAT.map(c => `<button class="sv-mc cp ${fmt === 'story' ? 'st' : ''} ${cur === c.id ? 'on' : ''}" data-a="cApply" data-id="${c.id}" title="${esc(c.name)}"><img data-cp="${c.id}" data-t="${tid}" data-f="${fmt}" src="${peek(c, tid, fmt)}" alt=""><span>${esc(c.name)}</span></button>`).join('')}</div>`;
+  return h;
+}
+const _pm = SV.P.motivi;
+SV.P.motivi = function () {
+  const tab = U.mTab || 'motivi';
+  const seg = `<div class="sv-mt"><button data-a="mTab" data-id="comp" class="${tab === 'comp' ? 'on' : ''}">✨ Composizioni</button><button data-a="mTab" data-id="motivi" class="${tab !== 'comp' ? 'on' : ''}">❖ Singoli motivi</button></div>`;
+  return seg + (tab === 'comp' ? compPanel() : _pm.apply(this, arguments));
+};
+const _ps = SV.P.sfondo;
+SV.P.sfondo = function () { return _ps.apply(this, arguments) + `<div class="sv-lbl">✨ Composizioni arabe</div><p class="sv-mh">Sfondi decorati pronti: gradienti, cornici, angoli, medaglioni e moschee. Foto e testi restano sopra.</p><button class="sv-btn gold" data-a="mTab" data-id="comp" data-go="1">✨ Sfoglia le composizioni…</button>`; };
+function applyComp(id, tid) {
+  const c = CAT.find(x => x.id === id); if (!c) return; const p = U.proj, W = p.w, Hh = p.h, th = tid && tid !== 'auto' ? tid : c.theme;
+  const r = SV.compBuild(id, th, W, Hh);
+  SV.change(() => { const pg = page(); pg.els = pg.els.filter(e => !e.comp); const old = pg.bg || {}; const bg = Object.assign({}, old); delete bg.pat; bg.g = r.bg.g; bg.color = r.bg.color; if (r.bg.pat) bg.pat = r.bg.pat; bg.comp = id; if (old.img && !old.comp) { /* keep photo background, composition layers go over it */ }
+    pg.bg = bg; pg.els = r.els.concat(pg.els); U.sel = []; });
+  SV.toast('✨ ' + c.name + ' applicata a questa pagina');
+}
+const CM = {
+  mTab(d) { U.mTab = d.id; if (d.go && SV.openPanel) { SV.openPanel('motivi'); return; } SV.refreshPanel(true); },
+  cTheme(d) { U.cTheme = d.id; const cur = curComp(); if (cur) applyComp(cur, d.id); SV.refreshPanel(true); },
+  cFmt(d) { U.cFmt = d.v; SV.refreshPanel(true); },
+  cApply(d) { applyComp(d.id, U.cTheme || 'auto'); SV.refreshPanel(true); },
+  cRemove() { SV.change(() => { const pg = page(); pg.els = pg.els.filter(e => !e.comp); if (pg.bg && pg.bg.comp) { const bg = Object.assign({}, pg.bg); delete bg.comp; delete bg.g; delete bg.pat; pg.bg = bg; } U.sel = []; }); SV.refreshPanel(true); },
+};
+const _act = SV.act;
+SV.act = function (a, d, b, ev) { const h = CM[a]; return h ? h(d || {}, b, ev) : _act.apply(this, arguments); };
 })();
 
 /* Gomma: erase/restore refine panel (non-destructive alpha mask) */
