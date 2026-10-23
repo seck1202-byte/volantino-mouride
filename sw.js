@@ -1,4 +1,7 @@
-const CACHE = 'volantino-studio-202610231645';
+const CACHE = 'volantino-studio-202610231648';
+const RT = 'volantino-rt-v1'; // runtime cache: fonts, CDN libs and models (kept across app updates)
+const RT_HOSTS = /(^|\.)(fonts\.googleapis\.com|fonts\.gstatic\.com|cdn\.jsdelivr\.net|storage\.googleapis\.com)$/;
+async function rtPut(req, res) { try { const c = await caches.open(RT); await c.put(req, res); const ks = await c.keys(); if (ks.length > 160) await Promise.all(ks.slice(0, ks.length - 160).map(k => c.delete(k))); } catch (e) {} }
 const ASSETS = [
   './',
   './index.html',
@@ -14,7 +17,7 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== RT).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -23,7 +26,11 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   // Network-first for CDN models / fonts; cache-first for app shell
   if (url.origin !== location.origin) {
-    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+    if (e.request.method !== 'GET' || !RT_HOSTS.test(url.hostname)) { e.respondWith(fetch(e.request).catch(() => caches.match(e.request))); return; }
+    e.respondWith(fetch(e.request).then((res) => {
+      if (res && (res.ok || (res.type === 'opaque' && url.hostname === 'fonts.googleapis.com'))) rtPut(e.request, res.clone());
+      return res;
+    }).catch(() => caches.match(e.request).then((m) => m || Response.error())));
     return;
   }
   // Network-first for the page itself so updates show up immediately (cache = offline fallback)
