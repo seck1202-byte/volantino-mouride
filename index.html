@@ -16237,6 +16237,320 @@ const _act = SV.act;
 SV.act = function (a, d, b, ev) { const h = CM[a]; return h ? h(d || {}, b, ev) : _act.apply(this, arguments); };
 })();
 
+/* ===== Sfondi pronti: procedural, recolorable page backgrounds (clouds, gradients, skylines, patterns, textures) =====
+   page.bg.gen = { id, pal, dark, base }  — painted by SV.drawBg wrapper; cached per size. */
+(function () {
+  'use strict';
+  const SV = window.SV; if (!SV) return;
+  const U = SV.U, TAU = Math.PI * 2, PI = Math.PI;
+  const R = seed => { let s = (seed >>> 0) || 1; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); };
+  const hx = h => { h = String(h).replace('#', ''); if (h.length === 3) h = h.split('').map(x => x + x).join(''); const n = parseInt(h, 16) || 0; return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+  const toHex = (r, g, b) => '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+  const rgba = (h, a) => { const [r, g, b] = hx(h); return `rgba(${r},${g},${b},${a})`; };
+  const mix = (a, b, t) => { const x = hx(a), y = hx(b); return toHex(x[0] + (y[0] - x[0]) * t, x[1] + (y[1] - x[1]) * t, x[2] + (y[2] - x[2]) * t); };
+  const lum = h => { const [r, g, b] = hx(h); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; };
+
+  /* ---------- palettes (d dark, m main, l light, a accent, p pale) ---------- */
+  const PALS = {
+    smeraldo: { n: 'Smeraldo', d: '#04301a', m: '#0d5c2e', l: '#3fae72', a: '#e6c458', p: '#eaf6ec' },
+    oro: { n: 'Oro', d: '#5a3d05', m: '#b8861b', l: '#f0d27a', a: '#fff3c4', p: '#fff8e0' },
+    blu: { n: 'Blu reale', d: '#07163a', m: '#123a9a', l: '#5b8ee6', a: '#e8c15a', p: '#e8efff' },
+    bordeaux: { n: 'Bordeaux', d: '#3a0a14', m: '#7a1f2b', l: '#c25a68', a: '#e0bd62', p: '#fbeeea' },
+    marrone: { n: 'Marrone', d: '#2a160a', m: '#6b4423', l: '#b88a55', a: '#e8c882', p: '#f6ead6' },
+    crema: { n: 'Crema', d: '#8a7a5a', m: '#eadfc4', l: '#fbf6e8', a: '#b8861b', p: '#ffffff', lt: 1 },
+    notte: { n: 'Notte', d: '#04050d', m: '#10183a', l: '#2c3a7a', a: '#f0d060', p: '#dfe6ff' },
+    teal: { n: 'Turchese', d: '#04252b', m: '#0b6b73', l: '#4fc1c2', a: '#e0c070', p: '#e6fbf8' },
+    cielo: { n: 'Cielo', d: '#1c5fb8', m: '#4a97e0', l: '#bfe0fa', a: '#ffffff', p: '#ffffff' },
+    alba: { n: 'Alba', d: '#3b3a7a', m: '#c46a8c', l: '#ffb877', a: '#ffe6a8', p: '#fff3dc' },
+    tramonto: { n: 'Tramonto', d: '#2a1a4a', m: '#b8433e', l: '#ff9a4a', a: '#ffd27a', p: '#ffe9c4' },
+    viola: { n: 'Viola', d: '#1d0b3a', m: '#51258f', l: '#a779e0', a: '#f6d57a', p: '#f1e8ff' },
+  };
+  SV.BGPALS = PALS;
+
+  /* ---------- drawing primitives ---------- */
+  const vg = (c, y0, y1, st) => { const g = c.createLinearGradient(0, y0, 0, y1); st.forEach(([o, col]) => g.addColorStop(o, col)); return g; };
+  const angG = (c, W, H, deg, st) => { const a = deg * PI / 180, dx = Math.sin(a), dy = -Math.cos(a), L = Math.abs(W * dx) + Math.abs(H * dy), cx = W / 2, cy = H / 2; const g = c.createLinearGradient(cx - dx * L / 2, cy - dy * L / 2, cx + dx * L / 2, cy + dy * L / 2); st.forEach(([o, col]) => g.addColorStop(o, col)); return g; };
+  const fillV = (c, W, H, st) => { c.fillStyle = vg(c, 0, H, st); c.fillRect(0, 0, W, H); };
+  const fillA = (c, W, H, deg, st) => { c.fillStyle = angG(c, W, H, deg, st); c.fillRect(0, 0, W, H); };
+  const glow = (c, x, y, r, col, a, W, H) => { const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, rgba(col, a)); g.addColorStop(.5, rgba(col, a * .45)); g.addColorStop(1, rgba(col, 0)); c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2); };
+  const eglow = (c, x, y, rx, ry, col, a) => { c.save(); c.translate(x, y); c.scale(1, ry / rx); glow(c, 0, 0, rx, col, a); c.restore(); };
+  const vig = (c, W, H, s, col) => { const g = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .25, W / 2, H / 2, Math.hypot(W, H) * .56); g.addColorStop(0, rgba(col || '#000000', 0)); g.addColorStop(1, rgba(col || '#000000', s)); c.fillStyle = g; c.fillRect(0, 0, W, H); };
+  let _noise = null;
+  const noiseTile = () => { if (_noise) return _noise; const t = document.createElement('canvas'); t.width = t.height = 192; const x = t.getContext('2d'), im = x.createImageData(192, 192), r = R(77); for (let i = 0; i < im.data.length; i += 4) { const v = r() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; } x.putImageData(im, 0, 0); return (_noise = t); };
+  const grain = (c, W, H, a, blend) => { const t = noiseTile(), p = c.createPattern(t, 'repeat'); if (!p) return; c.save(); c.globalAlpha = a; if (blend) c.globalCompositeOperation = blend; c.fillStyle = p; c.fillRect(0, 0, W, H); c.restore(); };
+  const stars = (c, W, H, n, r, ymax, col, big) => { for (let i = 0; i < n; i++) { const x = r() * W, y = r() * H * (ymax || 1), s = (r() < .12 ? 1.8 : .7 + r() * .9) * W / 720, a = .35 + r() * .65; c.fillStyle = rgba(col || '#ffffff', a); c.beginPath(); c.arc(x, y, s, 0, TAU); c.fill(); if (big && r() < .1) { glow(c, x, y, s * 7, col || '#ffffff', .35); } } };
+  const moon = (c, x, y, rad, col, crescent) => {
+    glow(c, x, y, rad * 5, col, .35); c.save();
+    if (crescent) { c.beginPath(); c.arc(x, y, rad, 0, TAU); c.clip(); c.beginPath(); c.rect(x - rad * 2, y - rad * 2, rad * 4, rad * 4); c.arc(x + rad * .42, y - rad * .12, rad * .86, 0, TAU); c.fillStyle = col; c.fill('evenodd'); }
+    else { const g = c.createRadialGradient(x - rad * .3, y - rad * .3, rad * .1, x, y, rad); g.addColorStop(0, '#ffffff'); g.addColorStop(1, mix(col, '#c9d2ee', .5)); c.fillStyle = g; c.beginPath(); c.arc(x, y, rad, 0, TAU); c.fill(); }
+    c.restore();
+  };
+  const sun = (c, x, y, rad, col) => { glow(c, x, y, rad * 9, col, .55); glow(c, x, y, rad * 4, '#ffffff', .5); c.fillStyle = mix(col, '#ffffff', .75); c.beginPath(); c.arc(x, y, rad, 0, TAU); c.fill(); };
+  const rays = (c, x, y, len, n, col, a, a0, a1, r) => {
+    for (let i = 0; i < n; i++) { const ang = a0 + (a1 - a0) * (i + r() * .6) / n, w = (a1 - a0) / n * (.25 + r() * .5); const g = c.createRadialGradient(x, y, 0, x, y, len * (.6 + r() * .4)); g.addColorStop(0, rgba(col, a * (.5 + r() * .7))); g.addColorStop(1, rgba(col, 0)); c.fillStyle = g; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(ang - w) * len * 1.3, y + Math.sin(ang - w) * len * 1.3); c.lineTo(x + Math.cos(ang + w) * len * 1.3, y + Math.sin(ang + w) * len * 1.3); c.closePath(); c.fill(); }
+  };
+  /* soft cloud: stack of radial puffs, lit from the top, shaded below */
+  const cloud = (c, cx, cy, w, h, lc, sc, a, r, n) => {
+    n = n || 16; const puffs = [];
+    for (let i = 0; i < n; i++) { const t = (i / (n - 1)) * 2 - 1, env = Math.sqrt(Math.max(0, 1 - t * t)), x = cx + t * w * .5 + (r() - .5) * w * .08, rad = h * (.3 + .5 * env * (.55 + r() * .6)), y = cy - env * h * .32 * (.4 + r() * .8); puffs.push([x, y, rad]); }
+    const pass = (dy, col, al, k) => puffs.forEach(([x, y, rad]) => { const g = c.createRadialGradient(x, y + dy, 0, x, y + dy, rad * k); g.addColorStop(0, rgba(col, al)); g.addColorStop(.55, rgba(col, al * .55)); g.addColorStop(1, rgba(col, 0)); c.fillStyle = g; c.fillRect(x - rad * k, y + dy - rad * k, rad * 2 * k, rad * 2 * k); });
+    pass(h * .16, sc, a * .8, 1.15); pass(0, mix(lc, sc, .25), a * .8, 1); pass(-h * .12, lc, a * .85, .8); pass(-h * .2, '#ffffff', a * .35, .5);
+  };
+  const cloudRow = (c, W, H, y, n, sc, lc, shc, a, r, wk) => { for (let i = 0; i < n; i++) { const w = W * (wk || .5) * (.7 + r() * .6) * sc; cloud(c, (i + .2 + r() * .6) / n * W * 1.1 - W * .05, y + (r() - .5) * H * .05, w, w * (.2 + r() * .1), lc, shc, a * (.7 + r() * .3), r, 14 + (r() * 6 | 0)); } };
+  const dunes = (c, W, H, y, amp, col1, col2, r, k) => { const ph = [r() * 6, r() * 6, r() * 6]; c.beginPath(); c.moveTo(0, H); for (let x = 0; x <= W; x += W / 40) { const t = x / W; c.lineTo(x, y + Math.sin(t * 3.2 * (k || 1) + ph[0]) * amp + Math.sin(t * 7 + ph[1]) * amp * .35 + Math.sin(t * 12 + ph[2]) * amp * .12); } c.lineTo(W, H); c.closePath(); c.fillStyle = vg(c, y - amp, H, [[0, col1], [1, col2]]); c.fill(); };
+  const palm = (c, x, base, h, col, lean) => { c.strokeStyle = col; c.fillStyle = col; c.lineCap = 'round'; c.lineWidth = h * .035; c.beginPath(); c.moveTo(x, base); const tx = x + lean * h, ty = base - h; c.quadraticCurveTo(x + lean * h * .1, base - h * .55, tx, ty); c.stroke(); for (let i = 0; i < 9; i++) { const a = -PI * .95 + i * (PI * .9 / 8) + (i % 2 ? .05 : -.05), L = h * (.42 + (i % 3) * .05); c.lineWidth = h * .018; c.beginPath(); c.moveTo(tx, ty); c.quadraticCurveTo(tx + Math.cos(a) * L * .55, ty + Math.sin(a) * L * .55 - L * .25, tx + Math.cos(a) * L, ty + Math.sin(a) * L + L * .25); c.stroke(); } };
+  /* ---- mosque / Touba-style silhouettes ---- */
+  const dome = (c, x, base, w, h) => { const y0 = base - h * .3; c.beginPath(); c.moveTo(x - w * .5, base); c.lineTo(x - w * .5, y0); c.bezierCurveTo(x - w * .58, y0 - h * .5, x - w * .2, y0 - h * .62, x, y0 - h * .72); c.bezierCurveTo(x + w * .2, y0 - h * .62, x + w * .58, y0 - h * .5, x + w * .5, y0); c.lineTo(x + w * .5, base); c.closePath(); c.fill(); c.fillRect(x - w * .012, base - h, w * .024, h * .3); c.beginPath(); c.arc(x, base - h, w * .035, 0, TAU); c.fill(); };
+  const minaret = (c, x, base, w, h, lit) => {
+    c.beginPath(); c.moveTo(x - w * .5, base); c.lineTo(x - w * .38, base - h * .72); c.lineTo(x + w * .38, base - h * .72); c.lineTo(x + w * .5, base); c.closePath(); c.fill();
+    c.fillRect(x - w * .85, base - h * .62, w * 1.7, h * .028); c.fillRect(x - w * .62, base - h * .74, w * 1.24, h * .026);
+    c.beginPath(); c.moveTo(x - w * .46, base - h * .76); c.lineTo(x - w * .4, base - h * .86); c.lineTo(x + w * .4, base - h * .86); c.lineTo(x + w * .46, base - h * .76); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(x - w * .42, base - h * .86); c.quadraticCurveTo(x - w * .3, base - h * .95, x, base - h * .985); c.quadraticCurveTo(x + w * .3, base - h * .95, x + w * .42, base - h * .86); c.closePath(); c.fill();
+    c.fillRect(x - w * .02, base - h * 1.04, w * .04, h * .07);
+    if (lit) { c.save(); c.fillStyle = lit; for (let k = 0; k < 3; k++) { const yy = base - h * (.2 + k * .18); c.beginPath(); c.moveTo(x - w * .09, yy + h * .06); c.lineTo(x - w * .09, yy + h * .015); c.arc(x, yy + h * .015, w * .09, PI, 0); c.lineTo(x + w * .09, yy + h * .06); c.closePath(); c.fill(); } c.restore(); }
+  };
+  const body = (c, x, base, w, h, lit, n) => { c.fillRect(x - w / 2, base - h, w, h); if (lit) { c.save(); c.fillStyle = lit; const ww = w / (n * 1.9); for (let i = 0; i < n; i++) { const xx = x - w / 2 + w * (i + .5) / n; c.beginPath(); c.moveTo(xx - ww / 2, base - h * .12); c.lineTo(xx - ww / 2, base - h * .55); c.arc(xx, base - h * .55, ww / 2, PI, 0); c.lineTo(xx + ww / 2, base - h * .12); c.closePath(); c.fill(); } c.restore(); } };
+  const skyline = (c, W, H, base, hh, col, kind, r, lit) => {
+    c.fillStyle = col; const S = hh;
+    if (kind === 'touba') {
+      body(c, W * .5, base, W * .62, S * .2, lit, 9); dome(c, W * .5, base - S * .2, S * .55, S * .4); dome(c, W * .5 - W * .2, base - S * .2, S * .36, S * .26); dome(c, W * .5 + W * .2, base - S * .2, S * .36, S * .26);
+      minaret(c, W * .5, base - S * .12, S * .09, S, lit); [-.31, .31, -.43, .43].forEach((k, i) => minaret(c, W * .5 + W * k, base, S * .06, S * (i < 2 ? .78 : .62), lit));
+    } else if (kind === 'mosque') {
+      body(c, W * .5, base, W * .7, S * .22, lit, 9); dome(c, W * .5, base - S * .22, S * .75, S * .6); dome(c, W * .5 - W * .22, base - S * .22, S * .4, S * .3); dome(c, W * .5 + W * .22, base - S * .22, S * .4, S * .3);
+      minaret(c, W * .5 - W * .38, base, S * .08, S, lit); minaret(c, W * .5 + W * .38, base, S * .08, S, lit);
+    } else { /* town */
+      const n = 7; for (let i = 0; i < n; i++) { const x = W * (i + .5 + (r() - .5) * .3) / n, k = r(); if (k < .45) { body(c, x, base, W / n * .8, S * (.14 + r() * .12), lit, 2); dome(c, x, base - S * .14, W / n * .55, S * (.3 + r() * .2)); } else if (k < .8) minaret(c, x, base, S * .06, S * (.55 + r() * .45), lit); else body(c, x, base, W / n * .9, S * (.15 + r() * .2), lit, 3); }
+    }
+    c.fillRect(0, base - 1, W, H - base + 2);
+  };
+  const arch = (c, cx, y0, w, h) => { c.moveTo(cx - w / 2, y0 + h); c.lineTo(cx - w / 2, y0 + h * .45); c.bezierCurveTo(cx - w / 2, y0 + h * .2, cx - w * .12, y0 + h * .1, cx, y0); c.bezierCurveTo(cx + w * .12, y0 + h * .1, cx + w / 2, y0 + h * .2, cx + w / 2, y0 + h * .45); c.lineTo(cx + w / 2, y0 + h); };
+  const bokeh = (c, W, H, n, col, r, amax, rk) => { for (let i = 0; i < n; i++) { const x = r() * W, y = r() * H, rad = (.012 + r() * (rk || .05)) * Math.min(W, H) * 1.6, a = .08 + r() * amax; const g = c.createRadialGradient(x, y, 0, x, y, rad); g.addColorStop(0, rgba(col, a * .6)); g.addColorStop(.8, rgba(col, a)); g.addColorStop(1, rgba(col, 0)); c.fillStyle = g; c.beginPath(); c.arc(x, y, rad, 0, TAU); c.fill(); c.strokeStyle = rgba(col, a * .8); c.lineWidth = rad * .04; c.beginPath(); c.arc(x, y, rad * .86, 0, TAU); c.stroke(); } };
+  const patOver = (c, W, H, P, k, s, a, w, calm) => {
+    const col = P.lt ? P.d : P.a; if (SV.fillPattern) SV.fillPattern(c, { k, c: col, s, a, w: w || 1.1 }, 0, 0, W, H, Math.min(W, H));
+    if (calm) { const g = c.createRadialGradient(W / 2, H * .48, Math.min(W, H) * .1, W / 2, H * .48, Math.hypot(W, H) * .5); const bc = P.lt ? P.m : P.d; g.addColorStop(0, rgba(bc, calm)); g.addColorStop(.55, rgba(bc, calm * .5)); g.addColorStop(1, rgba(bc, 0)); c.fillStyle = g; c.fillRect(0, 0, W, H); }
+  };
+
+  /* ---------- sky builder (clouds / sunrise / sunset / night / rays) ---------- */
+  function sky(c, W, H, P, r, o) {
+    const dayStops = o.stops || [[0, P.d], [.5, P.m], [.85, P.l], [1, mix(P.l, P.a, .5)]];
+    fillV(c, W, H, dayStops);
+    const hy = (o.hy != null ? o.hy : .7) * H;
+    if (o.glowCol !== false) { eglow(c, o.sx != null ? o.sx * W : W / 2, hy, W * .9, H * .4, o.glowCol || P.a, o.glowA != null ? o.glowA : .5); }
+    if (o.stars) stars(c, W, H, o.stars, r, .7, '#ffffff', true);
+    if (o.moon) moon(c, W * (o.mx || .72), H * (o.my || .16), W * .07, P.p, o.crescent);
+    if (o.sun) { sun(c, (o.sx != null ? o.sx : .5) * W, hy - (o.sunUp || 0) * H, W * .045, P.a); }
+    if (o.rays) rays(c, (o.sx != null ? o.sx : .5) * W, o.rayY != null ? o.rayY * H : hy, H * 1.1, o.rays, o.rayCol || P.a, o.rayA || .22, o.ra0 != null ? o.ra0 : -PI * .98, o.ra1 != null ? o.ra1 : -PI * .02, r);
+    const lc = o.cl || mix(P.p, '#ffffff', .4), shc = o.cs || mix(P.m, P.l, .5);
+    (o.clouds || []).forEach(k => cloudRow(c, W, H, k.y * H, k.n, k.sc || 1, k.lc || lc, k.sh || shc, k.a != null ? k.a : .9, r, k.wk));
+    if (o.after) o.after(c, W, H, P, r);
+    if (o.vig) vig(c, W, H, o.vig, P.d);
+  }
+  const CL = (...a) => a.map(([y, n, sc, al]) => ({ y, n, sc, a: al }));
+
+  /* ---------- design catalog ---------- */
+  const D = [];
+  const add = (id, l, cat, pal, fn, extra) => D.push(Object.assign({ id, l, cat, pal, fn }, extra || {}));
+  const CATS = [['nuv', '☁️ Nuvole'], ['sfu', '🌈 Sfumature'], ['cie', '🌅 Cielo e luce'], ['mos', '🕌 Moschea / Touba'], ['ara', '❖ Arabi'], ['uni', '🟦 Tinte unite'], ['tex', '📜 Texture'], ['nat', '🌴 Natura'], ['not', '🌙 Notte']];
+  SV.BGCATS = CATS;
+
+  /* --- Nuvole --- */
+  add('nu_azzurro', 'Cielo azzurro e nuvole', 'nuv', 'cielo', (c, W, H, P, r) => sky(c, W, H, P, r, { glowA: .35, hy: .75, clouds: CL([.12, 3, .8, .8], [.34, 3, 1, .9], [.58, 3, 1.1, .95], [.86, 4, 1.2, 1]) }));
+  add('nu_pastello', 'Nuvole pastello', 'nuv', 'alba', (c, W, H, P, r) => sky(c, W, H, P, r, { hy: .8, glowA: .5, clouds: CL([.18, 3, 1, .75], [.45, 3, 1.1, .8], [.72, 4, 1.2, .9]) }));
+  add('nu_tramonto', 'Tramonto tra le nuvole', 'nuv', 'tramonto', (c, W, H, P, r) => sky(c, W, H, P, r, { hy: .68, glowA: .75, sun: 1, sunUp: .02, cl: P.a, cs: P.m, clouds: CL([.3, 3, 1, .85], [.55, 4, 1.2, .95], [.8, 4, 1.4, 1]), after: (c, W, H, P) => { c.fillStyle = vg(c, H * .55, H, [[0, rgba(P.d, 0)], [1, rgba(P.d, .55)]]); c.fillRect(0, H * .55, W, H * .45); } }));
+  add('nu_oro_raggi', 'Ora d’oro con raggi', 'nuv', 'oro', (c, W, H, P, r) => sky(c, W, H, P, r, { stops: [[0, mix(P.d, P.m, .3)], [.45, P.m], [.8, P.l], [1, P.a]], hy: .55, sun: 1, rays: 16, rayA: .3, cl: P.a, cs: P.m, clouds: CL([.5, 3, 1.1, .85], [.78, 4, 1.4, .95]) }));
+  add('nu_mare', 'Mare di nuvole all’alba', 'nuv', 'alba', (c, W, H, P, r) => sky(c, W, H, P, r, { hy: .55, sun: 1, sunUp: .02, glowA: .7, clouds: CL([.58, 3, 1.3, .9], [.7, 4, 1.4, 1], [.84, 4, 1.7, 1], [.97, 4, 2, 1]), cl: P.p, cs: mix(P.m, P.l, .6) }));
+  add('nu_notte', 'Nuvole di notte con luna', 'nuv', 'notte', (c, W, H, P, r) => sky(c, W, H, P, r, { stops: [[0, P.d], [.6, P.m], [1, P.l]], glowCol: P.l, glowA: .3, stars: 120, moon: 1, my: .15, cl: mix(P.l, P.p, .25), cs: mix(P.m, P.d, .4), clouds: CL([.3, 3, 1, .55], [.62, 3, 1.2, .75], [.9, 4, 1.4, .9]) }));
+  add('nu_raggi', 'Nuvole e raggi di luce', 'nuv', 'cielo', (c, W, H, P, r) => sky(c, W, H, P, r, { sx: .5, hy: .12, rayY: -.02, glowA: .6, sun: 0, rays: 14, rayCol: '#ffffff', rayA: .35, ra0: .1, ra1: PI - .1, clouds: CL([.08, 3, 1.1, .95], [.5, 3, 1, .8], [.88, 4, 1.4, .95]) }));
+  add('nu_drammatico', 'Cielo drammatico', 'nuv', 'viola', (c, W, H, P, r) => sky(c, W, H, P, r, { hy: .5, glowA: .6, sun: 1, rays: 10, rayA: .22, cl: mix(P.l, P.a, .3), cs: mix(P.d, P.m, .3), clouds: CL([.15, 3, 1.4, .95], [.4, 3, 1.3, .95], [.66, 4, 1.5, 1], [.92, 4, 1.7, 1]), vig: .35 }));
+  add('nu_dorate', 'Nuvole dorate', 'nuv', 'oro', (c, W, H, P, r) => sky(c, W, H, P, r, { stops: [[0, P.m], [.5, P.l], [1, P.a]], hy: .6, glowCol: '#ffffff', glowA: .55, cl: '#ffffff', cs: P.l, clouds: CL([.2, 3, 1, .85], [.5, 3, 1.2, .9], [.8, 4, 1.4, .95]) }));
+  add('nu_smeraldo', 'Nuvole su verde smeraldo', 'nuv', 'smeraldo', (c, W, H, P, r) => sky(c, W, H, P, r, { hy: .7, glowA: .45, cl: P.p, cs: P.l, clouds: CL([.14, 3, 1, .8], [.4, 3, 1.1, .85], [.7, 4, 1.3, .9], [.95, 4, 1.5, 1]) }));
+  add('nu_blu_ora', 'Ora blu con nuvole', 'nuv', 'blu', (c, W, H, P, r) => sky(c, W, H, P, r, { hy: .85, glowCol: P.l, glowA: .5, stars: 40, cl: mix(P.l, P.p, .5), cs: P.m, clouds: CL([.35, 3, 1, .6], [.65, 3, 1.2, .8], [.92, 4, 1.4, .95]) }));
+
+  /* --- Sfumature --- */
+  add('sf_vert2', 'Verticale morbida', 'sfu', 'smeraldo', (c, W, H, P) => fillV(c, W, H, [[0, P.m], [1, P.d]]));
+  add('sf_vert3', 'Verticale a tre toni', 'sfu', 'blu', (c, W, H, P) => fillV(c, W, H, [[0, P.l], [.45, P.m], [1, P.d]]));
+  add('sf_diag', 'Diagonale lussuosa', 'sfu', 'bordeaux', (c, W, H, P) => { fillA(c, W, H, 140, [[0, P.d], [.35, P.m], [.65, mix(P.m, P.l, .4)], [1, P.d]]); });
+  add('sf_alba', 'Alba a più stop', 'sfu', 'alba', (c, W, H, P) => fillV(c, W, H, [[0, P.d], [.3, P.m], [.62, P.l], [.85, P.a], [1, P.p]]));
+  add('sf_radc', 'Radiale al centro', 'sfu', 'blu', (c, W, H, P) => { c.fillStyle = P.d; c.fillRect(0, 0, W, H); const g = c.createRadialGradient(W / 2, H * .45, 0, W / 2, H * .45, Math.hypot(W, H) * .6); g.addColorStop(0, P.l); g.addColorStop(.45, P.m); g.addColorStop(1, P.d); c.fillStyle = g; c.fillRect(0, 0, W, H); });
+  add('sf_radt', 'Luce dall’alto', 'sfu', 'smeraldo', (c, W, H, P) => { fillV(c, W, H, [[0, P.m], [1, P.d]]); glow(c, W / 2, 0, H * .8, P.l, .85); });
+  add('sf_radb', 'Bagliore dal basso', 'sfu', 'viola', (c, W, H, P) => { fillV(c, W, H, [[0, P.d], [1, P.m]]); eglow(c, W / 2, H, W * 1.1, H * .6, P.a, .75); });
+  add('sf_mesh', 'Sfumatura mesh', 'sfu', 'tramonto', (c, W, H, P) => { c.fillStyle = P.m; c.fillRect(0, 0, W, H); glow(c, W * .1, H * .08, H * .6, P.d, .95); glow(c, W * .95, H * .3, H * .55, P.l, .9); glow(c, W * .15, H * .75, H * .6, P.a, .8); glow(c, W * .9, H * .95, H * .5, P.d, .8); glow(c, W * .5, H * .5, H * .3, mix(P.l, P.a, .5), .35); });
+  add('sf_mesh2', 'Mesh smeraldo e oro', 'sfu', 'smeraldo', (c, W, H, P) => { c.fillStyle = P.d; c.fillRect(0, 0, W, H); glow(c, W * .2, H * .2, H * .6, P.m, .95); glow(c, W * .9, H * .55, H * .55, P.l, .55); glow(c, W * .25, H * .95, H * .55, P.a, .45); glow(c, W * .85, H * .05, H * .4, P.a, .25); });
+  add('sf_aurora', 'Aurora morbida', 'sfu', 'teal', (c, W, H, P) => { fillV(c, W, H, [[0, P.d], [1, mix(P.d, P.m, .6)]]); [[.3, P.l, .55], [.5, P.a, .3], [.7, P.m, .6]].forEach(([y, col, a], i) => { c.save(); c.translate(W / 2, H * y); c.rotate(-.35 + i * .2); eglow(c, 0, 0, W * .9, H * .12, col, a); c.restore(); }); });
+  add('sf_metallo', 'Metallo dorato', 'sfu', 'oro', (c, W, H, P) => { fillA(c, W, H, 125, [[0, P.m], [.2, P.a], [.38, P.l], [.55, P.m], [.72, P.d], [.88, P.l], [1, P.m]]); grain(c, W, H, .05, 'overlay'); });
+  add('sf_lato', 'Bagliore laterale', 'sfu', 'bordeaux', (c, W, H, P) => { fillA(c, W, H, 90, [[0, P.d], [1, P.m]]); glow(c, 0, H * .45, H * .75, P.l, .8); glow(c, W, H * .9, H * .5, P.a, .3); });
+  add('sf_spot', 'Faro di luce', 'sfu', 'notte', (c, W, H, P) => { c.fillStyle = P.d; c.fillRect(0, 0, W, H); const g = c.createRadialGradient(W / 2, H * .3, 0, W / 2, H * .3, H * .8); g.addColorStop(0, P.l); g.addColorStop(.4, P.m); g.addColorStop(1, P.d); c.fillStyle = g; c.fillRect(0, 0, W, H); vig(c, W, H, .4); });
+  add('sf_onde', 'Onde di colore', 'sfu', 'teal', (c, W, H, P, r) => { fillV(c, W, H, [[0, P.d], [1, P.m]]); for (let i = 0; i < 5; i++) { const y = H * (.35 + i * .13), amp = H * (.035 + i * .006); c.beginPath(); c.moveTo(0, H); for (let x = 0; x <= W; x += W / 30) c.lineTo(x, y + Math.sin(x / W * 5 + i * 1.3) * amp); c.lineTo(W, H); c.closePath(); c.fillStyle = rgba(mix(P.m, P.l, i / 5), .55); c.fill(); } });
+  add('sf_doppio', 'Doppio bagliore', 'sfu', 'viola', (c, W, H, P) => { fillA(c, W, H, 160, [[0, P.d], [1, P.m]]); glow(c, W * .1, H * .12, H * .6, P.l, .8); glow(c, W * .95, H * .88, H * .6, P.a, .55); });
+
+  /* --- Cielo e luce --- */
+  add('ci_alba', 'Alba limpida', 'cie', 'alba', (c, W, H, P, r) => sky(c, W, H, P, r, { hy: .78, sun: 1, sunUp: .01, glowA: .8, clouds: [] }));
+  add('ci_tramonto', 'Tramonto limpido', 'cie', 'tramonto', (c, W, H, P, r) => sky(c, W, H, P, r, { hy: .72, sun: 1, glowA: .85, clouds: [], after: (c, W, H, P) => { c.fillStyle = vg(c, H * .6, H, [[0, rgba(P.d, 0)], [1, rgba(P.d, .6)]]); c.fillRect(0, H * .6, W, H * .4); } }));
+  add('ci_raggi', 'Raggi di luce dal cielo', 'cie', 'oro', (c, W, H, P, r) => sky(c, W, H, P, r, { stops: [[0, P.d], [.55, P.m], [1, P.l]], sx: .5, hy: .06, rayY: -.03, glowA: .6, rays: 18, rayA: .32, ra0: .15, ra1: PI - .15 }));
+  add('ci_fajr', 'Fajr — luce prima dell’alba', 'cie', 'blu', (c, W, H, P, r) => sky(c, W, H, P, r, { stops: [[0, P.d], [.55, P.m], [.88, mix(P.l, P.a, .35)], [1, P.a]], hy: .9, glowA: .7, stars: 70 }));
+  add('ci_oroblu', 'Cielo d’oro e blu', 'cie', 'blu', (c, W, H, P, r) => sky(c, W, H, P, r, { stops: [[0, P.d], [.5, P.m], [.8, mix(P.m, P.a, .5)], [1, P.a]], hy: .85, glowA: .65, rays: 9, rayA: .15 }));
+  add('ci_aurora', 'Aurora boreale', 'cie', 'teal', (c, W, H, P, r) => { sky(c, W, H, P, r, { stops: [[0, P.d], [1, mix(P.d, P.m, .5)]], glowCol: false, stars: 100 }); for (let i = 0; i < 4; i++) { c.save(); c.translate(W * (.2 + i * .22), H * .4); c.rotate(-.12 + i * .08); const g = c.createLinearGradient(0, -H * .35, 0, H * .3); g.addColorStop(0, rgba(P.l, 0)); g.addColorStop(.45, rgba(i % 2 ? P.a : P.l, .45)); g.addColorStop(1, rgba(P.l, 0)); c.fillStyle = g; c.beginPath(); c.moveTo(-W * .08, -H * .35); c.quadraticCurveTo(W * .08, 0, -W * .04, H * .3); c.lineTo(W * .1, H * .3); c.quadraticCurveTo(W * .2, 0, W * .05, -H * .35); c.closePath(); c.fill(); c.restore(); } });
+
+  /* --- Moschea / Touba --- */
+  const skyl = (id, l, pal, kind, o, litNight) => add(id, l, 'mos', pal, (c, W, H, P, r) => { sky(c, W, H, P, r, o); const dark = litNight ? mix(P.d, '#000000', .55) : mix(P.d, '#000000', .35); skyline(c, W, H, H * .86, H * .36, dark, kind, r, litNight ? P.a : null); });
+  skyl('mo_alba', 'Moschea all’alba', 'alba', 'mosque', { hy: .78, sun: 1, sunUp: .03, sx: .5, glowA: .8, clouds: CL([.25, 3, 1, .6], [.5, 3, 1.1, .7]) });
+  skyl('mo_tramonto', 'Moschea al tramonto', 'tramonto', 'mosque', { hy: .8, sun: 1, glowA: .9, sx: .3, clouds: CL([.28, 3, 1.1, .8], [.55, 3, 1.2, .85]) });
+  skyl('mo_notte', 'Moschea di notte', 'notte', 'mosque', { hy: .85, stars: 140, moon: 1, crescent: 1, mx: .75, my: .14, glowA: .35 }, true);
+  skyl('to_alba', 'Touba all’alba', 'alba', 'touba', { hy: .8, sun: 1, sunUp: .02, glowA: .85, rays: 10, rayA: .16, clouds: CL([.3, 3, 1, .6]) });
+  skyl('to_tramonto', 'Touba al tramonto con raggi', 'tramonto', 'touba', { hy: .78, sun: 1, rays: 14, rayA: .24, glowA: .9, clouds: CL([.22, 3, 1.1, .7], [.5, 3, 1.2, .8]) });
+  skyl('to_notte', 'Touba sotto le stelle', 'notte', 'touba', { hy: .85, stars: 170, moon: 1, mx: .2, my: .13, glowA: .4 }, true);
+  skyl('to_oro', 'Skyline in ora d’oro', 'oro', 'town', { stops: [[0, mix('#000000', '#5a3d05', .7)], [.5, '#b8861b'], [1, '#fff0b0']], hy: .8, sun: 1, rays: 12, rayA: .2, glowA: .8 });
+  add('mo_basso', 'Silhouette in basso su sfumato', 'mos', 'smeraldo', (c, W, H, P, r) => { fillV(c, W, H, [[0, P.m], [.7, P.d], [1, P.d]]); glow(c, W / 2, H * .8, H * .5, P.l, .35); skyline(c, W, H, H * .93, H * .2, mix(P.d, '#000000', .45), 'touba', r, null); });
+  add('mo_arco', 'Arco della moschea', 'mos', 'bordeaux', (c, W, H, P) => { fillV(c, W, H, [[0, P.d], [1, mix(P.d, '#000000', .35)]]); const w = W * .78, y0 = H * .1, h = H * .85; c.save(); c.beginPath(); arch(c, W / 2, y0, w, h); c.lineTo(W / 2 + w / 2, H); c.lineTo(W / 2 - w / 2, H); c.closePath(); const g = c.createLinearGradient(0, y0, 0, y0 + h); g.addColorStop(0, P.l); g.addColorStop(.6, P.m); g.addColorStop(1, mix(P.m, P.d, .6)); c.fillStyle = g; c.fill(); c.lineWidth = W * .012; c.strokeStyle = P.a; c.stroke(); c.beginPath(); arch(c, W / 2, y0 + W * .035, w - W * .07, h); c.lineWidth = W * .004; c.strokeStyle = rgba(P.a, .6); c.stroke(); c.restore(); glow(c, W / 2, H * .38, W * .6, P.a, .22); });
+  add('mo_arcate', 'Arcate di luce', 'mos', 'oro', (c, W, H, P) => { fillV(c, W, H, [[0, P.d], [1, P.m]]); const n = 3, w = W / n; for (let i = 0; i < n; i++) { c.beginPath(); arch(c, w * (i + .5), H * .18, w * .78, H * .8); c.closePath(); const g = c.createLinearGradient(0, H * .2, 0, H); g.addColorStop(0, P.a); g.addColorStop(1, P.m); c.fillStyle = g; c.fill(); c.strokeStyle = rgba(P.p, .6); c.lineWidth = W * .006; c.stroke(); } vig(c, W, H, .3); });
+
+  /* --- Arabi --- */
+  const AR = (id, l, pal, k, s, a, calm, from) => add(id, l, 'ara', pal, (c, W, H, P) => { fillV(c, W, H, from || [[0, P.m], [1, P.d]]); patOver(c, W, H, P, k, s, a, 1.1, calm); vig(c, W, H, .3, P.d); });
+  AR('ar_star8', 'Stelle a 8 punte', 'smeraldo', 'star8', .16, .22, .5);
+  AR('ar_zellige', 'Zellige dorato', 'blu', 'zellige', .18, .24, .5);
+  AR('ar_hex6', 'Stelle a 6 punte', 'bordeaux', 'hex6', .14, .22, .5);
+  AR('ar_lattice', 'Mashrabiya', 'marrone', 'lattice', .12, .22, .45);
+  AR('ar_star12', 'Stella a 12 punte', 'notte', 'star12', .2, .25, .55);
+  AR('ar_quatre', 'Quadrilobi intrecciati', 'teal', 'quatrefoil', .16, .22, .5);
+  AR('ar_honey', 'Alveare con stelle', 'oro', 'honey', .16, .2, .45, null);
+  AR('ar_ogee', 'Traliccio ogivale', 'viola', 'ogee', .16, .22, .5);
+  AR('ar_scales', 'Squame marocchine', 'smeraldo', 'scales', .14, .2, .5);
+  AR('ar_crema', 'Zellige su crema', 'crema', 'star8', .16, .2, .45, [[0, '#fbf6e8'], [1, '#eadfc4']]);
+  AR('ar_rosette', 'Rosoncini e rombi', 'bordeaux', 'rosette', .14, .22, .5);
+  add('ar_bordo', 'Bordo arabo con centro pulito', 'ara', 'blu', (c, W, H, P) => { fillV(c, W, H, [[0, P.m], [1, P.d]]); patOver(c, W, H, P, 'zellige', .15, .3, 1.1, 0); const g = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .2, W / 2, H / 2, Math.hypot(W, H) * .42); g.addColorStop(0, rgba(P.d, .96)); g.addColorStop(.72, rgba(P.d, .9)); g.addColorStop(1, rgba(P.d, 0)); c.fillStyle = g; c.fillRect(0, 0, W, H); c.strokeStyle = rgba(P.a, .7); c.lineWidth = W * .004; c.strokeRect(W * .05, W * .05, W * .9, H - W * .1); });
+
+  /* --- Tinte unite --- */
+  add('un_piana', 'Tinta unita', 'uni', 'smeraldo', (c, W, H, P) => { c.fillStyle = P.m; c.fillRect(0, 0, W, H); });
+  add('un_luce', 'Tinta con luce centrale', 'uni', 'blu', (c, W, H, P) => { c.fillStyle = P.m; c.fillRect(0, 0, W, H); glow(c, W / 2, H * .42, Math.max(W, H) * .6, P.l, .55); });
+  add('un_bordo', 'Tinta con bordo scuro', 'uni', 'bordeaux', (c, W, H, P) => { c.fillStyle = P.m; c.fillRect(0, 0, W, H); vig(c, W, H, .65, P.d); });
+  add('un_banda', 'Tinta con base scura', 'uni', 'teal', (c, W, H, P) => { c.fillStyle = P.m; c.fillRect(0, 0, W, H); c.fillStyle = vg(c, H * .55, H, [[0, rgba(P.d, 0)], [1, rgba(P.d, .85)]]); c.fillRect(0, H * .55, W, H * .45); });
+  add('un_grana', 'Tinta con grana', 'uni', 'marrone', (c, W, H, P) => { c.fillStyle = P.m; c.fillRect(0, 0, W, H); grain(c, W, H, .09, 'overlay'); vig(c, W, H, .35, P.d); });
+  add('un_filo', 'Tinta con filo dorato', 'uni', 'notte', (c, W, H, P) => { c.fillStyle = P.m; c.fillRect(0, 0, W, H); vig(c, W, H, .4, P.d); c.strokeStyle = rgba(P.a, .85); c.lineWidth = W * .006; c.strokeRect(W * .045, W * .045, W * .91, H - W * .09); c.lineWidth = W * .002; c.strokeRect(W * .06, W * .06, W * .88, H - W * .12); });
+
+  /* --- Texture --- */
+  add('tx_carta', 'Carta', 'tex', 'crema', (c, W, H, P, r) => { c.fillStyle = P.l; c.fillRect(0, 0, W, H); grain(c, W, H, .14, 'multiply'); for (let i = 0; i < 220; i++) { c.strokeStyle = rgba(P.d, .05 + r() * .06); c.lineWidth = .5 + r(); const x = r() * W, y = r() * H, a = r() * TAU, L = 8 + r() * 30; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L); c.stroke(); } vig(c, W, H, .22, P.d); });
+  add('tx_pergamena', 'Pergamena antica', 'tex', 'marrone', (c, W, H, P, r) => { c.fillStyle = mix(P.p, P.l, .5); c.fillRect(0, 0, W, H); for (let i = 0; i < 18; i++) glow(c, r() * W, r() * H, Math.min(W, H) * (.2 + r() * .4), P.l, .12 + r() * .15); grain(c, W, H, .12, 'multiply'); vig(c, W, H, .55, P.m); });
+  add('tx_marmo', 'Marmo', 'tex', 'crema', (c, W, H, P, r) => { fillA(c, W, H, 135, [[0, P.p], [.5, P.l], [1, mix(P.l, P.m, .6)]]); c.lineCap = 'round'; for (let i = 0; i < 9; i++) { let x = r() * W, y = -10; c.beginPath(); c.moveTo(x, y); while (y < H) { x += (r() - .5) * W * .12; y += H * .03 + r() * H * .03; c.lineTo(x, y); } for (const [lw, a] of [[5, .05], [2.5, .09], [1, .22]]) { c.strokeStyle = rgba(P.d, a * (.5 + r())); c.lineWidth = lw * W / 720; c.stroke(); } } grain(c, W, H, .05, 'multiply'); });
+  add('tx_marmo_nero', 'Marmo scuro e oro', 'tex', 'notte', (c, W, H, P, r) => { fillA(c, W, H, 150, [[0, P.m], [1, P.d]]); c.lineCap = 'round'; for (let i = 0; i < 7; i++) { let x = r() * W, y = -10; c.beginPath(); c.moveTo(x, y); while (y < H) { x += (r() - .5) * W * .14; y += H * .03 + r() * H * .03; c.lineTo(x, y); } for (const [lw, a] of [[6, .06], [3, .1], [1, .55]]) { c.strokeStyle = rgba(P.a, a); c.lineWidth = lw * W / 720; c.stroke(); } } vig(c, W, H, .35); });
+  add('tx_legno', 'Legno', 'tex', 'marrone', (c, W, H, P, r) => { fillV(c, W, H, [[0, P.m], [1, mix(P.m, P.d, .5)]]); for (let i = 0; i < 90; i++) { const y = r() * H, amp = H * .01 * r(), ph = r() * 6; c.strokeStyle = rgba(r() < .5 ? P.d : P.l, .06 + r() * .12); c.lineWidth = .6 + r() * 2.5 * W / 720; c.beginPath(); for (let x = 0; x <= W; x += W / 20) c.lineTo(x, y + Math.sin(x / W * 4 + ph) * amp); c.stroke(); } grain(c, W, H, .08, 'overlay'); vig(c, W, H, .35, P.d); });
+  add('tx_seta', 'Seta lucida', 'tex', 'bordeaux', (c, W, H, P) => { c.fillStyle = P.m; c.fillRect(0, 0, W, H); for (let i = 0; i < 6; i++) { c.save(); c.translate(W * (.1 + i * .17), H * .5); c.rotate(.5 + Math.sin(i) * .2); const g = c.createLinearGradient(-W * .2, 0, W * .2, 0); g.addColorStop(0, rgba(P.d, 0)); g.addColorStop(.35, rgba(P.d, .5)); g.addColorStop(.62, rgba(P.p, .22)); g.addColorStop(1, rgba(P.d, 0)); c.fillStyle = g; c.fillRect(-W * .2, -H, W * .4, H * 2); c.restore(); } vig(c, W, H, .3, P.d); });
+  add('tx_lino', 'Lino', 'tex', 'crema', (c, W, H, P, r) => { c.fillStyle = P.m; c.fillRect(0, 0, W, H); const st = Math.max(2, W / 300); for (let y = 0; y < H; y += st) { c.fillStyle = rgba(r() < .5 ? P.d : P.p, .04 + r() * .08); c.fillRect(0, y, W, st * .6); } for (let x = 0; x < W; x += st) { c.fillStyle = rgba(r() < .5 ? P.d : P.p, .04 + r() * .08); c.fillRect(x, 0, st * .6, H); } grain(c, W, H, .08, 'multiply'); vig(c, W, H, .2, P.d); });
+  add('tx_velluto', 'Velluto', 'tex', 'smeraldo', (c, W, H, P) => { fillA(c, W, H, 160, [[0, P.m], [.5, mix(P.m, P.l, .25)], [1, P.d]]); grain(c, W, H, .12, 'overlay'); vig(c, W, H, .55, P.d); });
+  add('tx_stucco', 'Stucco', 'tex', 'crema', (c, W, H, P, r) => { c.fillStyle = P.m; c.fillRect(0, 0, W, H); for (let i = 0; i < 60; i++) glow(c, r() * W, r() * H, Math.min(W, H) * (.08 + r() * .25), r() < .5 ? P.p : P.d, .08 + r() * .08); grain(c, W, H, .12, 'multiply'); });
+
+  /* --- Natura --- */
+  add('na_dune', 'Dune al tramonto', 'nat', 'tramonto', (c, W, H, P, r) => { sky(c, W, H, P, r, { hy: .55, sun: 1, glowA: .85, clouds: CL([.2, 2, 1, .5]) }); dunes(c, W, H, H * .62, H * .04, mix(P.l, P.d, .25), mix(P.d, '#000000', .1), r); dunes(c, W, H, H * .78, H * .05, mix(P.m, P.d, .5), P.d, r, 1.4); dunes(c, W, H, H * .92, H * .035, mix(P.d, '#000000', .3), mix(P.d, '#000000', .5), r, 1.8); });
+  add('na_dune_notte', 'Dune di notte', 'nat', 'notte', (c, W, H, P, r) => { sky(c, W, H, P, r, { hy: .6, stars: 160, moon: 1, mx: .7, my: .15, glowA: .25 }); dunes(c, W, H, H * .66, H * .04, P.m, P.d, r); dunes(c, W, H, H * .82, H * .05, mix(P.d, P.m, .3), mix(P.d, '#000000', .5), r, 1.4); });
+  add('na_colline', 'Colline verdi all’alba', 'nat', 'smeraldo', (c, W, H, P, r) => { sky(c, W, H, P, r, { stops: [[0, '#6aa7d8'], [.5, '#cfe8f0'], [1, '#fff1c8']], hy: .6, sun: 1, glowA: .7, clouds: CL([.2, 3, 1, .8]) }); dunes(c, W, H, H * .66, H * .045, P.l, P.m, r); dunes(c, W, H, H * .8, H * .05, P.m, P.d, r, 1.3); dunes(c, W, H, H * .93, H * .04, P.d, mix(P.d, '#000000', .4), r, 1.7); });
+  add('na_oasi', 'Oasi con palme', 'nat', 'tramonto', (c, W, H, P, r) => { sky(c, W, H, P, r, { hy: .62, sun: 1, glowA: .8, clouds: CL([.25, 2, 1, .5]) }); dunes(c, W, H, H * .72, H * .03, mix(P.l, P.d, .35), mix(P.d, '#000000', .2), r); const col = mix(P.d, '#000000', .6); palm(c, W * .12, H * .93, H * .34, col, .06); palm(c, W * .22, H * .96, H * .24, col, -.05); palm(c, W * .86, H * .94, H * .3, col, -.06); c.fillStyle = col; c.fillRect(0, H * .95, W, H * .06); });
+  add('na_mare', 'Mare all’orizzonte', 'nat', 'tramonto', (c, W, H, P, r) => { sky(c, W, H, P, r, { hy: .5, sun: 1, glowA: .8, clouds: CL([.25, 3, 1, .7], [.4, 3, 1.1, .6]) }); fillV(c, W, H, [[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0)']]); c.fillStyle = vg(c, H * .5, H, [[0, mix(P.l, P.m, .5)], [1, P.d]]); c.fillRect(0, H * .5, W, H * .5); for (let i = 0; i < 90; i++) { const y = H * (.5 + Math.pow(r(), 1.6) * .5), w = W * (.04 + (y / H - .5) * .35 * r()); c.fillStyle = rgba(P.a, .08 + r() * .2 * (1 - (y / H - .5) * 1.4)); c.fillRect(W * .5 + (r() - .5) * W * (.1 + (y / H - .5) * 1.4), y, w, H * .002 + 1); } });
+  add('na_foglie', 'Giardino di foglie', 'nat', 'smeraldo', (c, W, H, P, r) => { fillV(c, W, H, [[0, P.m], [1, P.d]]); for (let i = 0; i < 46; i++) { const x = r() * W, y = r() * H, s = Math.min(W, H) * (.06 + r() * .14), a = r() * TAU; c.save(); c.translate(x, y); c.rotate(a); c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(s * .5, -s * .3, s, 0); c.quadraticCurveTo(s * .5, s * .3, 0, 0); c.fillStyle = rgba(r() < .5 ? P.l : P.d, .12 + r() * .18); c.fill(); c.restore(); } vig(c, W, H, .4, P.d); });
+
+  /* --- Notte --- */
+  add('no_stelle', 'Notte stellata', 'not', 'notte', (c, W, H, P, r) => { fillV(c, W, H, [[0, P.d], [.7, P.m], [1, mix(P.m, P.l, .5)]]); stars(c, W, H, 260, r, 1, '#ffffff', true); });
+  add('no_luna', 'Luna e stelle', 'not', 'notte', (c, W, H, P, r) => { fillV(c, W, H, [[0, P.d], [1, P.m]]); stars(c, W, H, 200, r, 1, '#ffffff', true); moon(c, W * .74, H * .15, W * .09, P.p, true); });
+  add('no_bokeh_oro', 'Bokeh dorato', 'not', 'oro', (c, W, H, P, r) => { fillV(c, W, H, [[0, P.d], [1, mix(P.d, P.m, .5)]]); bokeh(c, W, H, 40, P.a, r, .35); bokeh(c, W, H, 25, P.l, r, .25, .08); vig(c, W, H, .4, P.d); });
+  add('no_bokeh_blu', 'Bokeh blu notte', 'not', 'blu', (c, W, H, P, r) => { fillV(c, W, H, [[0, P.d], [1, P.m]]); bokeh(c, W, H, 40, P.l, r, .3); bokeh(c, W, H, 18, P.a, r, .3, .07); vig(c, W, H, .4, P.d); });
+  add('no_bokeh_verde', 'Luci sfocate smeraldo', 'not', 'smeraldo', (c, W, H, P, r) => { fillV(c, W, H, [[0, P.d], [1, P.m]]); bokeh(c, W, H, 45, P.l, r, .3); bokeh(c, W, H, 20, P.a, r, .35, .07); vig(c, W, H, .45, P.d); });
+  add('no_nebulosa', 'Nebulosa', 'not', 'viola', (c, W, H, P, r) => { c.fillStyle = P.d; c.fillRect(0, 0, W, H); for (let i = 0; i < 9; i++) glow(c, r() * W, r() * H, H * (.25 + r() * .3), [P.m, P.l, P.a, P.m][i % 4], .25 + r() * .3); stars(c, W, H, 220, r, 1, '#ffffff', true); });
+  add('no_lanterne', 'Lanterne luminose', 'not', 'notte', (c, W, H, P, r) => { fillV(c, W, H, [[0, P.d], [1, P.m]]); stars(c, W, H, 90, r, .6, '#ffffff'); for (let i = 0; i < 7; i++) { const x = W * (.08 + i * .14 + (r() - .5) * .04), len = H * (.08 + r() * .2), s = W * (.02 + r() * .015); c.strokeStyle = rgba(P.a, .5); c.lineWidth = 1.2; c.beginPath(); c.moveTo(x, 0); c.lineTo(x, len); c.stroke(); glow(c, x, len + s, s * 5, P.a, .55); c.fillStyle = mix(P.a, '#ffffff', .4); c.beginPath(); c.ellipse(x, len + s, s * .7, s, 0, 0, TAU); c.fill(); } });
+
+  SV.BGS = D; const byId = {}; D.forEach(d => { byId[d.id] = d; }); SV.BGBY = byId;
+
+  /* ---------- paint + cache ---------- */
+  function paintGen(c, W, H, gen) {
+    const d = byId[gen.id]; if (!d) return; const P = gen.cp || PALS[gen.pal] || PALS[d.pal];
+    const r = R(((gen.seed || 7) * 2654435761) >>> 0);
+    c.save(); c.beginPath(); c.rect(0, 0, W, H); c.clip(); d.fn(c, W, H, P, r); c.restore();
+  }
+  SV.paintBgGen = paintGen;
+  const _cache = new Map();
+  function genCanvas(gen, W, H, res) {
+    const long = Math.max(W, H), tgt = Math.max(640, Math.min(2200, long * (res || 1))), L = tgt <= 800 ? 800 : tgt <= 1300 ? 1300 : tgt <= 1800 ? 1800 : 2200, k = L / long;
+    const key = [gen.id, gen.pal || '', gen.cp ? gen.cp.m + gen.cp.d : '', gen.seed || 7, W, H, L].join('|'); let cv = _cache.get(key);
+    if (cv) { _cache.delete(key); _cache.set(key, cv); return cv; }
+    cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(W * k)); cv.height = Math.max(1, Math.round(H * k));
+    const x = cv.getContext('2d'); x.scale(cv.width / W, cv.height / H); paintGen(x, W, H, gen);
+    _cache.set(key, cv); if (_cache.size > 5) _cache.delete(_cache.keys().next().value); return cv;
+  }
+  const active = bg => bg && bg.gen && byId[bg.gen.id] && !bg.img && !bg.g && bg.color === bg.gen.base;
+  const _draw = SV.drawBg;
+  SV.drawBg = function (c, page, W, H, opt) {
+    const bg = page.bg;
+    if (!active(bg)) return _draw.apply(this, arguments);
+    c.save(); c.drawImage(genCanvas(bg.gen, W, H, opt && opt.res), 0, 0, W, H);
+    if (bg.gen.dark) { c.fillStyle = `rgba(0,0,0,${bg.gen.dark / 100})`; c.fillRect(0, 0, W, H); }
+    if (bg.pat && SV.fillPattern) SV.fillPattern(c, bg.pat, 0, 0, W, H, Math.min(W, H));
+    c.restore();
+  };
+  /* programmatic helper (also used by autogen) */
+  SV.bgGenSpec = (id, pal, cp, seed, dark) => { const d = byId[id]; const P = cp || PALS[pal || d.pal]; return { gen: Object.assign({ id, pal: pal || d.pal, seed: seed || 7, dark: dark || 0, base: P.m }, cp ? { cp } : {}), color: P.m }; };
+  /* autogen: give a recipe page a generated background tinted with its own colour */
+  const LIGHTD = new Set(['tx_carta', 'tx_marmo', 'tx_lino', 'tx_stucco', 'tx_pergamena', 'ar_crema']);
+  SV.autoBg = function (pg, o) {
+    const bg = pg.bg || {}; if (bg.img) return false;
+    const base = (bg.g && bg.g.c2) || bg.color || '#0d5c2e'; if (!/^#[0-9a-f]{6}$/i.test(base)) return false;
+    const light = lum(base) > .62, cats = light ? ['ara', 'tex', 'uni', 'sfu'] : ['nuv', 'sfu', 'ara', 'not', 'mos', 'cie', 'nat', 'tex', 'uni'];
+    const cat = o.cat && cats.includes(o.cat) ? o.cat : cats[(o.s || 1) % cats.length];
+    let list = D.filter(d => d.cat === cat && (light ? true : !LIGHTD.has(d.id)));
+    if (!list.length) return false; const d = list[((o.s || 1) * 7 + (o.n || 0)) % list.length];
+    const natural = !light && ['mos', 'cie', 'nat'].includes(cat);
+    const cp = natural ? null : light ? { n: 'x', d: mix(base, '#000000', .45), m: base, l: mix(base, '#ffffff', .55), a: mix(base, '#000000', .3), p: '#ffffff', lt: 1 } : { n: 'x', d: mix(base, '#000000', .55), m: base, l: mix(base, '#ffffff', .32), a: '#e6c458', p: mix(base, '#ffffff', .85) };
+    const sp = SV.bgGenSpec(d.id, d.pal, cp, 5 + (o.s || 1) % 97, natural ? 18 : (cat === 'nuv' ? 22 : 0));
+    const nb = Object.assign({}, bg, { gen: sp.gen, color: sp.color }); delete nb.g; delete nb.pat; pg.bg = nb; return d.l;
+  };
+  SV.applyBgGen = function (id, pal) {
+    const s = SV.bgGenSpec(id, pal); SV.change(() => { const pg = SV.page(); const bg = Object.assign({}, pg.bg, { gen: s.gen, color: s.color }); delete bg.g; delete bg.img; delete bg.pat; pg.bg = bg; });
+  };
+  /* is this generated background "light" (needs dark text)? */
+  SV.bgGenLight = bg => { if (!active(bg)) return null; const d = byId[bg.gen.id], P = PALS[bg.gen.pal] || PALS[d.pal]; return lum(P.m) > .62; };
+
+  /* ---------- thumbnails ---------- */
+  const TW = 72, TH = 128;
+  function thumb(id, pal) {
+    const d = byId[id], P = pal || d.pal;
+    return SV.thumbCanvas('bgg' + id + P, (c, w, h) => { c.scale(w / 360, h / 640); paintGen(c, 360, 640, { id, pal: P, seed: 7 }); }, TW, TH);
+  }
+  SV.bgThumb = thumb;
+
+  /* ---------- panel ---------- */
+  const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  const cur = () => { const bg = SV.page().bg; return active(bg) ? bg.gen : null; };
+  const ps = SV.P.sfondo;
+  SV.P.sfondo = function () {
+    const g = cur(), cat = U.bgCat || 'all', q = (U.bgQ || '').toLowerCase().trim();
+    const chips = [['all', '✨ Tutti']].concat(CATS).map(([k, l]) => `<button class="sv-chip ${cat === k ? 'on' : ''}" data-a="bgCat" data-id="${k}">${l}</button>`).join('');
+    const list = D.filter(d => (cat === 'all' || d.cat === cat) && (!q || (d.l + ' ' + (CATS.find(x => x[0] === d.cat) || [])[1]).toLowerCase().includes(q)));
+    const palOn = g ? (g.pal || byId[g.id].pal) : null;
+    let h = `<div class="sv-lbl">✨ Sfondi pronti <small style="font-weight:500;color:var(--mut)">(${D.length}) tocca per applicare alla pagina</small></div><div class="sv-chips">${chips}</div>`;
+    h += `<div class="bg-grid">${list.map(d => `<button class="bg-it ${g && g.id === d.id ? 'on' : ''}" data-a="bgGen" data-id="${d.id}" title="${esc(d.l)}"><img src="${thumb(d.id, palOn && g && g.id !== d.id ? null : (g && g.id === d.id ? palOn : null))}" alt=""><span>${esc(d.l)}</span></button>`).join('') || '<div class="sv-empty" style="grid-column:1/-1">Nessuno sfondo</div>'}</div>`;
+    if (g) {
+      h += `<div class="sv-lbl">🎨 Colori dello sfondo</div><div class="sv-sw">${Object.entries(PALS).map(([k, p]) => `<button data-a="bgPal" data-id="${k}" class="${palOn === k ? 'on' : ''}" title="${p.n}" style="background:linear-gradient(135deg,${p.d},${p.m} 55%,${p.l})"></button>`).join('')}</div>`;
+      h += `<label class="sv-sl"><span>Scurisci (testo più leggibile)</span><input type="range" data-in="bgGenDark" min="0" max="70" step="1" value="${g.dark || 0}"><output>${g.dark || 0}%</output></label>`;
+      h += `<div class="sv-row" style="margin-top:6px"><button class="sv-btn sec" data-a="bgGenShuffle">🎲 Variante</button><button class="sv-btn danger" data-a="bgGenOff">Rimuovi sfondo pronto</button></div>`;
+    }
+    return h + `<div class="sv-lbl" style="margin-top:14px">Colore, sfumatura e foto</div>` + ps.apply(this, arguments);
+  };
+  const pa = SV.P.sfondo_after;
+  const BA = {
+    bgCat: d => { U.bgCat = d.id; SV.refreshPanel(true); },
+    bgGen: d => { const g = cur(); SV.applyBgGen(d.id, g && g.id !== d.id ? g.pal : null); SV.refreshPanel(true); SV.toast('Sfondo applicato ✓'); },
+    bgPal: d => { SV.change(() => { const bg = SV.page().bg; bg.gen = Object.assign({}, bg.gen, { pal: d.id, base: PALS[d.id].m }); bg.color = PALS[d.id].m; }); SV.refreshPanel(true); },
+    bgGenShuffle: () => { SV.change(() => { const bg = SV.page().bg; bg.gen = Object.assign({}, bg.gen, { seed: ((bg.gen.seed || 7) * 31 + 11) % 9973 }); }); },
+    bgGenOff: () => { SV.change(() => { const bg = Object.assign({}, SV.page().bg); delete bg.gen; SV.page().bg = bg; }); SV.refreshPanel(true); },
+  };
+  const _act = SV.act; SV.act = function (a, d, b, ev) { const h = BA[a]; return h ? h(d || {}, b, ev) : _act.apply(this, arguments); };
+  const _inp = SV.inp;
+  SV.inp = function (k, v, d, t, committed) {
+    if (k === 'bgGenDark') { if (t && t.type === 'range') { const o = t.parentNode.querySelector('output'); if (o) o.textContent = v + '%'; SV._sliding = true; clearTimeout(SV._slt); SV._slt = setTimeout(() => { SV._sliding = false; }, 400); } SV.live('bgGenDark', () => { const bg = SV.page().bg; if (bg.gen) bg.gen = Object.assign({}, bg.gen, { dark: +v }); }); return; }
+    return _inp.apply(this, arguments);
+  };
+  SV.P.sfondo_after = function () { if (pa) pa(); };
+  const st = document.createElement('style');
+  st.textContent = '.bg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:2px 0 10px}.bg-it{position:relative;border:2px solid transparent;border-radius:12px;padding:0;background:#f0f1f3;overflow:hidden;aspect-ratio:9/16;min-height:0}.bg-it img{width:100%;height:100%;object-fit:cover;display:block}.bg-it span{position:absolute;left:0;right:0;bottom:0;padding:14px 4px 4px;font-size:10.5px;font-weight:700;line-height:1.1;color:#fff;background:linear-gradient(0deg,rgba(0,0,0,.65),rgba(0,0,0,0));text-align:center}.bg-it.on{border-color:#7d2ae8;box-shadow:0 0 0 2px #fff inset}.sv-chip.on{background:#1d1f23;color:#fff;border-color:#1d1f23}';
+  document.head.appendChild(st);
+})();
+
 /* Auto decoration pass: adds Arabic motifs (corners / frame / medallion / dividers) to each autogen proposal,
    coloured from the real page colours, placed only where there is no text, photo or panel. */
 (function () {
@@ -19212,7 +19526,7 @@ async function fontsReady() {
   try { await Promise.all(['900 40px Cinzel', 'italic 400 40px "Playfair Display"', '900 40px Montserrat', '800 40px Montserrat', '400 40px Anton'].map(f => document.fonts.load(f))); } catch (e) {}
 }
 async function buildAny0(it, A, T) { if (it.kind === 'tpl') return buildTplItem(it, A, T); if (it.kind === 'mine') return buildMineItem(it, A, T); return build(it, A, T); }
-async function buildAny(it, A, T) { const pg = await buildAny0(it, A, T); if (!SV._autoLegacy) { if (it.deco && SV.autoDeco) { try { await SV.autoDeco(pg, it.deco, 1080, A.format === 'post' ? 1350 : 1920); } catch (e) { console.warn('deco', e); } } try { await SV.ensureFonts([pg]); } catch (e) {} try { await SV.ensureLegible(pg, 1080, A.format === 'post' ? 1350 : 1920); } catch (e) { console.warn('legibility', e); } } return pg; }
+async function buildAny(it, A, T) { const pg = await buildAny0(it, A, T); if (!SV._autoLegacy) { if (it.bgx && (it.kind || 'recipe') === 'recipe' && SV.autoBg) { try { SV.autoBg(pg, it.bgx); } catch (e) { console.warn('bgx', e); } } if (it.deco && SV.autoDeco) { try { await SV.autoDeco(pg, it.deco, 1080, A.format === 'post' ? 1350 : 1920); } catch (e) { console.warn('deco', e); } } try { await SV.ensureFonts([pg]); } catch (e) {} try { await SV.ensureLegible(pg, 1080, A.format === 'post' ? 1350 : 1920); } catch (e) { console.warn('legibility', e); } } return pg; }
 SV._autoT = { buildAny, placeHero };
 async function makeItem(A, c, batch) { const it = Object.assign({ id: uid('ap'), kind: 'recipe', seed: Math.round(Math.random() * 1e6), batch }, c); delete it.pri; it.name = itemName(it); it.layout = layoutOf(it); if (!c.deco) it.deco = { v: (A._dv = ((A._dv == null ? A.items.length : A._dv) + 1) % 4), s: Math.floor(Math.random() * 97) };
   try { it.pages = [await buildAny(it, A)]; } catch (e) { console.warn('auto item', e); return null; }
@@ -19348,6 +19662,7 @@ SV.autoGallery = async function () {
     ${act ? `<h3>Ritocchi rapidi · proposta ${A.active + 1}</h3>
     <div class="note">Sfondo</div><div class="tb">${STYLES.map(s => `<button data-x="style" data-v="${s.id}" class="${act.style === s.id ? 'on' : ''}">${s.ic} ${esc(s.n)}</button>`).join('')}${(act.kind || 'recipe') === 'recipe' ? `<button data-x="mosque" class="${act.mosque ? 'on' : ''}">🕌 Moschea di Touba</button>` : ''}</div>
     ${(act.kind || 'recipe') === 'recipe' ? '' : `<div class="note">Questa proposta usa ${act.kind === 'mine' ? 'un tuo modello' : 'un modello dell’app'} con i suoi colori. Scegli uno sfondo sopra per trasformarla in stile automatico.</div>`}
+    ${(act.kind || 'recipe') === 'recipe' ? `<div class="note">Sfondo pronto</div><div class="tb"><button data-x="bgx" data-v="" class="${!act.bgx ? 'on' : ''}">🚫 Originale</button>${[['nuv', '☁️ Nuvole'], ['sfu', '🌈 Sfumato'], ['mos', '🕌 Moschea'], ['ara', '❖ Arabo'], ['tex', '📜 Texture'], ['cie', '🌅 Cielo'], ['not', '🌙 Notte']].map(([k, n]) => `<button data-x="bgx" data-v="${k}" class="${act.bgx && act.bgx.cat === k ? 'on' : ''}">${n}</button>`).join('')}<button data-x="bgxNew">🎲 Altro sfondo</button></div>` : ''}
     <div class="note">Decorazioni arabe</div><div class="tb"><button data-x="deco" data-v="-1" class="${!act.deco || act.deco.v < 0 ? 'on' : ''}">🚫 Nessuna</button>${(SV.AUTODECO || []).map(([k, n], i) => `<button data-x="deco" data-v="${i}" class="${act.deco && act.deco.v === i ? 'on' : ''}">${n}</button>`).join('')}<button data-x="decoNew">🎲 Altro stile</button></div>
     <div class="note" ${(act.kind || 'recipe') === 'recipe' ? '' : 'hidden'}>Colori</div><div class="tb" ${(act.kind || 'recipe') === 'recipe' ? '' : 'hidden'}>${Object.keys(PAL).filter(k => act.style && compat(act.style, k)).map(k => `<button data-x="pal" data-v="${k}" class="${act.pal === k ? 'on' : ''}">${esc(PAL[k].n)}</button>`).join('')}</div>
     <div class="note">Foto e formato</div><div class="tb"><label class="bt" style="display:inline-flex;cursor:pointer">📷 Cambia foto<input type="file" accept="image/*" id="agPhoto" hidden></label><button data-x="feet" class="${A.hideFeet ? 'on' : ''}">🦶 Nascondi piedi</button><button data-x="fmt" data-v="storia" class="${A.format !== 'post' ? 'on' : ''}">📱 Storia</button><button data-x="fmt" data-v="post" class="${A.format === 'post' ? 'on' : ''}">🖼️ Post 4:5</button></div>
@@ -19364,6 +19679,8 @@ SV.autoGallery = async function () {
     if (x === 'pick') { const i = +b.dataset.i; if (i !== A.active) { syncActive(p); A.active = i; applyToEditor(p, A.items[i]); await SV.saveNow(); } closeOverlay(); SV.toast('Proposta ' + (i + 1) + ' aperta'); return; }
     if (x === 'more') { SV.busy(true, 'Creo altre proposte…'); try { await fontsReady(); const bn = Math.max(0, ...A.items.map(i => i.batch || 1)) + 1; for (const c of await pickBatch(A, 3, 2)) { const it = await makeItem(A, c, bn); if (it) A.items.push(it); } await SV.saveNow(); } finally { SV.busy(false); } render(); return; }
     if (x === 'style') return adjust(it => { it.kind = 'recipe'; delete it.tpl; delete it.mine; it.mosque = it.mosque !== false; if (!it.pal) it.pal = STYLES.find(s => s.id === b.dataset.v).pal; it.style = b.dataset.v; if (!compat(it.style, it.pal)) it.pal = STYLES.find(s => s.id === it.style).light ? (palsFor(A.data.ev).find(k => !PAL[k].dark) || 'avorio') : (palsFor(A.data.ev).find(k => PAL[k].dark) || 'nero'); });
+    if (x === 'bgx') return adjust(it => { const v = b.dataset.v; it.bgx = v ? { cat: v, s: (it.bgx && it.bgx.s) || 1 + Math.floor(Math.random() * 90), n: 0 } : null; });
+    if (x === 'bgxNew') return adjust(it => { const o = it.bgx || { cat: null }; it.bgx = { cat: o.cat, s: Math.floor(Math.random() * 97), n: (o.n || 0) + 1 }; });
     if (x === 'deco') return adjust(it => { it.deco = +b.dataset.v < 0 ? null : { v: +b.dataset.v, s: (it.deco && it.deco.s) || 1 + Math.floor(Math.random() * 90), c: (it.deco && it.deco.c) || 0 }; });
     if (x === 'decoNew') return adjust(it => { const d = it.deco || { v: 0 }; it.deco = { v: d.v, s: Math.floor(Math.random() * 97), c: Math.floor(Math.random() * 3) }; });
     if (x === 'mosque') return adjust(it => { it.mosque = !it.mosque; });
