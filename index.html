@@ -17793,6 +17793,25 @@ async function graphicToArabic(L) {
   Object.assign(L, { kind: 'text', name: 'Scritta araba', text: text || 'بسم الله الرحمن الرحيم', conf: text ? 70 : 0, guess: true, ar: true, calli: true, styl: false, mode: 'text', st: { font: 'Amiri', weight: 700, bold: true, color: col, size: (gH / nl) * 0.8 } });
   if (!text) SV.toast('Non riesco a leggerla: scrivi tu il testo arabo nel campo');
 }
+/* ---- big decorative title → editable 3D text (best preset by ink colour, original kept as undo) ---- */
+const inkHSL = L => { try { const c = L.cv, x = c.getContext('2d'), d = x.getImageData(0, 0, c.width, c.height).data; let r = 0, g = 0, b = 0, n = 0; for (let i = 0; i < d.length; i += 16) if (d[i + 3] > 200) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; } if (n) { r /= n * 255; g /= n * 255; b /= n * 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, dl = mx - mn, sat = dl ? dl / (1 - Math.abs(2 * l - 1)) : 0; let h = 0; if (dl) { h = mx === r ? ((g - b) / dl) % 6 : mx === g ? (b - r) / dl + 2 : (r - g) / dl + 4; h = (h * 60 + 360) % 360; } return { h, s: sat, l }; } } catch (e) {} return null; };
+const t3Pick = L => { const c = inkHSL(L); if (!c) return 'oro'; if (c.l > 0.86) return 'bianco'; if (c.s < 0.16 && c.l > 0.4) return 'argento'; if (c.s > 0.3 && c.h >= 75 && c.h < 175) return 'verdeoro'; if (c.s > 0.4 && (c.h < 18 || c.h >= 335)) return 'rossooro'; return 'oro'; };
+const isBigTitle = (L, R) => { if (L.kind !== 'text' || L.ar) return false; const nl = Math.max(1, String(L.text || '').split('\n').length), gh = (L.bbox.y1 - L.bbox.y0) / nl; return !!(L.styl || L.metal || gh >= R.h * 0.04) && (L.bbox.x1 - L.bbox.x0) > R.w * 0.25; };
+const isTitleGraphic = (L, R) => { if (L.kind !== 'graphic' || !L.bbox) return false; const w = L.bbox.x1 - L.bbox.x0, h = L.bbox.y1 - L.bbox.y0; return w > R.w * 0.3 && w / Math.max(1, h) >= 2.4 && h >= R.h * 0.03; };
+async function titleTo3D(L, R, key, text) {
+  const pr = (SV.T3D || []).find(t => t[0] === key) || SV.T3D[0], base = pr[2]; await ensureFont(base.font);
+  if (!L._o3) L._o3 = { kind: L.kind, st: L.st, mode: L.mode, text: L.text, name: L.name, styl: L.styl, guess: L.guess, conf: L.conf, metal: L.metal };
+  const gH = L.bbox.y1 - L.bbox.y0, nl = Math.max(1, String(text).split('\n').length), size = Math.max(14, (gH / nl) * 0.8), P = v => v * size / 100;
+  const st = { font: base.font, weight: 800, bold: !!base.bold || true, color: base.color || '#ffffff', size, align: 'center' };
+  ['grad', 'gc', 'bevel'].forEach(k => { if (base[k]) st[k] = JSON.parse(JSON.stringify(base[k])); });
+  if (base.stroke) st.stroke = { c: base.stroke.c, w: P(base.stroke.w) };
+  if (base.extrude) st.extrude = { d: P(base.extrude.d) * 0.3, c: base.extrude.c };
+  if (base.shadow) st.shadow = { c: base.shadow.c, b: P(base.shadow.b), x: P(base.shadow.x), y: P(base.shadow.y) };
+  st.t3d = key;
+  Object.assign(L, { kind: 'text', name: 'Titolo 3D', text, conf: 80, guess: false, styl: true, mode: 'text', st, t3: key, metal: undefined }); delete L.arText;
+}
+function t3Undo(L) { if (!L._o3) return; Object.assign(L, L._o3); delete L._o3; delete L.t3; }
+async function t3ReadGraphic(L) { try { const lg = SV.PADDLE_DICTS && (SV.PADDLE_DICTS.latin ? 'latin' : SV.PADDLE_DICTS.en ? 'en' : null); if (lg && SV.paddleRec && await SV.paddleAvailable(lg)) { const r = await SV.paddleRec(L.cv, lg); const t = String(r.text || '').replace(/\s+/g, ' ').trim(); if (t.length >= 2) return t.toUpperCase(); } } catch (e) {} return ''; }
 /* ---- review UI ---- */
 const KIND = { text: ['📝', 'Testo'], graphic: ['🔷', 'Grafica'], people: ['👤', 'Persone'], orig: ['🗂️', 'Originale'] };
 SV.openAnalyzer = async function (file) {
@@ -17826,6 +17845,8 @@ SV.openAnalyzer = async function (file) {
             <div class="an-opts"><button data-an="mode" data-id="${L.id}" class="${L.mode === 'text' ? 'on' : ''}" data-m="text">Testo modificabile</button><button data-an="mode" data-id="${L.id}" class="${L.mode === 'image' ? 'on' : ''}" data-m="image">Immagine originale</button></div>
             ${L.ar ? `<div class="an-opts an-arf"><small>Carattere arabo:</small>${AR_EDIT_FONTS.map(([f, n]) => `<button data-an="arf" data-id="${L.id}" data-f="${f}" class="${L.mode === 'text' && L.st.font === f ? 'on' : ''}" style="font-family:'${f}'">${n}</button>`).join('')}${L.mode === 'text' ? '<small>· l’immagine originale resta nascosta come riserva</small>' : ''}</div>` : ''}
             ${L.metal ? `<div class="an-opts"><small>Effetto ${L.metal === 'gold' ? 'oro' : 'argento'} ricreato${L.st.extrude ? ' + 3D' : ''}</small><button data-an="metal" data-id="${L.id}" class="${L.st.grad ? 'on' : ''}">${L.st.grad ? '✓ ' : ''}Metallico</button></div>` : ''}` : ''}
+          ${L.kind === 'text' && (isBigTitle(L, R) || L.t3) ? (L.t3 ? `<div class="an-opts an-t3"><small>🅃 Testo 3D:</small>${SV.T3D.map(([k, n]) => `<button data-an="t3" data-id="${L.id}" data-k="${k}" class="${L.t3 === k ? 'on' : ''}">${n}</button>`).join('')}<button data-an="t3off" data-id="${L.id}">↩ Originale</button></div>` : `<div class="an-opts an-t3"><button data-an="t3" data-id="${L.id}" data-k="auto" class="gold">🅃 Sostituisci con Testo 3D <small>(${esc(SV.T3D.find(t => t[0] === t3Pick(L))[1])})</small></button></div>`) : ''}
+          ${isTitleGraphic(L, R) ? (L._t3ask ? `<div class="an-opts an-t3"><input class="tx" id="t3in-${L.id}" value="${esc(L._t3txt || '')}" placeholder="Scrivi il titolo…" dir="auto"><button data-an="t3go" data-id="${L.id}" class="gold">✓ Crea Testo 3D</button></div>` : `<div class="an-opts an-t3"><button data-an="t3ask" data-id="${L.id}">🅃 Sostituisci con Testo 3D</button></div>`) : ''}
           ${L.kind === 'graphic' && (L.arText || /Grafica|Ornamento|Etichetta/.test(L.name)) ? `<div class="an-opts"><button data-an="ar2t" data-id="${L.id}">✍️ ${L.arText ? 'Calligrafia → testo arabo modificabile' : 'È una scritta araba? Rendila modificabile'}</button></div>` : ''}
           ${L.kind === 'people' ? `<div class="an-opts"><button data-an="pf" data-id="${L.id}" class="${!L.asFrame ? 'on' : ''}" data-m="0">Ritaglio</button><button data-an="pf" data-id="${L.id}" class="${L.asFrame === true ? 'on' : ''}" data-m="1">Cornice vuota</button><button data-an="pf" data-id="${L.id}" class="${L.asFrame === 'keep' ? 'on' : ''}" data-m="2">Lascia nello sfondo</button></div>` : ''}
         </div></div>`).join('')}</div>
@@ -17895,6 +17916,10 @@ SV.openAnalyzer = async function (file) {
       L.st = Object.assign({}, L.st, { font: f, weight: 700, bold: true, size: c ? (gH / nl) / c.glyphH : (gH / nl) * (f === 'Reem Kufi' ? 1.05 : 0.8) }); delete L.st.lsFit; L.mode = 'text'; L.calli = true; render(); return; }
     if (a === 'metal') { if (L.st.grad) { L._grad = L.st.grad; delete L.st.grad; } else L.st.grad = L._grad || 'gold'; render(); return; }
     if (a === 'ar2t') { SV.busy(true, 'Leggo la scritta araba…'); try { await graphicToArabic(L); } finally { SV.busy(false); } render(); return; }
+    if (a === 't3') { const k = b.dataset.k === 'auto' ? t3Pick(L) : b.dataset.k; if (!String(L.text || '').trim()) { SV.toast('Scrivi prima il testo del titolo'); return; } SV.busy(true, 'Creo il Testo 3D…'); try { await titleTo3D(L, R, k, L.text); } finally { SV.busy(false); } render(); draw && draw(); return; }
+    if (a === 't3off') { t3Undo(L); render(); draw && draw(); return; }
+    if (a === 't3ask') { L._t3ask = true; L._t3txt = L._t3txt || await t3ReadGraphic(L); render(); const i = document.getElementById('t3in-' + L.id); if (i) i.focus(); return; }
+    if (a === 't3go') { const i = document.getElementById('t3in-' + L.id), t = ((i && i.value) || '').trim(); if (!t) { SV.toast('Scrivi il testo del titolo'); return; } L._t3txt = t; SV.busy(true, 'Creo il Testo 3D…'); try { await titleTo3D(L, R, t3Pick(L), t); } finally { SV.busy(false); } render(); draw && draw(); return; }
     if (a === 'pf') { L.asFrame = [false, true, 'keep'][+b.dataset.m]; render(); return; }
     if (a === 'kit') { if (!U.kit) await SV.loadKit(); U.kit.colors = R.palette.slice(0, 6); U.kit.palettes = (U.kit.palettes || []).concat([R.palette.slice(0, 5)]).slice(-12); await SV.saveKit(); SV.toast('Colori salvati nel Kit ✓'); }
   };
