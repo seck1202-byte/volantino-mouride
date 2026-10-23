@@ -915,6 +915,11 @@ textarea.sv-in{height:auto;padding:8px 10px;min-height:70px}
 .sv-mc.cp.st img{aspect-ratio:9/16}
 .sv-mc.cp.on{outline:2px solid var(--p)}
 .sv-mt{display:flex;gap:6px;margin:2px 0 8px}.sv-mt button{flex:1;min-height:44px;border:1px solid var(--line);border-radius:12px;background:#fff;font:700 13px/1.1 inherit;color:var(--ink);cursor:pointer}.sv-mt button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+/* contrast fix: `.sv button{color:inherit}` was beating .sv-btn colours */
+.sv button.sv-btn{color:#fff}.sv button.sv-btn.sec{color:var(--ink)}.sv button.sv-btn.gold{color:#1d1400}.sv button.sv-btn.danger{color:#b42318}
+.sv-hint{position:absolute;z-index:6;width:260px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;color:#4b5563;pointer-events:none}
+.sv-hint b{font-size:16px;color:#1f2937}.sv-hint span{font-size:12.5px}.sv-hint div{display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%;pointer-events:auto}
+.sv-hint button{border:1px solid #d1d5db;background:#fff;border-radius:10px;min-height:42px;font-weight:700;font-size:12.5px;padding:4px 6px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
 
 </style>
 </head>
@@ -14963,6 +14968,23 @@ SV.catalog = function () {
 
 })();
 
+/* UX helpers: empty-page starter hint */
+(function () {
+  'use strict';
+  const SV = window.SV; if (!SV) return; const $ = id => document.getElementById(id);
+  function hint() {
+    const st = $('svStage'); if (!st || !SV.U.proj) return; const pg = SV.page && SV.page(); let h = $('svHint');
+    const empty = pg && !pg.els.length && !(pg.bg && (pg.bg.img || pg.bg.g || pg.bg.pat)) && (!pg.bg || !pg.bg.color || /^#f{6}$/i.test(pg.bg.color)) && !SV.U.proj.auto;
+    if (!empty) { if (h) h.hidden = true; return; }
+    if (!h) { h = document.createElement('div'); h.id = 'svHint'; h.className = 'sv-hint'; h.innerHTML = '<b>Pagina vuota</b><span>Inizia da qui:</span><div><button data-hint="modelli">🖼️ Modelli</button><button data-hint="comp">🕌 Composizioni arabe</button><button data-hint="testo">T Testo</button><button data-hint="foto">📷 Foto</button></div>';
+      h.onclick = e => { const b = e.target.closest('[data-hint]'); if (!b) return; const k = b.dataset.hint; if (k === 'comp') { SV.U.mTab = 'comp'; SV.openPanel('motivi'); } else SV.openPanel(k); };
+      st.appendChild(h); }
+    h.hidden = false; const V = SV.V, pw = pg.w || SV.U.proj.w, ph = pg.h || SV.U.proj.h;
+    if (V && V.k) { const w = (SV.U.proj.w) * V.k; h.style.left = Math.max(8, V.ox + w / 2 - 130) + 'px'; h.style.top = (V.oy + SV.U.proj.h * V.k * .33) + 'px'; }
+  }
+  const r0 = SV.render; SV.render = function () { const r = r0.apply(this, arguments); setTimeout(hint, 30); return r; };
+})();
+
 /* ===== Motivi arabi: ~45 vector motifs + 9 seamless tile patterns ===== */
 (function () {
 const U = SV.U, H = SV.h, TAU = Math.PI * 2, PI = Math.PI, cos = Math.cos, sin = Math.sin;
@@ -19192,7 +19214,7 @@ SV.autoForm = function (prefill, opts) {
     <label>Ora<input id="af_time" value="${esc(d.time)}" placeholder="15H"></label>
     <label class="full">Luogo<input id="af_place" value="${esc(d.place)}" placeholder="KEUR SERIGNE TOUBA – NOVARA"></label>
     <label class="chk full"><input type="checkbox" id="af_hideFeet" ${d.hideFeet ? 'checked' : ''}> Nascondi i piedi (sfuma la foto all’altezza delle gambe)</label>
-    <button class="go" type="submit">${opts.submitLabel || '✨ Crea 4 proposte'}</button>
+    <button class="go" type="submit">${opts.submitLabel || '✨ Crea 6 proposte'}</button>
   </form></div>`;
   const ph = $('afPh'); if (ph) { ph.onclick = () => $('afFile').click(); $('afFile').onchange = e => { file = e.target.files[0] || null; if (file) $('afPrev').src = URL.createObjectURL(file); }; }
   let prevEv = d.ev; $('af_ev').onchange = () => { const ev = $('af_ev').value, df = (typeof EVENT_DEFAULTS !== 'undefined' && EVENT_DEFAULTS[ev]) || null; const pdf = (typeof EVENT_DEFAULTS !== 'undefined' && EVENT_DEFAULTS[prevEv]) || {};
@@ -19312,7 +19334,7 @@ SV.openProject = async function () {
 const _home = SV.showHome;
 SV.showHome = async function () {
   closeOverlay(); await _home.apply(this, arguments);
-  const q = document.querySelector('#svHome .sv-quick'); if (q && !$('svAutoEntry')) q.insertAdjacentHTML('beforebegin', `<button class="sv-quick" id="svAutoEntry" type="button" style="border-color:#d4af37;background:linear-gradient(90deg,#fff8e1,#fff)"><span class="q">✨</span><span><b>Crea volantino automatico</b><small>Foto + dati dell’evento → 4 proposte modificabili, con ritocchi in un tocco</small></span></button>`);
+  const q = document.querySelector('#svHome .sv-quick'); if (q && !$('svAutoEntry')) q.insertAdjacentHTML('beforebegin', `<button class="sv-quick" id="svAutoEntry" type="button" style="border-color:#d4af37;background:linear-gradient(90deg,#fff8e1,#fff)"><span class="q">✨</span><span><b>Crea volantino automatico</b><small>Foto + dati dell’evento → 6 proposte modificabili, con ritocchi in un tocco</small></span></button>`);
   const en = $('svAutoEntry'); if (en) en.onclick = () => SV.autoForm();
 };
 })();
