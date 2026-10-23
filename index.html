@@ -14287,9 +14287,10 @@ function applyColor(t, c, live) {
       if (t === 'text' || t === 'fill') {
         if (el.type === 'text') { el.st.color = c === 'none' ? 'transparent' : c; delete el.st.grad; delete el.st.gc; }
         else if (el.type === 'line') el.stroke = c; else if (el.type === 'qr') el.fg = c;
+        else if (el.type === 'orn' && /^(m_|pat_)/.test(el.kind) && c !== 'none') { el.fill = c; delete el.g; delete el.grad; if (el.fa === 0) { el.fa = el.fa0 || 1; delete el.fa0; } }
         else { el.fill = c; delete el.g; delete el.grad; }
       }
-      else if (t === 'stroke') { if (el.type === 'text') el.st.stroke = Object.assign({ w: 3 }, el.st.stroke, { c }); else { el.stroke = c; if (el.type === 'shape' && !el.sw) el.sw = 6 * kk(); } }
+      else if (t === 'stroke') { if (el.type === 'text') el.st.stroke = Object.assign({ w: 3 }, el.st.stroke, { c }); else { el.stroke = c; if (el.type === 'orn' && el.sa === 0) { el.sa = el.sa0 || 1; delete el.sa0; } if (el.type === 'shape' && !el.sw) el.sw = 6 * kk(); } }
       else if (t === 'shadow' && el.st) el.st.shadow = Object.assign({ b: 20, x: 6, y: 8 }, el.st.shadow, { c: c.length === 7 ? rgba(c, 0.6) : c });
       else if (t === 'glow' && el.st) el.st.glow = Object.assign({ b: 35 }, el.st.glow, { c });
       else if (t === 'extrude' && el.st) el.st.extrude = Object.assign({ d: 40 }, el.st.extrude, { c });
@@ -15095,12 +15096,15 @@ function sk(c, col, w, a) { c.strokeStyle = col; c.lineWidth = w; c.lineJoin = '
 function el2(c, cx, cy, rx, ry, rot) { c.beginPath(); c.ellipse(cx, cy, Math.max(.1, rx), Math.max(.1, ry), rot || 0, 0, TAU); }
 function leaf(c, x1, y1, x2, y2, bulge) { const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, dx = x2 - x1, dy = y2 - y1, nx = -dy * bulge, ny = dx * bulge; c.beginPath(); c.moveTo(x1, y1); c.quadraticCurveTo(mx + nx, my + ny, x2, y2); c.quadraticCurveTo(mx - nx, my - ny, x1, y1); c.closePath(); }
 function spiral(c, cx, cy, r0, turns, a0, dir) { const n = 40; c.beginPath(); for (let i = 0; i <= n; i++) { const t = i / n, a = a0 + dir * t * turns * TAU, r = r0 * (1 - t * .86); c[i ? 'lineTo' : 'moveTo'](cx + cos(a) * r, cy + sin(a) * r); } }
+SV.colA = function (c, a) { if (typeof c !== 'string' || a == null || a >= 1) return c; let m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c), r, g, b, al = 1; if (m) { r = parseInt(m[1], 16); g = parseInt(m[2], 16); b = parseInt(m[3], 16); } else { m = /^rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)(?:[ ,/]+([\d.]+))?\s*\)$/i.exec(c); if (!m) return c; r = +m[1]; g = +m[2]; b = +m[3]; if (m[4] != null) al = +m[4]; } return `rgba(${r},${g},${b},${+(al * Math.max(0, a)).toFixed(3)})`; };
 function def(id, l, cat, r, draw, o) {
   o = o || {};
   REG.push({ id, l, cat, r, kw: o.kw || '', lwk: o.lwk || 0.012, size: o.size || 'sq' });
   SV.ORN_EXT['m_' + id] = (c, x, y, w, h, el) => {
     const u = Math.min(w, h), msw = (el && el.msw) || 1;
-    const g = { c, x, y, w, h, cx: x + w / 2, cy: y + h / 2, u, c1: el && el.mg && el.mgFill === el.fill ? SV.makeG(c, el.mg, x, y, w, h) : (el && el.fill && el.fill !== 'none' ? el.fill : '#d4af37'), c2: el && el.stroke && el.stroke !== 'none' ? el.stroke : '#0d5c2e', el };
+    const fa = el && el.fa != null ? el.fa : 1, sa = el && el.sa != null ? el.sa : 1, gr = el && el.mg && el.mgFill === el.fill;
+    const base1 = el && el.fill && el.fill !== 'none' ? el.fill : '#d4af37', base2 = el && el.stroke && el.stroke !== 'none' ? el.stroke : '#0d5c2e';
+    const g = { c, x, y, w, h, cx: x + w / 2, cy: y + h / 2, u, c1: gr ? SV.makeG(c, fa < 1 ? Object.assign({}, el.mg, { c1: SV.colA(el.mg.c1, fa), c2: SV.colA(el.mg.c2, fa) }) : el.mg, x, y, w, h) : SV.colA(base1, fa), c2: SV.colA(base2, sa), a1: fa, a2: sa, el };
     g.lw = Math.max(1, (o.lwk ? (o.lwk > 0.03 ? h : u) * o.lwk : u * 0.012) * msw);
     c.save(); try { draw(g); } finally { c.restore(); }
   };
@@ -15525,8 +15529,9 @@ SV.fillPattern = function (c, pat, x, y, w, h, base) {
   c.save(); c.globalAlpha *= pat.a != null ? pat.a : 1; c.fillStyle = p; c.fillRect(x, y, w, h); c.restore();
 };
 const regPat = k => { SV.ORN_EXT['pat_' + k] = (c, x, y, w, h, el) => {
-  if (el.stroke && el.stroke !== 'none') { c.fillStyle = el.stroke; c.fillRect(x, y, w, h); }
-  SV.fillPattern(c, { k, c: el.fill && el.fill !== 'none' ? el.fill : '#d4af37', s: el.ps || .2, w: el.pw || 1.2, a: 1 }, x, y, w, h, Math.min(w, h)); }; };
+  const fa = el.fa != null ? el.fa : 1, sa = el.sa != null ? el.sa : 1;
+  if (el.stroke && el.stroke !== 'none' && sa > 0) { c.save(); c.globalAlpha *= sa; c.fillStyle = el.stroke; c.fillRect(x, y, w, h); c.restore(); }
+  if (fa > 0) SV.fillPattern(c, { k, c: el.fill && el.fill !== 'none' ? el.fill : '#d4af37', s: el.ps || .2, w: el.pw || 1.2, a: fa }, x, y, w, h, Math.min(w, h)); }; };
 PATL.forEach(({ k }) => regPat(k));
 SV.MOTIF_PAT_API = { pdef: (k, l, r, d) => { pdef(k, l, r, d); regPat(k); } };
 SV.PATTERNS = PATL;
@@ -15599,7 +15604,7 @@ function patBox(tg) {
   const sl = (lab, f, val, min, max) => `<label class="sv-sl"><span>${lab}</span><input type="range" data-in="mp" data-tg="${tg}" data-f="${f}" min="${min}" max="${max}" step="1" value="${val}"><output>${val}%</output></label>`;
   const sw = PALM.map(c => `<button data-a="mCol" data-tg="${tg}" data-c="${c}" class="${String(p.c).toLowerCase() === c ? 'on' : ''}" style="background:${c}" title="${c}"></button>`).join('');
   return `<div class="sv-mbox"><b>🎚️ ${tg === 'bg' ? 'Sfondo' : 'Riempimento'}: ${esc(nm)}</b>
-    ${sl('Grandezza del motivo', 's', Math.round((p.s || .16) * 100), 4, 80)}${sl('Trasparenza (più basso = più leggero)', 'a', Math.round((p.a != null ? p.a : 1) * 100), 5, 100)}${sl('Spessore linee', 'w', Math.round((p.w || 1) * 10), 4, 40)}
+    ${sl('Grandezza del motivo', 's', Math.round((p.s || .16) * 100), 4, 80)}${sl('Opacità del motivo (più basso = più leggero)', 'a', Math.round((p.a != null ? p.a : 1) * 100), 5, 100)}<div class="sv-chips" style="margin:2px 0 6px">${[[12, '💧 Filigrana'], [30, 'Leggero'], [60, 'Medio'], [100, 'Pieno']].map(([v, l]) => `<button class="sv-chip ${Math.abs(Math.round((p.a != null ? p.a : 1) * 100) - v) < 2 ? 'on' : ''}" data-a="mPatA" data-tg="${tg}" data-v="${v}">${l}</button>`).join('')}</div>${sl('Spessore linee', 'w', Math.round((p.w || 1) * 10), 4, 40)}
     <div class="sv-lbl">Colore del motivo</div><div class="sv-sw"><label class="add" title="Colore personalizzato"><input type="color" data-ch="mpColC" data-tg="${tg}" value="${/^#[0-9a-f]{6}$/i.test(p.c) ? p.c : '#d4af37'}"></label>${sw}</div>
     <button class="sv-btn danger" data-a="mPatRem" data-tg="${tg}" style="margin-top:8px">🗑️ Togli il motivo</button></div>`;
 }
@@ -15610,16 +15615,26 @@ function simmilar(e) {
   const catOf = { arch: 'Archi e mihrab', f: 'Cornici', d: 'Divisori', c: 'Angoli', r: 'Rosoni e medaglioni', l: 'Lanterne e luna', s: 'Stelle e girih' }[g];
   return g === 'pat' ? [] : REG.filter(x => x.cat === catOf && (g !== 'arch' || x.size === 'arch'));
 }
+SV.mSlotUI = function (e, t) {
+  const k = t === 'fill' ? 'fa' : 'sa', a = e[k] != null ? e[k] : 1, none = a <= 0, pc = Math.round(a * 100);
+  return `<div class="sv-chips" style="margin:2px 0 4px"><button class="sv-chip ${none ? 'on' : ''}" data-a="mNone" data-t="${t}">${none ? '↩︎ Ripristina colore' : '🚫 Nessun colore'}</button></div>` +
+    (none ? '' : `<label class="sv-sl"><span>Opacità di questo colore</span><input type="range" data-in="mSlot" data-t="${t}" min="5" max="100" step="1" value="${pc}"><output>${pc}%</output></label>`);
+};
+SV.mOpUI = function (e) {
+  const o = Math.round((e.op != null ? e.op : 1) * 100), pre = [[12, '💧 Filigrana'], [35, 'Leggero'], [65, 'Medio'], [100, 'Pieno']];
+  return `<label class="sv-sl"><span>Opacità totale</span><input type="range" data-in="mOp" min="5" max="100" step="1" value="${o}"><output>${o}%</output></label>` +
+    `<div class="sv-chips" style="margin:2px 0 6px">${pre.map(([v, l]) => `<button class="sv-chip ${Math.abs(o - v) < 2 ? 'on' : ''}" data-a="mOpPre" data-v="${v}">${l}</button>`).join('')}</div>`;
+};
 function selBox() {
   const e = H.one(); if (!e || e.type !== 'orn') return '';
   const th = theme(); let h = '';
   if (isM(e) || isPO(e)) {
     const sw = (t, cur) => `<div class="sv-sw"><label class="add" title="Colore personalizzato"><input type="color" data-ch="customColor" data-t="${t}" value="${/^#[0-9a-f]{6}$/i.test(cur || '') ? cur : '#d4af37'}"></label>${PALM.map(c => `<button data-a="setColor" data-t="${t}" data-c="${c}" class="${String(cur || '').toLowerCase() === c ? 'on' : ''}" style="background:${c}" title="${c}"></button>`).join('')}</div>`;
     h += `<div class="sv-mbox"><b>✏️ Motivo selezionato: ${esc(e.name || '')}</b>
-      <div class="sv-lbl">${isPO(e) ? 'Colore del motivo' : 'Colore 1 (linee e forme)'}</div>${sw('fill', e.fill)}
-      <div class="sv-lbl">${isPO(e) ? 'Colore dello sfondo del pannello' : 'Colore 2 (fondo e dettagli)'}</div>${sw('stroke', e.stroke)}
+      <div class="sv-lbl">${isPO(e) ? 'Colore del motivo' : 'Colore 1 (linee e forme)'}</div>${sw('fill', e.fill)}${SV.mSlotUI(e, 'fill')}
+      <div class="sv-lbl">${isPO(e) ? 'Colore dello sfondo del pannello' : 'Colore 2 (fondo e dettagli)'}</div>${sw('stroke', e.stroke)}${SV.mSlotUI(e, 'stroke')}
       ${isM(e) ? `<label class="sv-sl"><span>Spessore linee</span><input type="range" data-in="mSw" min="30" max="400" step="5" value="${Math.round((e.msw || 1) * 100)}"><output>${Math.round((e.msw || 1) * 100)}%</output></label>` : ''}
-      <label class="sv-sl"><span>Trasparenza</span><input type="range" data-in="mOp" min="5" max="100" step="1" value="${Math.round((e.op != null ? e.op : 1) * 100)}"><output>${Math.round((e.op != null ? e.op : 1) * 100)}%</output></label>
+      ${SV.mOpUI(e)}
       <div class="sv-row" style="margin-top:8px"><button class="sv-btn sec" data-a="mRot" title="Ruota di 45 gradi">↻ Ruota 45°</button><button class="sv-btn sec" data-a="flipX">⇋ Specchia</button></div>
       <p class="sv-mh">Ingrandisci e sposta trascinando gli angoli sul design.</p></div>`;
     if (isPO(e)) h += patBox('orn');
@@ -15700,6 +15715,9 @@ const MM = {
   mPatBg(d) { applyPat('bg', d.k); },
   mPatRem(d) { SV.change(() => { if (d.tg === 'bg') { const bg = page().bg = Object.assign({}, page().bg); delete bg.pat; } else H.sel().forEach(e => { if (e.pat) delete e.pat; }); }); refresh(); },
   mCol(d) { patSet(d.tg, 'c', d.c); refresh(); },
+  mNone(d) { const k = d.t === 'fill' ? 'fa' : 'sa'; SV.change(() => H.sel().forEach(e => { if (!(isM(e) || isPO(e))) return; if ((e[k] != null ? e[k] : 1) <= 0) { e[k] = e[k + '0'] || 1; delete e[k + '0']; } else { e[k + '0'] = e[k] != null ? e[k] : 1; e[k] = 0; } })); SV.refreshPanel(true); },
+  mOpPre(d) { SV.change(() => H.sel().forEach(e => { if (isM(e) || isPO(e)) e.op = +d.v / 100; })); SV.refreshPanel(true); },
+  mPatA(d) { patSet(d.tg, 'a', +d.v / 100); SV.refreshPanel(true); },
   mRot() { SV.change(() => H.sel().forEach(e => { if (isM(e) || isPO(e)) e.rot = ((e.rot || 0) + 45) % 360; })); },
   mSwap(d) { const m = REG.find(x => x.id === d.id); if (!m) return; const th = theme(); SV.change(() => H.sel().forEach(e => { if (e.type !== 'orn') return; const wasOld = !isM(e); e.kind = 'm_' + m.id; e.name = m.l; if (wasOld) { delete e.alpha; if (!e.stroke) e.stroke = th.c2; } })); refresh(); },
 };
@@ -15708,9 +15726,10 @@ SV.act = function (a, d, b, ev) { const h = MM[a]; return h ? h(d || {}, b, ev) 
 const _inp = SV.inp;
 SV.inp = function (k, v, d, t, committed) {
   if (k === 'mQ') { U.mQ = v; const g = document.getElementById('mGrid'); if (g) g.innerHTML = gridHtml(U.mTheme || 'oro', U.mCat || 'all'); return; }
-  if (k === 'mSw' || k === 'mOp' || k === 'mp' || k === 'mpColC') {
+  if (k === 'mSw' || k === 'mOp' || k === 'mp' || k === 'mpColC' || k === 'mSlot') {
     if (t && t.type === 'range') { const o = t.parentNode.querySelector('output'); if (o) o.textContent = v + '%'; SV._sliding = true; clearTimeout(SV._slt); SV._slt = setTimeout(() => { SV._sliding = false; }, 400); }
-    if (k === 'mSw') SV.live('mSw', () => H.sel().forEach(e => { if (isM(e)) e.msw = +v / 100; }));
+    if (k === 'mSlot') { const kk = d.t === 'fill' ? 'fa' : 'sa'; SV.live('mSlot' + d.t, () => H.sel().forEach(e => { if (isM(e) || isPO(e)) { e[kk] = +v / 100; delete e[kk + '0']; } })); }
+    else if (k === 'mSw') SV.live('mSw', () => H.sel().forEach(e => { if (isM(e)) e.msw = +v / 100; }));
     else if (k === 'mOp') SV.live('mOp', () => H.sel().forEach(e => { if (isM(e) || isPO(e)) e.op = +v / 100; }));
     else if (k === 'mp') { const f = d.f; patSet(d.tg, f, f === 'w' ? +v / 10 : +v / 100); }
     else if (/^#[0-9a-f]{6}$/i.test(v)) patSet(d.tg, 'c', v);
@@ -16328,10 +16347,12 @@ const C_FAS = 'Fasce e riquadri', C_DIV = 'Divisori ornati', C_MAP = 'Mappa e lu
 ICON[C_FAS] = '🏷️'; ICON[C_DIV] = '〰️'; ICON[C_MAP] = '🗺️';
 
 /* ---------- colori ---------- */
-const hx = c => /^#[0-9a-f]{6}$/i.test(c || '');
-function mix(c, t, k) { if (!hx(c)) return c; const a = [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)), b = [1, 3, 5].map(i => parseInt(t.slice(i, i + 2), 16)); return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * k).toString(16).padStart(2, '0')).join(''); }
+const PRS = c => { if (typeof c !== 'string') return null; let m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c); if (m) return [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16), 1]; m = /^rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)(?:[ ,/]+([\d.]+))?\s*\)$/i.exec(c); return m ? [+m[1], +m[2], +m[3], m[4] != null ? +m[4] : 1] : null; };
+const hx = c => !!PRS(c);
+const TOC = (r, g, b, a) => a >= 1 ? '#' + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('') : `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${+a.toFixed(3)})`;
+function mix(c, t, k) { const a = PRS(c), b = PRS(t); if (!a || !b) return c; return TOC(a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k, a[3]); }
 const lite = (c, k) => mix(c, '#ffffff', k), dark = (c, k) => mix(c, '#000000', k);
-function rgba(c, a) { if (!hx(c)) return c; return `rgba(${parseInt(c.slice(1, 3), 16)},${parseInt(c.slice(3, 5), 16)},${parseInt(c.slice(5, 7), 16)},${a})`; }
+function rgba(c, a) { const p = PRS(c); if (!p) return c; return `rgba(${p[0]},${p[1]},${p[2]},${+(p[3] * a).toFixed(3)})`; }
 function metal(g, y0, y1, col) { col = col || g.c1; if (typeof col !== 'string' || !hx(col)) return col; const gr = g.c.createLinearGradient(0, y0, 0, y1); gr.addColorStop(0, lite(col, .5)); gr.addColorStop(.42, col); gr.addColorStop(.62, dark(col, .22)); gr.addColorStop(1, lite(col, .3)); return gr; }
 function fade(g, x1, x2, col) { col = col || g.c1; const gr = g.c.createLinearGradient(x1, 0, x2, 0); if (hx(col)) { gr.addColorStop(0, rgba(col, 0)); gr.addColorStop(.35, rgba(col, 1)); gr.addColorStop(1, rgba(col, 1)); } else { gr.addColorStop(0, col); gr.addColorStop(1, col); } return gr; }
 
@@ -16368,7 +16389,7 @@ function ftext(g, bx, by, bw, bh) {
   if (ft.s != null && ft.s > 100) { const m2 = meas(s); if (m2 > bw) s *= bw / m2; }
   meas(s); c.textAlign = 'center'; c.textBaseline = 'middle';
   const lh = s * 1.12, y0 = by + bh / 2 - lh * (n - 1) / 2 + s * 0.04, cx = bx + bw / 2 + (hasLS ? sp * s / 200 : 0);
-  c.fillStyle = ft.g ? metal(g, by, by + bh, ft.c && hx(ft.c) ? ft.c : g.c1) : (ft.c || '#fff');
+  c.fillStyle = ft.g ? metal(g, by, by + bh, ft.c && hx(ft.c) ? ft.c : g.c1) : (ft.c || '#fff'); if (ft.o != null) c.globalAlpha *= ft.o;
   if (ft.sh) { c.shadowColor = 'rgba(0,0,0,.45)'; c.shadowBlur = s * .12; c.shadowOffsetY = s * .05; }
   lines.forEach((l, i) => c.fillText(l, cx, y0 + i * lh));
   c.restore();
@@ -16379,7 +16400,7 @@ function frame(g, path, o) {
   o = o || {}; const { c, lw } = g, i = o.i != null ? o.i : g.h * .1, X = o.x != null ? o.x : g.x, W = o.w != null ? o.w : g.w, y = o.y != null ? o.y : g.y, h = o.h != null ? o.h : g.h;
   const pl = o.inv ? metal(g, y, y + h) : g.c2;
   path(c, X, y, W, h); fl(c, pl);
-  c.save(); path(c, X, y, W, h); c.clip(); const sh = c.createLinearGradient(0, y, 0, y + h); sh.addColorStop(0, 'rgba(255,255,255,.16)'); sh.addColorStop(.5, 'rgba(255,255,255,0)'); sh.addColorStop(1, 'rgba(0,0,0,.2)'); c.fillStyle = sh; c.fillRect(X, y, W, h); c.restore();
+  c.save(); path(c, X, y, W, h); c.clip(); const sh = c.createLinearGradient(0, y, 0, y + h); sh.addColorStop(0, 'rgba(255,255,255,.16)'); sh.addColorStop(.5, 'rgba(255,255,255,0)'); sh.addColorStop(1, 'rgba(0,0,0,.2)'); c.fillStyle = sh; c.globalAlpha *= (g.a2 != null ? g.a2 : 1); c.fillRect(X, y, W, h); c.restore();
   const line = o.inv ? g.c2 : null;
   path(c, X, y, W, h); sk(c, line || metal(g, y, y + h), lw * (o.t || 1.8));
   if (o.inner !== false) { path(c, X + i, y + i, W - 2 * i, h - 2 * i); sk(c, line || g.c1, lw * (o.ti || .8)); }
@@ -16683,6 +16704,7 @@ function box(e) {
   h += `<label class="sv-sl"><span>Spaziatura lettere</span><input type="range" data-in="ftK" min="0" max="40" step="1" value="${ft.k || 0}"><output>${ft.k || 0}</output></label>`;
   h += `<div class="sv-chips" style="margin:6px 0"><button class="sv-chip ${ft.u ? 'on' : ''}" data-a="ftTog" data-f="u">AA Maiuscolo</button><button class="sv-chip ${ft.b !== 0 ? 'on' : ''}" data-a="ftTog" data-f="b">B Grassetto</button><button class="sv-chip ${ft.g ? 'on' : ''}" data-a="ftTog" data-f="g">✨ Oro lucido</button><button class="sv-chip ${ft.sh ? 'on' : ''}" data-a="ftTog" data-f="sh">🌑 Ombra</button></div>`;
   h += `<div class="sv-lbl">Colore del testo</div><div class="sv-sw"><label class="add" title="Colore personalizzato"><input type="color" data-in="ftC" value="${hx(ft.c) ? ft.c : '#f6e7b4'}"></label>${SW.map(c => `<button data-a="ftCol" data-c="${c}" class="${curC === c ? 'on' : ''}" style="background:${c}" title="${c}"></button>`).join('')}</div>`;
+  { const o = ft.o != null ? ft.o : 1; h += `<div class="sv-chips" style="margin:2px 0 4px"><button class="sv-chip ${o <= 0 ? 'on' : ''}" data-a="ftNone">${o <= 0 ? '↩︎ Ripristina colore' : '🚫 Nessun colore'}</button></div>` + (o <= 0 ? '' : `<label class="sv-sl"><span>Opacità del testo</span><input type="range" data-in="ftO" min="5" max="100" step="1" value="${Math.round(o * 100)}"><output>${Math.round(o * 100)}%</output></label>`); }
   h += linesBox(e);
   h += `<div class="sv-row" style="margin-top:8px"><button class="sv-btn sec" data-a="ftDel">🧹 Togli testo</button><button class="sv-btn sec" data-a="panel" data-p="luce">☀️ Luce e ombra</button></div></div>`;
   return h;
@@ -16690,9 +16712,9 @@ function box(e) {
 function linesBox(e) {
   const sw = (t, cur) => `<div class="sv-sw"><label class="add" title="Colore personalizzato"><input type="color" data-ch="customColor" data-t="${t}" value="${hx(cur) ? cur : '#d4af37'}"></label>${['#d4af37', '#d9b25a', '#f0d060', '#ffffff', '#f5e6c8', '#0e4d5e', '#0d5c2e', '#0b1f4a', '#5a1626', '#121212'].map(c => `<button data-a="setColor" data-t="${t}" data-c="${c}" class="${String(cur || '').toLowerCase() === c ? 'on' : ''}" style="background:${c}" title="${c}"></button>`).join('')}</div>`;
   const pins = e.kind === 'm_mp_italia_pin' ? `<div class="sv-lbl">📍 Dove metto il pin?</div><div class="sv-chips">${Object.keys(PINS).map(k => `<button class="sv-chip ${e.pin && e.pin[0] === PINS[k][0] ? 'on' : ''}" data-a="fPin" data-k="${k}">${PINS[k][2]}</button>`).join('')}</div>` : '';
-  return `<div class="sv-lbl">Colore 1 (oro e bordi)</div>${sw('fill', e.fill)}<div class="sv-lbl">Colore 2 (fondo della fascia)</div>${sw('stroke', e.stroke)}${pins}` +
+  return `<div class="sv-lbl">Colore 1 (oro e bordi)</div>${sw('fill', e.fill)}${SV.mSlotUI(e, 'fill')}<div class="sv-lbl">Colore 2 (fondo della fascia)</div>${sw('stroke', e.stroke)}${SV.mSlotUI(e, 'stroke')}${pins}` +
     `<label class="sv-sl"><span>Spessore linee</span><input type="range" data-in="mSw" min="30" max="400" step="5" value="${Math.round((e.msw || 1) * 100)}"><output>${Math.round((e.msw || 1) * 100)}%</output></label>` +
-    `<label class="sv-sl"><span>Trasparenza</span><input type="range" data-in="mOp" min="5" max="100" step="1" value="${Math.round((e.op != null ? e.op : 1) * 100)}"><output>${Math.round((e.op != null ? e.op : 1) * 100)}%</output></label>`;
+    SV.mOpUI(e);
 }
 SV.P.fasce = function () {
   const e = H.one(), tid = U.fTheme || 'teal', mode = U.fMode || 'add', sel = e && (isF(e) ? 'f' : e.type === 'text' ? 't' : '');
@@ -16731,7 +16753,8 @@ const AC = {
   },
   ftAdd() { AC.fAdd({}); },
   ftTog(d) { SV.change(() => H.sel().filter(isF).forEach(e => { if (!e.ft) return; const f = d.f; if (f === 'b') e.ft.b = e.ft.b === 0 ? 1 : 0; else e.ft[f] = e.ft[f] ? 0 : 1; })); refresh(); },
-  ftCol(d) { SV.change(() => H.sel().filter(isF).forEach(e => { if (e.ft) { e.ft.c = d.c; e.ft.g = 0; } })); refresh(); },
+  ftCol(d) { SV.change(() => H.sel().filter(isF).forEach(e => { if (e.ft) { e.ft.c = d.c; e.ft.g = 0; if (e.ft.o <= 0) { e.ft.o = e.ft.o0 || 1; delete e.ft.o0; } } })); refresh(); },
+  ftNone() { SV.change(() => H.sel().filter(isF).forEach(e => { const f = e.ft; if (!f) return; if ((f.o != null ? f.o : 1) <= 0) { f.o = f.o0 || 1; delete f.o0; } else { f.o0 = f.o != null ? f.o : 1; f.o = 0; } })); refresh(); },
   ftDel() { SV.change(() => H.sel().filter(isF).forEach(e => { delete e.ft; })); refresh(); },
   fPin(d) { const p = PINS[d.k]; if (p) SV.change(() => H.sel().forEach(e => { if (e.kind === 'm_mp_italia_pin') e.pin = [p[0], p[1], p[2]]; })); refresh(); },
 };
@@ -16739,10 +16762,10 @@ const _act = SV.act;
 SV.act = function (a, d, b, ev) { const h = AC[a]; return h ? h(d || {}, b, ev) : _act.apply(this, arguments); };
 const _inp = SV.inp;
 SV.inp = function (k, v, d, t, committed) {
-  if (/^ft[TFSKC]$/.test(k)) {
-    if (t && t.type === 'range') { const o = t.parentNode.querySelector('output'); if (o) o.textContent = v + (k === 'ftS' ? '%' : ''); SV._sliding = true; clearTimeout(SV._slt); SV._slt = setTimeout(() => { SV._sliding = false; }, 400); }
+  if (/^ft[TFSKCO]$/.test(k)) {
+    if (t && t.type === 'range') { const o = t.parentNode.querySelector('output'); if (o) o.textContent = v + (k === 'ftS' || k === 'ftO' ? '%' : ''); SV._sliding = true; clearTimeout(SV._slt); SV._slt = setTimeout(() => { SV._sliding = false; }, 400); }
     if (k === 'ftC' && !hx(v)) return;
-    SV.live('ft' + k, () => H.sel().filter(isF).forEach(e => { if (!e.ft) return; if (k === 'ftT') e.ft.t = v; else if (k === 'ftF') { e.ft.f = v; } else if (k === 'ftS') e.ft.s = +v; else if (k === 'ftK') e.ft.k = +v; else if (k === 'ftC') { e.ft.c = v; e.ft.g = 0; } }));
+    SV.live('ft' + k, () => H.sel().filter(isF).forEach(e => { if (!e.ft) return; if (k === 'ftT') e.ft.t = v; else if (k === 'ftF') { e.ft.f = v; } else if (k === 'ftS') e.ft.s = +v; else if (k === 'ftK') e.ft.k = +v; else if (k === 'ftO') { e.ft.o = +v / 100; delete e.ft.o0; } else if (k === 'ftC') { e.ft.c = v; e.ft.g = 0; } }));
     if (k === 'ftF') { ensure(); }
     if (k === 'ftT' || k === 'ftF') { const el = H.one(); if (el && el.ft && k === 'ftT') ensure(); }
     return;
