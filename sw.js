@@ -1,4 +1,4 @@
-const CACHE = 'volantino-studio-202610231648';
+const CACHE = 'volantino-studio-202610231649';
 const RT = 'volantino-rt-v1'; // runtime cache: fonts, CDN libs and models (kept across app updates)
 const RT_HOSTS = /(^|\.)(fonts\.googleapis\.com|fonts\.gstatic\.com|cdn\.jsdelivr\.net|storage\.googleapis\.com)$/;
 async function rtPut(req, res) { try { const c = await caches.open(RT); await c.put(req, res); const ks = await c.keys(); if (ks.length > 160) await Promise.all(ks.slice(0, ks.length - 160).map(k => c.delete(k))); } catch (e) {} }

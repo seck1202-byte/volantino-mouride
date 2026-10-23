@@ -920,6 +920,8 @@ textarea.sv-in{height:auto;padding:8px 10px;min-height:70px}
 .sv-hint{position:absolute;z-index:6;width:260px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;color:#4b5563;pointer-events:none}
 .sv-hint b{font-size:16px;color:#1f2937}.sv-hint span{font-size:12.5px}.sv-hint div{display:grid;grid-template-columns:1fr 1fr;gap:6px;width:100%;pointer-events:auto}
 .sv-hint button{border:1px solid #d1d5db;background:#fff;border-radius:10px;min-height:42px;font-weight:700;font-size:12.5px;padding:4px 6px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.sv button:focus-visible,.sv [role=button]:focus-visible,.sv input:focus-visible,.sv select:focus-visible{outline:3px solid #7d2ae8;outline-offset:2px}
+@media (prefers-reduced-motion:reduce){.sv *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 
 </style>
 </head>
@@ -15035,6 +15037,33 @@ SV.catalog = function () {
     return a0.apply(this, arguments);
   };
   try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+})();
+
+/* ---------- accessibility + first-run tip ---------- */
+(function () {
+  'use strict';
+  const SV = window.SV; if (!SV) return;
+  const root = () => document.querySelector('.sv');
+  let t = 0;
+  function label() {
+    t = 0; const r = root(); if (!r) return;
+    r.querySelectorAll('button:not([aria-label]), [role=button]:not([aria-label])').forEach(b => {
+      const txt = (b.textContent || '').trim();
+      if (b.title) b.setAttribute('aria-label', b.title);
+      else if (txt.length <= 2 || !/[A-Za-zÀ-ÿ]/.test(txt)) { const n = b.dataset.a || b.id || ''; const m = { close: 'Chiudi', undo: 'Annulla', redo: 'Ripeti', home: 'Home' }[n]; b.setAttribute('aria-label', m || (n ? n.replace(/([A-Z])/g, ' $1').toLowerCase() : 'pulsante')); }
+    });
+    r.querySelectorAll('.sv-modal, .sv-sheet').forEach(m => { if (!m.getAttribute('role')) m.setAttribute('role', 'dialog'); });
+  }
+  const mo = new MutationObserver(() => { if (!t) t = setTimeout(label, 250); });
+  const start = () => { const r = root(); if (r) mo.observe(r, { childList: true, subtree: true }); else setTimeout(start, 400); };
+  start();
+  /* first-run tip in the editor */
+  const o0 = SV.createFromSize;
+  SV.createFromSize = async function () {
+    const r = await o0.apply(this, arguments);
+    try { if (!(await SV.kvGet('tipEditor'))) { await SV.kvSet('tipEditor', 1); setTimeout(() => SV.toast('💡 Tocca un elemento per modificarlo · due dita per zoomare · ⤢ Adatta per ricentrare'), 900); } } catch (e) {}
+    return r;
+  };
 })();
 
 /* ===== Motivi arabi: ~45 vector motifs + 9 seamless tile patterns ===== */
