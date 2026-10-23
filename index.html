@@ -8634,7 +8634,7 @@ if ('serviceWorker' in navigator) {
         <canvas id="svOverlay"></canvas>
         <textarea id="svTextEdit" spellcheck="false" autocapitalize="off" hidden></textarea>
         <div class="sv-zoom" id="svZoom">
-          <button data-a="zoom" data-d="-1" title="Riduci">−</button><span id="svZoomVal">100%</span><button data-a="zoom" data-d="1" title="Ingrandisci">+</button><button data-a="zoomFit" title="Adatta">⤧</button>
+          <button data-a="zoom" data-d="-1" title="Riduci">−</button><span id="svZoomVal">100%</span><button data-a="zoom" data-d="1" title="Ingrandisci">+</button><button data-a="zoomFit" title="Adatta">⤧</button><button data-a="viewMenu" title="Righelli, griglia e guide">📐</button>
         </div>
       </main>
     </div>
@@ -11245,6 +11245,21 @@ SV.coverRect = function (iw, ih, w, h, crop, fit) {
 function imgKey(el, cw, ch) {
   return JSON.stringify([el.asset, el.crop, el.fx, el.fade, el.mask, el.radius, el.fit, cw, ch]);
 }
+/* tone / detail adjustments: auto-enhance (levels stretch), highlights, shadows, sharpen, grain */
+SV.pixelAdjust = function (c, w, h, fx) {
+  const id = c.getImageData(0, 0, w, h), d = id.data, n = w * h;
+  if (fx.auto) { const hist = [new Uint32Array(256), new Uint32Array(256), new Uint32Array(256)]; for (let i = 0; i < d.length; i += 4) { hist[0][d[i]]++; hist[1][d[i + 1]]++; hist[2][d[i + 2]]++; }
+    const lut = hist.map(H => { let a = 0, lo = 0, hi = 255; const t = n * 0.008; for (let i = 0; i < 256; i++) { a += H[i]; if (a > t) { lo = i; break; } } a = 0; for (let i = 255; i >= 0; i--) { a += H[i]; if (a > t) { hi = i; break; } }
+      const L = new Uint8Array(256), span = Math.max(40, hi - lo); for (let i = 0; i < 256; i++) L[i] = Math.max(0, Math.min(255, Math.round((i - lo) / span * 255))); return L; });
+    // blend 70% to stay natural
+    for (let i = 0; i < d.length; i += 4) for (let k = 0; k < 3; k++) d[i + k] = d[i + k] * 0.3 + lut[k][d[i + k]] * 0.7; }
+  const hl = (fx.hl || 0) / 100, sh = (fx.sh || 0) / 100;
+  if (hl || sh) for (let i = 0; i < d.length; i += 4) { const l = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) / 255; const wh = l > 0.5 ? Math.pow((l - 0.5) * 2, 1.5) : 0, ws = l < 0.5 ? Math.pow((0.5 - l) * 2, 1.5) : 0; const dl = (hl * wh + sh * ws) * 70; d[i] += dl; d[i + 1] += dl; d[i + 2] += dl; }
+  if (fx.grain) { let s = 1234567; const amp = fx.grain / 100 * 46; for (let i = 0; i < d.length; i += 4) { s = (s * 1664525 + 1013904223) >>> 0; const r = ((s >>> 8) / 8388608 - 1) * amp; d[i] += r; d[i + 1] += r; d[i + 2] += r; } }
+  if (fx.sharp) { const src = new Uint8ClampedArray(d), a = fx.sharp / 100 * 1.6, st = w * 4;
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) { const p = y * st + x * 4; for (let k = 0; k < 3; k++) { const q = p + k, bl = (src[q - 4] + src[q + 4] + src[q - st] + src[q + st] + src[q]) / 5; d[q] = src[q] + (src[q] - bl) * a * 2; } } }
+  c.putImageData(id, 0, 0);
+};
 SV.imageBitmap = function (el, res) {
   const im = SV.assetImg(el.asset);
   if (!im) return null;
@@ -11269,6 +11284,7 @@ SV.imageBitmap = function (el, res) {
     try { applyPixelFx(c, cw, ch, st); } catch (e) {}
   }
   if (fx.hue) SV.hueRotateCtx(c, cw, ch, fx.hue);
+  if (fx.auto || fx.hl || fx.sh || fx.sharp || fx.grain) { try { SV.pixelAdjust(c, cw, ch, fx); } catch (e) {} }
   let out = cv;
   if (fx.blur) { out = blurCanvas(cv, fx.blur / 100 * Math.min(cw, ch) * 0.04); }
   const oc = out === cv ? c : out.getContext('2d');
@@ -12952,6 +12968,7 @@ function drawOverlay() {
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.clearRect(0, 0, c.canvas.width, c.canvas.height);
   c.setTransform(V.dpr, 0, 0, V.dpr, 0, 0);
+  if (SV.drawGuides) try { SV.drawGuides(c); } catch (e) {}
   const list = SV.selEls();
   const poly = (pts) => { c.beginPath(); pts.forEach((p, i) => i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)); c.closePath(); };
   if (U.hover && !U.sel.includes(U.hover) && !U.drag) {
@@ -13064,7 +13081,7 @@ SV.select = function (ids, add) {
 /* ---------- snapping ---------- */
 function snapMove(box, dx, dy, ignore) {
   const W = U.proj.w, H = U.proj.h, th = 7 / V.k;
-  const xs = [0, W / 2, W], ys = [0, H / 2, H];
+  const xs = [0, W / 2, W].concat(SV.snapLines ? SV.snapLines('v') : []), ys = [0, H / 2, H].concat(SV.snapLines ? SV.snapLines('h') : []);
   const others = els().filter(e => !ignore.includes(e.id) && !e.hidden && !(e.w >= W * 0.98 && e.h >= H * 0.98));
   others.forEach(e => { const b = aabb(e); xs.push(b.x, (b.x + b.x2) / 2, b.x2); ys.push(b.y, (b.y + b.y2) / 2, b.y2); });
   const bx = { x: box.x + dx, y: box.y + dy, x2: box.x2 + dx, y2: box.y2 + dy };
@@ -14034,7 +14051,7 @@ P.foto = function () {
   const fx = el.fx || {};
   let h = seg('fotoTab', tab, el.asset ? [['filtri', 'Filtri'], ['regola', 'Regola'], ['sfuma', 'Sfuma'], ['forma', 'Forma'], ['sfondo', 'Sfondo']] : [['forma', 'Forma']]);
   if (tab === 'filtri') h += `<div class="sv-g3" id="svFilters">${FILTER_LABELS.concat([['duo', 'Duotono']]).map(([k, l]) => `<button class="sv-it ${(k !== 'duo' && (fx.filter || 'none') === k && !(fx.duo && fx.duo.on)) || (k === 'duo' && fx.duo && fx.duo.on) ? 'on' : ''}" data-a="setFilter" data-k="${k}" style="aspect-ratio:.9"><canvas data-fk="${k}" width="90" height="90" style="border-radius:8px;max-height:80%"></canvas>${l}</button>`).join('')}</div>`;
-  if (tab === 'regola') h += slider('Luminosità', 'fxBri', fx.bri || 0, -60, 60) + slider('Contrasto', 'fxCon', fx.con || 0, -60, 60) + slider('Saturazione', 'fxSat', fx.sat || 0, -100, 100) + slider('Calore', 'fxWarm', fx.warm || 0, -100, 100) + slider('Sfocatura', 'fxBlur', fx.blur || 0, 0, 100) + slider('Vignettatura', 'fxVig', fx.vig || 0, 0, 90) + `<button class="sv-btn sec" data-a="fxReset" style="margin-top:6px">Ripristina regolazioni</button>`;
+  if (tab === 'regola') h += slider('Luminosità', 'fxBri', fx.bri || 0, -60, 60) + slider('Contrasto', 'fxCon', fx.con || 0, -60, 60) + slider('Saturazione', 'fxSat', fx.sat || 0, -100, 100) + slider('Calore', 'fxWarm', fx.warm || 0, -100, 100) + slider('Sfocatura', 'fxBlur', fx.blur || 0, 0, 100) + slider('Vignettatura', 'fxVig', fx.vig || 0, 0, 90) + slider('Luci', 'fxHl', fx.hl || 0, -100, 100) + slider('Ombre', 'fxSh', fx.sh || 0, -100, 100) + slider('Nitidezza', 'fxSharp', fx.sharp || 0, 0, 100) + slider('Grana', 'fxGrain', fx.grain || 0, 0, 100) + `<button class="sv-btn ${fx.auto ? '' : 'sec'}" data-a="fxAuto" style="margin-top:6px">✨ ${fx.auto ? '✓ ' : ''}Migliora automaticamente</button><button class="sv-btn sec" data-a="fxReset" style="margin-top:6px">Ripristina regolazioni</button>`;
   if (tab === 'sfuma') {
     const f = el.fade || {};
     h += `<p style="color:var(--mut);font-size:12px;margin:0 0 8px">Image Blender: sfuma i bordi della foto per fonderla con lo sfondo.</p><div class="sv-g4">${[['none', 'Nessuna', '▢'], ['bottom', 'Sotto', '▁'], ['top', 'Sopra', '▔'], ['left', 'Sinistra', '▏'], ['right', 'Destra', '▕'], ['edges', 'Bordi', '◻'], ['radial', 'Ovale', '◯']].map(([k, l, ic]) => `<button class="sv-it ${(f.side || 'none') === k ? 'on' : ''}" data-a="setFade" data-k="${k}"><b style="font-size:22px">${ic}</b>${l}</button>`).join('')}</div>` + (f.side && f.side !== 'none' ? slider('Intensità', 'fadeAmt', f.amt != null ? f.amt : 50, 5, 100) : '');
@@ -14432,7 +14449,7 @@ SV.inp = function (k, v, d, t, committed) {
     case 'tLs': each(e => { if (e.st) { e.st.ls = +v; SV.fitTextH(e); } }); break;
     case 'tLh': each(e => { if (e.st) { e.st.lh = v / 100; SV.fitTextH(e); } }); break;
     case 'tStrike': SV.change(() => sel().forEach(e => { if (e.st) e.st.strike = !!v; })); break;
-    case 'fxBri': case 'fxCon': case 'fxSat': case 'fxWarm': case 'fxBlur': case 'fxVig': { const key = { fxBri: 'bri', fxCon: 'con', fxSat: 'sat', fxWarm: 'warm', fxBlur: 'blur', fxVig: 'vig' }[k]; each(e => { e.fx = Object.assign({}, e.fx, { [key]: +v }); }); break; }
+    case 'fxBri': case 'fxCon': case 'fxSat': case 'fxWarm': case 'fxBlur': case 'fxVig': case 'fxHl': case 'fxSh': case 'fxSharp': case 'fxGrain': { const key = { fxBri: 'bri', fxCon: 'con', fxSat: 'sat', fxWarm: 'warm', fxBlur: 'blur', fxVig: 'vig', fxHl: 'hl', fxSh: 'sh', fxSharp: 'sharp', fxGrain: 'grain' }[k]; each(e => { e.fx = Object.assign({}, e.fx, { [key]: +v }); }); break; }
     case 'fadeAmt': each(e => { if (e.fade) e.fade = Object.assign({}, e.fade, { amt: +v }); }); break;
     case 'maskR': each(e => { e.radius = +v; }); break;
     case 'borderW': each(e => { e.border = Object.assign({ c: '#d4af37' }, e.border, { w: +v * kk() }); }); break;
@@ -14689,6 +14706,7 @@ X.fontUp = () => { const i = document.createElement('input'); i.type = 'file'; i
   i.click(); };
 X.fontDel = async d => { SV.myFonts = SV.myFonts.filter(f => f.name !== d.f); await SV.kvSet('myfonts', SV.myFonts); SV.toast('Font rimosso (resta fino al riavvio)'); SV.refreshPanel && SV.refreshPanel(true); };
 
+X.fxAuto = () => { SV.change(() => SV.selEls().forEach(e => { if (e.type === 'image') e.fx = Object.assign({}, e.fx, { auto: !(e.fx && e.fx.auto) }); })); SV.refreshPanel && SV.refreshPanel(true); };
 /* ---------- cut ---------- */
 X.cut = () => { if (!U.sel.length) return; _act.call(SV, 'copy', {}); _act.call(SV, 'del', {}); };
 
@@ -14721,8 +14739,47 @@ document.addEventListener('pointerdown', e => { const m = $('svCtxMenu'); if (m 
 window.addEventListener('blur', closeCtx); window.addEventListener('resize', closeCtx);
 $('svStage') && 0;
 
+
+/* ---------- rulers, grid, safe margins, draggable guides ---------- */
+const VW = (() => { try { return Object.assign({ rul: 0, grid: 0, mar: 0 }, JSON.parse(localStorage.getItem('sv-view') || '{}')); } catch (e) { return { rul: 0, grid: 0, mar: 0 }; } })();
+const saveVW = () => { try { localStorage.setItem('sv-view', JSON.stringify(VW)); } catch (e) {} };
+const UG = () => (U.proj && (U.proj.ug = U.proj.ug || { v: [], h: [] }));
+const RUL = 20;
+SV.snapLines = axis => { const g = UG(); if (!g) return []; const o = axis === 'v' ? g.v.slice() : g.h.slice(); if (VW.mar) { const W = U.proj.w, H = U.proj.h, m = Math.min(W, H) * 0.05; if (axis === 'v') o.push(m, W - m); else o.push(m, H - m); } return o; };
+SV.drawGuides = function (c) {
+  if (!U.proj || !(VW.rul || VW.grid || VW.mar)) return; const W = U.proj.w, H = U.proj.h, T = SV.toScreen, o = T(0, 0), e = T(W, H), k = (e.x - o.x) / W, g = UG();
+  if (VW.grid) { const st = Math.max(10, Math.round(Math.min(W, H) / 20 / 10) * 10); c.save(); c.strokeStyle = 'rgba(125,42,232,.22)'; c.lineWidth = 1; c.beginPath(); for (let x = st; x < W; x += st) { c.moveTo(o.x + x * k, o.y); c.lineTo(o.x + x * k, e.y); } for (let y = st; y < H; y += st) { c.moveTo(o.x, o.y + y * k); c.lineTo(e.x, o.y + y * k); } c.stroke(); c.restore(); }
+  if (VW.mar) { const m = Math.min(W, H) * 0.05; c.save(); c.strokeStyle = '#17b26a'; c.setLineDash([6, 4]); c.lineWidth = 1.2; c.strokeRect(o.x + m * k, o.y + m * k, (W - 2 * m) * k, (H - 2 * m) * k); c.setLineDash([]); c.restore(); }
+  if (VW.rul) { c.save(); c.strokeStyle = '#00c4cc'; c.lineWidth = 1; c.beginPath(); g.v.forEach(x => { c.moveTo(o.x + x * k, 0); c.lineTo(o.x + x * k, c.canvas.height); }); g.h.forEach(y => { c.moveTo(0, o.y + y * k); c.lineTo(c.canvas.width, o.y + y * k); }); c.stroke();
+    const cw = c.canvas.width / (V0() || 1), ch = c.canvas.height / (V0() || 1);
+    c.fillStyle = 'rgba(255,255,255,.94)'; c.fillRect(0, 0, cw, RUL); c.fillRect(0, 0, RUL, ch); c.strokeStyle = '#d5d8dc'; c.beginPath(); c.moveTo(0, RUL + .5); c.lineTo(cw, RUL + .5); c.moveTo(RUL + .5, 0); c.lineTo(RUL + .5, ch); c.stroke();
+    const steps = [10, 20, 50, 100, 200, 250, 500], st = steps.find(s => s * k >= 60) || 500; c.fillStyle = '#6b7280'; c.strokeStyle = '#9aa0a8'; c.font = '9px -apple-system,sans-serif'; c.textBaseline = 'top'; c.textAlign = 'left'; c.beginPath();
+    for (let x = 0; x <= W; x += st) { const sx = o.x + x * k; if (sx < RUL || sx > cw) continue; c.moveTo(sx, RUL - 6); c.lineTo(sx, RUL); c.fillText(String(x), sx + 2, 3); }
+    for (let y = 0; y <= H; y += st) { const sy = o.y + y * k; if (sy < RUL || sy > ch) continue; c.moveTo(RUL - 6, sy); c.lineTo(RUL, sy); c.save(); c.translate(3, sy + 2); c.rotate(-Math.PI / 2); c.textAlign = 'right'; c.fillText(String(y), 0, 0); c.restore(); }
+    c.stroke(); c.fillStyle = '#fff'; c.fillRect(0, 0, RUL, RUL); c.restore(); }
+};
+const V0 = () => (window.devicePixelRatio || 1);
+let gd = null;
+const stPt = e => { const r = $('svStage').getBoundingClientRect(); return { sx: e.clientX - r.left, sy: e.clientY - r.top }; };
+window.addEventListener('pointerdown', e => {
+  if (!VW.rul || !U.proj || $('sv').hidden || e.button > 0) return; const st = $('svStage'); if (!st || !st.contains(e.target)) return; const p = stPt(e), g = UG(), T = SV.toScreen, o = T(0, 0), k = (T(1, 0).x - o.x);
+  let hit = null;
+  if (p.sx < RUL && p.sy >= RUL) hit = { a: 'v', i: -1 }; else if (p.sy < RUL && p.sx >= RUL) hit = { a: 'h', i: -1 };
+  else if (p.sx >= RUL && p.sy >= RUL) { const iv = g.v.findIndex(x => Math.abs(o.x + x * k - p.sx) < 5), ih = g.h.findIndex(y => Math.abs(o.y + y * k - p.sy) < 5); if (iv >= 0) hit = { a: 'v', i: iv }; else if (ih >= 0) hit = { a: 'h', i: ih }; }
+  if (!hit) return; e.stopPropagation(); e.preventDefault(); if (hit.i < 0) { (hit.a === 'v' ? g.v : g.h).push(0); hit.i = (hit.a === 'v' ? g.v : g.h).length - 1; } gd = hit; try { st.setPointerCapture(e.pointerId); } catch (er) {}
+}, true);
+window.addEventListener('pointermove', e => { if (!gd) return; const p = stPt(e), d = SV.toDesign(p.sx, p.sy), g = UG(), arr = gd.a === 'v' ? g.v : g.h; arr[gd.i] = Math.round(gd.a === 'v' ? d.x : d.y); SV.render(); }, true);
+window.addEventListener('pointerup', e => { if (!gd) return; const p = stPt(e), g = UG(), arr = gd.a === 'v' ? g.v : g.h, d = SV.toDesign(p.sx, p.sy), v = gd.a === 'v' ? d.x : d.y, lim = gd.a === 'v' ? U.proj.w : U.proj.h;
+  if (p.sx < RUL || p.sy < RUL || v < -2 || v > lim + 2) arr.splice(gd.i, 1); gd = null; SV.dirty && SV.dirty(); SV.render(); }, true);
+const vm = (k, l) => `<button data-a="viewTog" data-k="${k}">${VW[k] ? '✅' : '⬜'} ${l}</button>`;
+X.viewMenu = (d, b) => { closeCtx(); const r = b.getBoundingClientRect(); const m = document.createElement('div'); m.id = 'svCtxMenu'; m.className = 'sv-cm';
+  m.innerHTML = vm('rul', 'Righelli e guide (trascina dal bordo)') + vm('grid', 'Griglia') + vm('mar', 'Margini di sicurezza (5%)') + '<hr><button data-a="guideClr">🧹 Cancella le guide</button>'; $('sv').appendChild(m);
+  m.style.left = Math.max(4, Math.min(r.left, innerWidth - m.offsetWidth - 4)) + 'px'; m.style.top = Math.max(4, r.top - m.offsetHeight - 8) + 'px'; m.addEventListener('click', () => setTimeout(closeCtx, 0)); };
+X.viewTog = d => { VW[d.k] = VW[d.k] ? 0 : 1; saveVW(); SV.render(); SV.toast((VW[d.k] ? 'Attivato' : 'Disattivato')); };
+X.guideClr = () => { const g = UG(); if (g) { g.v = []; g.h = []; SV.dirty && SV.dirty(); SV.render(); } };
+
 /* ---------- keyboard shortcuts ---------- */
-const KB = [['Ctrl+Z / Ctrl+Shift+Z', 'Annulla / Ripeti'], ['Ctrl+C / X / V', 'Copia / Taglia / Incolla'], ['Ctrl+D', 'Duplica'], ['Ctrl+A', 'Seleziona tutto'], ['Ctrl+G / Ctrl+Shift+G', 'Raggruppa / Separa'], ['Ctrl+]  /  Ctrl+[', 'Porta avanti / indietro'], ['Ctrl+Shift+]  /  [', 'In primo piano / in fondo'], ['Freccette (+Maiusc)', 'Sposta di 1 / 10 px'], ['Canc', 'Elimina'], ['T', 'Aggiungi testo'], ['R / C / L', 'Rettangolo / Cerchio / Linea'], ['Ctrl+0', 'Adatta alla finestra'], ['Ctrl + / Ctrl −', 'Zoom'], ['Spazio + trascina', 'Sposta la vista'], ['Alt + trascina', 'Senza magnete'], ['Ctrl+S', 'Salva'], ['?', 'Questa guida']];
+const KB = [['Ctrl+Z / Ctrl+Shift+Z', 'Annulla / Ripeti'], ['Ctrl+C / X / V', 'Copia / Taglia / Incolla'], ['Ctrl+D', 'Duplica'], ['Ctrl+A', 'Seleziona tutto'], ['Ctrl+G / Ctrl+Shift+G', 'Raggruppa / Separa'], ['Ctrl+]  /  Ctrl+[', 'Porta avanti / indietro'], ['Ctrl+Shift+]  /  [', 'In primo piano / in fondo'], ['Freccette (+Maiusc)', 'Sposta di 1 / 10 px'], ['Canc', 'Elimina'], ['T', 'Aggiungi testo'], ['R / C / L', 'Rettangolo / Cerchio / Linea'], ['Ctrl+0', 'Adatta alla finestra'], ['Ctrl + / Ctrl −', 'Zoom'], ['Spazio + trascina', 'Sposta la vista'], ['Alt + trascina', 'Senza magnete'], ['Ctrl+S', 'Salva'], ['Maiusc+R', 'Righelli e guide'], ['?', 'Questa guida']];
 X.kbHelp = () => SV.modal(`<h3>Scorciatoie da tastiera</h3><table class="sv-kb">${KB.map(([k, v]) => `<tr><td><kbd>${esc(k)}</kbd></td><td>${esc(v)}</td></tr>`).join('')}</table><p style="font-size:12px;color:#8a8f96">Tasto destro su un elemento: menu rapido.</p><button class="sv-btn" data-a="closeModal">Chiudi</button>`);
 function addShape(k) { const n = (SV.SHAPES.find(s => s[0] === k) || [k, k])[1], m = Math.min(SV.h.W(), SV.h.H()); SV.addEls([SV.newEl('shape', { shape: k, fill: '#d4af37', name: n, w: m * 0.3, h: m * 0.3 }, SV.h.W(), SV.h.H())]); }
 window.addEventListener('keydown', e => {
@@ -14740,6 +14797,7 @@ window.addEventListener('keydown', e => {
   if (mod || e.altKey) return;
   const l = k.toLowerCase();
   if (k === '?' || (k === '/' && e.shiftKey)) { X.kbHelp(); return; }
+  if (k === 'R') { e.preventDefault(); X.viewTog({ k: 'rul' }); return; }
   if (l === 't') { e.preventDefault(); SV.act('addText', { k: 'box' }); }
   else if (l === 'r') { e.preventDefault(); addShape('rect'); }
   else if (l === 'c') { e.preventDefault(); addShape('circle'); }
