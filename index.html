@@ -897,6 +897,7 @@ textarea.sv-in{height:auto;padding:8px 10px;min-height:70px}
 .sv-cm button{border:0;background:none;text-align:left;padding:7px 10px;border-radius:6px;font:inherit;font-size:13px;cursor:pointer;color:#1d2125}
 .sv-cm button:hover{background:#f0f1f4}.sv-cm hr{border:0;border-top:1px solid #e6e8eb;margin:4px 2px}
 .sv-kb{width:100%;border-collapse:collapse;margin:8px 0;font-size:13px}.sv-kb td{padding:5px 4px;border-bottom:1px solid #eef0f2}.sv-kb kbd{background:#f0f1f4;border-radius:5px;padding:2px 6px;font-size:12px;white-space:nowrap}
+.sv-zoom button[data-a="viewMenu"]{width:auto;padding:0 10px;font-size:12px;font-weight:700}
 
 </style>
 </head>
@@ -8634,7 +8635,7 @@ if ('serviceWorker' in navigator) {
         <canvas id="svOverlay"></canvas>
         <textarea id="svTextEdit" spellcheck="false" autocapitalize="off" hidden></textarea>
         <div class="sv-zoom" id="svZoom">
-          <button data-a="zoom" data-d="-1" title="Riduci">−</button><span id="svZoomVal">100%</span><button data-a="zoom" data-d="1" title="Ingrandisci">+</button><button data-a="zoomFit" title="Adatta">⤧</button><button data-a="viewMenu" title="Righelli, griglia e guide">📐</button>
+          <button data-a="zoom" data-d="-1" title="Riduci">−</button><span id="svZoomVal">100%</span><button data-a="zoom" data-d="1" title="Ingrandisci">+</button><button data-a="zoomFit" title="Adatta">⤧</button><button data-a="viewMenu" title="Righelli, griglia, margini e guide">📐 Guide</button>
         </div>
       </main>
     </div>
@@ -13656,7 +13657,7 @@ const sep = '<span class="sep"></span>';
 function colorDot(c, g) { return `<span class="sw" style="background:${g ? SV.gCss(g) : (c === 'transparent' || c === 'none' ? 'linear-gradient(135deg,#fff 45%,#e53935 45%,#e53935 55%,#fff 55%)' : c)}"></span>`; }
 function common(el) {
   return sep + tb('panel', '◫', 'Posizione', 'data-p="posizione"', U.panel === 'posizione') + tb('panel', '◐', 'Trasparenza', 'data-p="trasparenza"', U.panel === 'trasparenza') +
-    tb('copyStyle', '🖌️', U.styleClip ? 'Incolla stile' : 'Copia stile', '', !!U.styleClip) + tb('dup', '⧉', 'Duplica') + tb('lock', el && el.locked ? '🔒' : '🔓', el && el.locked ? 'Sblocca' : 'Blocca') + tb('del', '🗑️', 'Elimina');
+    tb('copyStyle', '🖌️', U.styleClip ? 'Incolla stile' : 'Copia stile', '', !!U.styleClip) + tb('dup', '⧉', 'Duplica') + tb('lock', el && el.locked ? '🔒' : '🔓', el && el.locked ? 'Sblocca' : 'Blocca') + tb('del', '🗑️', 'Elimina') + tb('moreMenu', '⋯', 'Altro', 'title="Ordine, raggruppa, taglia, centra…"');
 }
 function renderCtx() {
   const c = $('svCtx');
@@ -14472,6 +14473,7 @@ SV.inp = function (k, v, d, t, committed) {
     case 'cw': case 'ch': case 'cunit': U._cs = U._cs || {}; U._cs[k] = v; break;
     case 'expQ': U.exp.q = +v; break;
     case 'expBleed': U.exp.bleed = !!v; break;
+    case 'expTransp': U.exp.transp = !!v; break;
     case 'expMarks': U.exp.marks = !!v; break;
   }
 };
@@ -14599,6 +14601,7 @@ function exportDialog(keep) {
   SV.modal(`<h3>Scarica</h3><p>${n} pagina/e · ${info}${n > 1 && e.fmt !== 'pdf' ? ' · file ZIP' : ''}</p>
     <div class="sv-lbl">Tipo di file</div>${seg('expFmt', e.fmt, [['png', 'PNG'], ['jpg', 'JPG'], ['pdf', 'PDF stampa']])}
     ${e.fmt === 'png' ? `<div class="sv-lbl">Qualità</div>${seg('expScale', e.scale, [[1, 'Normale 1×'], [2, 'Alta 2×']])}` : ''}
+    ${e.fmt === 'png' ? `<label class="sv-check"><input type="checkbox" data-in="expTransp" ${e.transp ? 'checked' : ''}> 🔲 Sfondo trasparente (per sovrapporre il testo ad altre foto)</label>` : ''}
     ${e.fmt === 'jpg' ? slider('Qualità', 'expQ', e.q, 50, 100, 1, '%') : ''}
     ${e.fmt === 'pdf' ? `<div class="sv-lbl">Formato pagina</div>${seg('expPdfSize', e.pdfSize, [['design', print ? 'Come il design' : 'Dimensione design'], ['a4', 'A4'], ['a5', 'A5']])}
       <label class="sv-check"><input type="checkbox" data-in="expBleed" ${e.bleed ? 'checked' : ''}> Abbondanza 3 mm (per la tipografia)</label>
@@ -14644,7 +14647,7 @@ SV.buildExport = async function (opt) {
   const sc = e.fmt === 'png' && e.scale === 2 && Math.max(p.w, p.h) * 2 <= 4096 ? 2 : 1;
   const files = [];
   for (let i = 0; i < pages.length; i++) {
-    const cv = await SV.exportPageCanvas(p, pages[i], sc);
+    const cv = await SV.exportPageCanvas(p, e.fmt === 'png' && e.transp ? Object.assign({}, pages[i], { bg: { color: 'rgba(0,0,0,0)' } }) : pages[i], sc);
     const type = e.fmt === 'jpg' ? 'image/jpeg' : 'image/png';
     const blob = await SV.canvasToBlob(cv, type, (e.q || 92) / 100);
     files.push(new File([blob], `${base}${pages.length > 1 ? '-' + (i + 1) : ''}.${e.fmt === 'jpg' ? 'jpg' : 'png'}`, { type }));
@@ -14712,11 +14715,12 @@ X.cut = () => { if (!U.sel.length) return; _act.call(SV, 'copy', {}); _act.call(
 
 /* ---------- right-click menu ---------- */
 function closeCtx() { const m = $('svCtxMenu'); if (m) m.remove(); }
-function openCtx(e) {
+function openCtx(e, anchor) {
   if (!U.proj || U.mode === 'text') return; closeCtx();
-  const st = $('svStage'), r = st.getBoundingClientRect(), d = SV.toDesign(e.clientX - r.left, e.clientY - r.top), hit = SV.hitEl(d.x, d.y);
-  if (hit && !U.sel.includes(hit.id)) SV.select(hit.id);
-  if (!hit) SV.select([]);
+  const st = $('svStage'), r = st.getBoundingClientRect();
+  if (!anchor) { const d = SV.toDesign(e.clientX - r.left, e.clientY - r.top), hit = SV.hitEl(d.x, d.y);
+    if (hit && !U.sel.includes(hit.id)) SV.select(hit.id);
+    if (!hit) SV.select([]); }
   const els = SV.selEls(), one = els.length === 1 ? els[0] : null, grp = els.some(x => x.gid), locked = els.length && els.every(x => x.locked);
   const it = (a, l, k, extra) => `<button data-a="${a}" ${k ? `data-k="${k}"` : ''} ${extra || ''}>${l}</button>`;
   let h = '';
@@ -14730,10 +14734,16 @@ function openCtx(e) {
   } else h += it('paste', '📋 Incolla') + it('selAll', '☑ Seleziona tutto') + it('addText', '𝗧 Aggiungi testo', 'box');
   h += '<hr>' + it('kbHelp', '⌨️ Scorciatoie da tastiera');
   const m = document.createElement('div'); m.id = 'svCtxMenu'; m.className = 'sv-cm'; m.innerHTML = h; $('sv').appendChild(m);
-  const W = innerWidth, H = innerHeight, mw = m.offsetWidth, mh = m.offsetHeight; m.style.left = Math.max(4, Math.min(e.clientX, W - mw - 4)) + 'px'; m.style.top = Math.max(4, Math.min(e.clientY, H - mh - 4)) + 'px';
+  const W = innerWidth, H = innerHeight, mw = m.offsetWidth, mh = m.offsetHeight, ax = anchor ? anchor.left : e.clientX, ay = anchor ? anchor.bottom + 6 : e.clientY; m.style.left = Math.max(4, Math.min(ax, W - mw - 4)) + 'px'; m.style.top = Math.max(4, Math.min(ay, H - mh - 4)) + 'px'; if (anchor && ay + mh > H - 4) m.style.top = Math.max(4, anchor.top - mh - 6) + 'px';
   m.addEventListener('click', () => setTimeout(closeCtx, 0));
-  e.preventDefault();
+  e.preventDefault && e.preventDefault();
 }
+X.moreMenu = (d, b) => openCtx({}, b.getBoundingClientRect());
+/* long-press on touch = same menu */
+{ let lp = null, p0 = null; const st = () => $('svStage');
+  window.addEventListener('pointerdown', e => { if (e.pointerType !== 'touch' || !st() || !st().contains(e.target) || $('sv').hidden) return; clearTimeout(lp); p0 = { x: e.clientX, y: e.clientY }; lp = setTimeout(() => { if (U.mode === 'text' || U.mode === 'crop') return; if (navigator.vibrate) try { navigator.vibrate(15); } catch (er) {} openCtx({ clientX: p0.x, clientY: p0.y }); }, 600); }, true);
+  window.addEventListener('pointermove', e => { if (lp && p0 && Math.hypot(e.clientX - p0.x, e.clientY - p0.y) > 8) { clearTimeout(lp); lp = null; } }, true);
+  ['pointerup', 'pointercancel'].forEach(t => window.addEventListener(t, () => { clearTimeout(lp); lp = null; }, true)); }
 document.addEventListener('contextmenu', e => { if ($('svStage') && $('svStage').contains(e.target) && !$('sv').hidden) openCtx(e); });
 document.addEventListener('pointerdown', e => { const m = $('svCtxMenu'); if (m && !m.contains(e.target)) closeCtx(); }, true);
 window.addEventListener('blur', closeCtx); window.addEventListener('resize', closeCtx);
@@ -14803,6 +14813,55 @@ window.addEventListener('keydown', e => {
   else if (l === 'c') { e.preventDefault(); addShape('circle'); }
   else if (l === 'l') { e.preventDefault(); SV.addEls([SV.newEl('line', { stroke: '#d4af37', sw: 8 * SV.h.kk(), name: 'Linea', h: 30 * SV.h.kk(), w: SV.h.W() * 0.5 }, SV.h.W(), SV.h.H())]); }
 });
+})();
+
+/* ---------- Tabelle e grafici (one-tap presets, editable shapes + text) ---------- */
+(function () {
+const SV = window.SV, U = SV.U;
+const GREEN = '#0d5c2e', GOLD = '#d4af37', INK = '#0d3b1e';
+const shp = (W, H, p) => { const e = SV.newEl('shape', p, W, H); e.x = p.x; e.y = p.y; return e; };
+function txt(t, o, W, H) { return SV.newText(t, Object.assign({ font: 'Montserrat', size: 30, color: INK, align: 'left' }, o), W, H); }
+function place(e, x, y, w, h, al) { e.st.align = al || e.st.align; e.w = w; SV.fitTextH(e); e.x = x; e.y = y + (h - e.h) / 2; return e; }
+function table(W, H, head, rows, cw, title) {
+  const m = Math.min(W, H), tw = W * 0.86, rh = m * 0.085, fs = rh * 0.4, x0 = (W - tw) / 2, n = rows.length + 1, y0 = (H - rh * n) / 2, pad = rh * 0.3, out = [], sum = cw.reduce((a, b) => a + b, 0);
+  const R = (x, y, w, h, f, nm) => shp(W, H, { shape: 'rounded', fill: f, x, y, w, h, radius: 12, name: nm || 'Riga' });
+  out.push(R(x0, y0, tw, rh, GREEN, 'Intestazione'));
+  rows.forEach((r, i) => out.push(R(x0, y0 + rh * (i + 1), tw, rh, i % 2 ? '#e8f1ea' : '#ffffff', 'Riga ' + (i + 1))));
+  [head].concat(rows).forEach((r, ri) => { let cx = x0; r.forEach((c, ci) => { const w = tw * cw[ci] / sum; out.push(place(txt(c, { size: fs, bold: ri === 0 || ci === 0, color: ri === 0 ? '#f0d060' : INK, align: ci === 0 ? 'center' : 'left' }, W, H), cx + pad, y0 + rh * ri, w - pad * 2, rh)); cx += w; }); });
+  const g = SV.uid('g'); out.forEach(e => { e.gid = g; }); return out;
+}
+function bars(W, H, vals, labels) {
+  const m = Math.min(W, H), cw = W * 0.8, ch = H * 0.34, x0 = (W - cw) / 2, y0 = (H - ch) / 2, n = vals.length, bw = cw / n * 0.62, out = [], mx = Math.max(...vals);
+  out.push(shp(W, H, { shape: 'rounded', fill: '#ffffff', x: x0 - m * 0.04, y: y0 - m * 0.05, w: cw + m * 0.08, h: ch + m * 0.17, radius: 6, name: 'Sfondo grafico' }));
+  vals.forEach((v, i) => { const bh = ch * v / mx * 0.86, bx = x0 + cw / n * i + (cw / n - bw) / 2;
+    out.push(shp(W, H, { shape: 'rounded', fill: i % 2 ? GOLD : GREEN, x: bx, y: y0 + ch - bh, w: bw, h: bh, radius: 12, name: 'Barra ' + (i + 1) }));
+    out.push(place(txt(String(v), { size: m * 0.032, bold: true, color: INK, align: 'center' }, W, H), bx - bw * 0.2, y0 + ch - bh - m * 0.05, bw * 1.4, m * 0.045));
+    out.push(place(txt(labels[i], { size: m * 0.028, color: INK, align: 'center' }, W, H), bx - bw * 0.3, y0 + ch + m * 0.01, bw * 1.6, m * 0.05)); });
+  const g = SV.uid('g'); out.forEach(e => { e.gid = g; }); return out;
+}
+function hbars(W, H, items) {
+  const m = Math.min(W, H), cw = W * 0.8, x0 = (W - cw) / 2, rh = m * 0.11, y0 = (H - rh * items.length) / 2, out = [];
+  items.forEach(([l, v], i) => { const y = y0 + rh * i;
+    out.push(place(txt(l, { size: m * 0.032, bold: true, color: '#ffffff', align: 'left' }, W, H), x0, y, cw * 0.7, rh * 0.45));
+    out.push(place(txt(v + '%', { size: m * 0.032, bold: true, color: '#f0d060', align: 'right' }, W, H), x0 + cw * 0.7, y, cw * 0.3, rh * 0.45));
+    out.push(shp(W, H, { shape: 'rounded', fill: 'rgba(255,255,255,0.25)', x: x0, y: y + rh * 0.5, w: cw, h: rh * 0.26, radius: 50, name: 'Fondo barra' }));
+    out.push(shp(W, H, { shape: 'rounded', fill: GOLD, x: x0, y: y + rh * 0.5, w: cw * v / 100, h: rh * 0.26, radius: 50, name: 'Barra ' + l })); });
+  const g = SV.uid('g'); out.forEach(e => { e.gid = g; }); return out;
+}
+const PRE = [
+  ['📅 Programma (orario + attività)', 'tabella programma orari tabella', (W, H) => table(W, H, ['ORARIO', 'PROGRAMMA'], [['08:00', 'Accoglienza'], ['10:00', 'Recita del Coran'], ['14:00', 'Conferenza'], ['18:00', 'Xassida e Dua']], [1, 2.6])],
+  ['🗓️ Programma a 3 colonne', 'tabella 3 colonne giorno orario luogo', (W, H) => table(W, H, ['GIORNO', 'ORA', 'LUOGO'], [['Ven', '20:00', 'Moschea'], ['Sab', '16:00', 'Sala'], ['Dom', '10:00', 'Moschea']], [1, 1, 1.6])],
+  ['▦ Tabella 2×4 semplice', 'tabella semplice', (W, H) => table(W, H, ['Titolo', 'Dettaglio'], [['Voce 1', 'Testo'], ['Voce 2', 'Testo'], ['Voce 3', 'Testo']], [1, 1.4])],
+  ['📊 Grafico a barre', 'grafico barre statistiche', (W, H) => bars(W, H, [40, 70, 55, 90], ['2022', '2023', '2024', '2025'])],
+  ['📈 Barre di avanzamento %', 'grafico percentuale raccolta fondi progresso', (W, H) => hbars(W, H, [['Raccolta', 75], ['Partecipanti', 50], ['Obiettivo', 90]])],
+];
+const _cat = SV.catalog;
+SV.catalog = function () {
+  const items = _cat.apply(this, arguments), k = Math.min(SV.h.W(), SV.h.H());
+  PRE.forEach(([l, kw, fn]) => items.push({ cat: 'Tabelle e grafici', l: l.replace(/^\S+\s/, ''), kw: 'tabella grafico ' + kw, th: SV.thumbCanvas('tg' + l, (c, w, h) => { c.fillStyle = l.includes('avanz') ? '#0d5c2e' : '#e9ecef'; c.fillRect(0, 0, w, h); const els = fn(w * 10, h * 10); c.scale(0.1, 0.1); els.forEach(e => SV.drawElement(c, e, {})); }, 96, 96),
+    make: () => { const e = fn(SV.h.W(), SV.h.H()); setTimeout(() => SV.toast('Tocca due volte un testo per modificarlo. "Separa" per muovere le singole celle.', 4200), 300); return e; } }));
+  return items;
+};
 })();
 
 /* Gomma: erase/restore refine panel (non-destructive alpha mask) */
