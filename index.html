@@ -847,6 +847,7 @@ textarea.sv-in{height:auto;padding:8px 10px;min-height:70px}
 #svAnalyze .an-it button{border:0;background:none;color:#aaa;font-size:14px}
 #svAnalyze .an-pal{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 #svAnalyze .an-pal span{width:28px;height:28px;border-radius:8px;border:1px solid #555}
+#svAnalyze .an-big{display:flex;flex-direction:column;gap:6px;background:#2b2412;border:1px solid #d4af37;border-radius:10px;padding:9px}#svAnalyze .an-big button{text-align:left;padding:10px 12px;font-size:13.5px;border:1px solid #5a5340;background:#1d1f23;color:#f3e7b8;border-radius:9px}#svAnalyze .an-big button.gold{background:#d4af37;border-color:#d4af37;color:#1a1405;font-weight:700}#svAnalyze .an-big button.gold small{opacity:.8;font-weight:500}#svAnalyze .an-done button{padding:6px 10px;font-size:12px}#svAnalyze .an-big small{opacity:.75;font-size:11.5px}#svAnalyze .an-done{font-size:12.5px;display:flex;gap:8px;align-items:center;justify-content:space-between}
 #svAnalyze .an-warn{background:#4a3b12;border-radius:8px;padding:8px;font-size:12.5px}
 #svAnalyze .sv-inp{width:100%;box-sizing:border-box;border:1px solid #3a3d43;border-radius:10px;padding:9px 10px;font-size:16px;background:#2b2d31;color:#fff}
 #svAnalyze .sv-check{color:#e8eaed}
@@ -17692,7 +17693,7 @@ async function paddleLines(cv) {
     out.push({ text, confidence: conf, bbox: { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1 }, ar: isA, paddle: true, detScore: b.score, detFill: b.fill });
   }
   // giant decorative titles (3D / outlined / condensed lettering) are often missed at full resolution: detect again on downscaled copies
-  if (window.SV_BIGSCAN) try { const ovA = (a, b) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0)); const cand = [];
+  if (window.SV_BIGSCAN !== false) try { const ovA = (a, b) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0)); const cand = [];
     for (const lim of [640, 448]) { chk(); const bx = await SV.paddleDet(cv, { limit: lim });
       for (const b of bx) { const bw = b.x1 - b.x0, bh = b.y1 - b.y0, ar = bw * bh; if (bh < cv.height * 0.045 || bw < bh * 1.2) continue; if (out.some(l => ovA(l.bbox, b) > ar * 0.4)) continue;
         const pd = bh * 0.15, cx0 = Math.max(0, b.x0 - pd), cy0 = Math.max(0, b.y0 - pd), cw = Math.min(cv.width, b.x1 + pd) - cx0, chh = Math.min(cv.height, b.y1 + pd) - cy0;
@@ -18217,11 +18218,18 @@ SV.composeAnalyzed = async function (R, opt) {
   const bgRec = await (opt.temp ? reg(bgCv) : SV.addAsset(bgCv, 'tpl', 'Sfondo pulito', { jpeg: true }));
   const pg = SV.newPage({ color: R.palette[0] || '#ffffff', img: bgRec.id });
   const box = b => ({ x: b.x0 * sx, y: b.y0 * sy, w: (b.x1 - b.x0 + 1) * sx, h: (b.y1 - b.y0 + 1) * sy });
+  const holes = on.filter(T => T.kind === 'text' && T.t3m && T.mode === 'text'); for (const T of holes) if (!T._t3d) { /* the lettering plus the halo/outline around it (a cut-out layer keeps white rims), except where a real person stands */
+    const bh = T.bbox.y1 - T.bbox.y0 + 1, d2 = (await wcall('dilate', { mask: T.t3m.slice(), w, h, r: 2 })).mask, dB = (await wcall('dilate', { mask: T.t3m.slice(), w, h, r: Math.max(4, Math.round(bh * 0.1)) })).mask, PB = (R.persons || []).filter(d => d.s >= 0.3);
+    for (let i = 0; i < A; i++) if (dB[i] && !d2[i]) { const x = i % w, y = (i / w) | 0; if (!PB.some(d => x >= d.x0 && x <= d.x1 && y >= d.y0 && y <= d.y1)) d2[i] = 1; } T._t3d = d2; }
+  const punch = L => { if (!holes.length || !L.cv) return L.cv; const cw = L.cv.width, ch = L.cv.height, b = L.bbox; let c = null, id = null;
+    for (const T of holes) { const t = T.bbox; if (t.x1 < b.x0 || t.x0 > b.x1 || t.y1 < b.y0 || t.y0 > b.y1) continue; if (!c) { c = mk(cw, ch); c.getContext('2d').drawImage(L.cv, 0, 0); id = c.getContext('2d').getImageData(0, 0, cw, ch); }
+      const m = T._t3d; for (let y = 0; y < ch; y++) { const Y = b.y0 + y; if (Y < 0 || Y >= h) continue; for (let x = 0; x < cw; x++) { const X = b.x0 + x; if (X >= 0 && X < w && m[Y * w + X]) id.data[(y * cw + x) * 4 + 3] = 0; } } }
+    if (c) c.getContext('2d').putImageData(id, 0, 0); return c || L.cv; };
   for (const L of on.filter(L => L.kind === 'people')) {
-    const r = await reg(L.cv, 'Persone'); const b = box(L.bbox);
+    const r = await reg(L.asFrame === true ? L.cv : punch(L), 'Persone'); const b = box(L.bbox);
     pg.els.push(Object.assign({ id: SV.uid(), src: L.id, type: 'image', name: L.name, asset: r.id, rot: 0, op: 1, fit: 'contain' }, b, L.asFrame === true ? { asset: null, frame: true, ph: 'Tocca e aggiungi la foto', mask: 'none' } : {}));
   }
-  for (const L of on.filter(L => L.kind === 'graphic')) { const r = await reg(L.cv, L.name); pg.els.push(Object.assign({ id: SV.uid(), src: L.id, type: 'image', name: L.name, asset: r.id, rot: 0, op: 1, fit: 'contain' }, box(L.bbox))); }
+  for (const L of on.filter(L => L.kind === 'graphic')) { const r = await reg(punch(L), L.name); pg.els.push(Object.assign({ id: SV.uid(), src: L.id, type: 'image', name: L.name, asset: r.id, rot: 0, op: 1, fit: 'contain' }, box(L.bbox))); }
   for (const L of on.filter(L => L.kind === 'text')) {
     if (L.mode === 'image') { const r = await reg(L.cv, L.name); const pad = 3; pg.els.push(Object.assign({ id: SV.uid(), src: L.id, type: 'image', name: L.name + ' (immagine)', atext: L.text, asset: r.id, rot: 0, op: 1, fit: 'contain' }, box({ x0: Math.max(0, L.bbox.x0 - pad), y0: Math.max(0, L.bbox.y0 - pad), x1: Math.min(w - 1, L.bbox.x1 + pad), y1: Math.min(h - 1, L.bbox.y1 + pad) }))); continue; }
     await ensureFont(L.st.font);
@@ -18267,13 +18275,36 @@ async function graphicToArabic(L) {
 /* ---- big decorative title → editable 3D text (best preset by ink colour, original kept as undo) ---- */
 const inkHSL = L => { try { const c = L.cv, x = c.getContext('2d'), d = x.getImageData(0, 0, c.width, c.height).data; let r = 0, g = 0, b = 0, n = 0; for (let i = 0; i < d.length; i += 16) if (d[i + 3] > 200) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; } if (n) { r /= n * 255; g /= n * 255; b /= n * 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, dl = mx - mn, sat = dl ? dl / (1 - Math.abs(2 * l - 1)) : 0; let h = 0; if (dl) { h = mx === r ? ((g - b) / dl) % 6 : mx === g ? (b - r) / dl + 2 : (r - g) / dl + 4; h = (h * 60 + 360) % 360; } return { h, s: sat, l }; } } catch (e) {} return null; };
 const t3Pick = L => { const c = inkHSL(L); if (!c) return 'oro'; if (c.l > 0.86) return 'bianco'; if (c.s < 0.16 && c.l > 0.4) return 'argento'; if (c.s > 0.3 && c.h >= 75 && c.h < 175) return 'verdeoro'; if (c.s > 0.4 && (c.h < 18 || c.h >= 335)) return 'rossooro'; return 'oro'; };
+const normBig = t => { t = String(t || '').trim(); const l = t.replace(/[^A-Za-zÀ-ÿ]/g, ''), up = (t.match(/[A-ZÀ-Þ]/g) || []).length; return /[a-zà-ÿ]/.test(l) && up >= l.length * 0.5 ? t.toUpperCase() : t; }; /* 3D titles are capitals: "TOUba" -> "TOUBA" */
 const isBigTitle = (L, R) => { if (L.kind !== 'text' || L.ar) return false; const nl = Math.max(1, String(L.text || '').split('\n').length), gh = (L.bbox.y1 - L.bbox.y0) / nl; return !!(L.styl || L.metal || gh >= R.h * 0.04) && (L.bbox.x1 - L.bbox.x0) > R.w * 0.25; };
 const isTitleGraphic = (L, R) => { if (L.kind !== 'graphic' || !L.bbox) return false; const w = L.bbox.x1 - L.bbox.x0, h = L.bbox.y1 - L.bbox.y0; return w > R.w * 0.3 && w / Math.max(1, h) >= 2.4 && h >= R.h * 0.03; };
+/* refined lettering mask of a decorative title: colours typical of the title (inside its box) but rare around it, closed + grown (fill, outline, 3D extrude); falls back to null when unreliable */
+async function titleLetters(R, B) {
+  const w = R.w, h = R.h, bw = B.x1 - B.x0 + 1, bh = B.y1 - B.y0 + 1; if (bw < 8 || bh < 8) return null;
+  const py = Math.round(bh * 0.16), px = Math.round(bh * 0.12), X0 = Math.max(0, Math.round(B.x0 - px)), X1 = Math.min(w - 1, Math.round(B.x1 + px)), Y0 = Math.max(0, Math.round(B.y0 - py)), Y1 = Math.min(h - 1, Math.round(B.y1 + py));
+  const d = (R._px || (R._px = R.cv.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h))).data;
+  const pm = new Uint8Array(w * h); (R.layers || []).forEach(L => { if (L.kind === 'people' && L.on !== false && L.mask) for (let i = 0; i < pm.length; i++) if (L.mask[i]) pm[i] = 1; });
+  const ix0 = B.x0 + bw * 0.03, ix1 = B.x1 - bw * 0.03, iy0 = B.y0 + bh * 0.1, iy1 = B.y1 - bh * 0.1, cin = new Uint32Array(512), cout = new Uint32Array(512); let nin = 0, nout = 0;
+  const bk = k => ((d[k] >> 5) << 6) | ((d[k + 1] >> 5) << 3) | (d[k + 2] >> 5);
+  for (let y = Y0; y <= Y1; y++) for (let x = X0; x <= X1; x++) { const q = y * w + x; if (pm[q]) continue; const b = bk(q * 4), inB = x >= ix0 && x <= ix1 && y >= iy0 && y <= iy1, ring = x < B.x0 || x > B.x1 || y < B.y0 || y > B.y1; if (inB) { cin[b]++; nin++; } else if (ring) { cout[b]++; nout++; } }
+  if (nin < 50 || nout < 50) return null;
+  const T = new Uint8Array(512); let nt = 0; for (let b = 0; b < 512; b++) { const fi = cin[b] / nin, fo = cout[b] / nout; if (fi >= 0.012 && fi >= 2 * fo + 0.004) { T[b] = 1; nt++; } }
+  if (!nt) return null;
+  const m = new Uint8Array(w * h); let cnt = 0; for (let y = Y0; y <= Y1; y++) for (let x = X0; x <= X1; x++) { const q = y * w + x; if (!pm[q] && T[bk(q * 4)]) { m[q] = 1; if (x >= B.x0 && x <= B.x1 && y >= B.y0 && y <= B.y1) cnt++; } }
+  const cover = cnt / (bw * bh); if (cover < 0.1 || cover > 0.92) return null;
+  const c = (await wcall('close', { mask: m, w, h, r: Math.max(2, Math.round(bh * 0.03)) })).mask, g = (await wcall('dilate', { mask: c, w, h, r: Math.max(3, Math.round(bh * 0.065)) })).mask;
+  for (let i = 0; i < g.length; i++) if (pm[i]) g[i] = 0;
+  return g;
+}
 async function titleTo3D(L, R, key, text) {
   const pr = (SV.T3D || []).find(t => t[0] === key) || SV.T3D[0], base = pr[2]; await ensureFont(base.font);
-  if (!L._o3) L._o3 = { kind: L.kind, st: L.st, mode: L.mode, text: L.text, name: L.name, styl: L.styl, guess: L.guess, conf: L.conf, metal: L.metal };
-  const gH = L.bbox.y1 - L.bbox.y0, nl = Math.max(1, String(text).split('\n').length), size = Math.max(14, (gH / nl) * 0.8), P = v => v * size / 100;
-  const st = { font: base.font, weight: 800, bold: !!base.bold || true, color: base.color || '#ffffff', size, align: 'center' };
+  if (!L._o3) L._o3 = { kind: L.kind, st: L.st, mode: L.mode, text: L.text, name: L.name, styl: L.styl, guess: L.guess, conf: L.conf, metal: L.metal, mask: L.mask, _mD: L._mD };
+  if (!L.t3m && L.bbox && R.cv && L.mask) { try { const m = await titleLetters(R, L.bbox); if (m) { L.t3m = m; L.mask = L.bigScan ? m : (() => { const u = L.mask.slice(); for (let i = 0; i < u.length; i++) if (m[i]) u[i] = 1; return u; })(); L._mD = null; L._t3d = null; R._bgKey = R._bgCKey = null; } } catch (e) { console.warn('titleLetters', e); } }
+  const gH = L.bbox.y1 - L.bbox.y0, gW = L.bbox.x1 - L.bbox.x0, lines = String(text).split('\n'), nl = Math.max(1, lines.length), mc = Math.max(3, ...lines.map(x => x.length));
+  /* tall, narrow lettering (like the original's condensed capitals): a condensed face filled to the same height instead of a short wide one */
+  const cond = gW / (mc * (gH / nl)) < 0.5 && !['Anton', 'Bebas Neue', 'Oswald', 'Lalezar'].includes(base.font); const font = cond ? 'Anton' : base.font; if (cond) await ensureFont(font);
+  const size = cond ? Math.max(14, Math.min((gH / nl) * 1.0, gW * 1.12 / (mc * 0.46))) : Math.max(14, (gH / nl) * 0.8), P = v => v * size / 100;
+  const st = { font, weight: 800, bold: !!base.bold || true, color: base.color || '#ffffff', size, align: 'center' };
   ['grad', 'gc', 'bevel'].forEach(k => { if (base[k]) st[k] = JSON.parse(JSON.stringify(base[k])); });
   if (base.stroke) st.stroke = { c: base.stroke.c, w: P(base.stroke.w) };
   if (base.extrude) st.extrude = { d: P(base.extrude.d) * 0.3, c: base.extrude.c };
@@ -18281,7 +18312,7 @@ async function titleTo3D(L, R, key, text) {
   st.t3d = key;
   Object.assign(L, { kind: 'text', name: 'Titolo 3D', text, conf: 80, guess: false, styl: true, mode: 'text', st, t3: key, metal: undefined }); delete L.arText;
 }
-function t3Undo(L) { if (!L._o3) return; Object.assign(L, L._o3); delete L._o3; delete L.t3; }
+function t3Undo(L, R) { if (!L._o3) return; Object.assign(L, L._o3); delete L._o3; delete L.t3; delete L.t3m; L._t3d = null; if (R) R._bgKey = R._bgCKey = null; }
 async function t3ReadGraphic(L) { try { const lg = SV.PADDLE_DICTS && (SV.PADDLE_DICTS.latin ? 'latin' : SV.PADDLE_DICTS.en ? 'en' : null); if (lg && SV.paddleRec && await SV.paddleAvailable(lg)) { const r = await SV.paddleRec(L.cv, lg); const t = String(r.text || '').replace(/\s+/g, ' ').trim(); if (t.length >= 2) return t.toUpperCase(); } } catch (e) {} return ''; }
 /* ---- review UI ---- */
 const KIND = { text: ['📝', 'Testo'], graphic: ['🔷', 'Grafica'], people: ['👤', 'Persone'], orig: ['🗂️', 'Originale'] };
@@ -18303,6 +18334,7 @@ SV.openAnalyzer = async function (file) {
     <div class="an-body"><div class="an-prev"><div class="an-cvs" id="anCvs"></div><div class="an-seg">${[['orig', 'Originale'], ['layers', 'Livelli'], ['clean', 'Sfondo pulito'], ['result', 'Risultato'], ['compare', 'Confronto']].map(([v, l]) => `<button data-an="v" data-v="${v}" class="${st.view === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
     <div class="an-side">
       ${R.warnings.map(x => `<div class="an-warn">⚠️ ${esc(x)}</div>`).join('')}
+      ${(() => { const bg = ls.filter(L => L.kind === 'text' && !L.t3 && isBigTitle(L, R) && String(L.text || '').trim().length >= 3), dn = ls.filter(L => L.t3); if (!bg.length && !dn.length) return ''; return `<div class="an-big">${bg.length ? `<b>🅃 Titolo grande trovato</b>${bg.map(L => `<button data-an="t3" data-id="${L.id}" data-k="auto" class="gold">«${esc(normBig(L.text))}» → Testo 3D <small>(${esc((SV.T3D.find(t => t[0] === t3Pick(L)) || [])[1] || '')})</small></button>`).join('')}${bg.length > 1 ? '<button data-an="t3all" class="gold">🅃 Sostituisci tutti</button>' : ''}<small>Cancella il titolo originale e lo rifà modificabile: confronta prima/dopo in “Confronto”.</small>` : ''}${dn.map(L => `<div class="an-done">✅ «${esc(L.text)}» ora è Testo 3D <button data-an="t3off" data-id="${L.id}">↩ Originale</button></div>`).join('')}</div>`; })()}
       <details class="an-more" ${st.more ? 'open' : ''}><summary data-an="more">Altre opzioni <small>${st.out !== 'clean' ? '· Copia fedele' : st.backdrop ? '· Con sfondo originale' : '· Modello pulito minimal'}</small></summary>
       <div class="an-out an-sty"><button data-an="sty" data-v="0" class="${st.out === 'clean' && !st.backdrop ? 'on' : ''}"><b>✨ Modello pulito</b><small>stile minimal: forme piatte, fondo chiaro (consigliato)</small></button><button data-an="sty" data-v="1" class="${st.out === 'clean' && st.backdrop ? 'on' : ''}"><b>🌅 Con sfondo originale</b><small>immagine di fondo sfumata nei colori del volantino</small></button><button data-an="out" data-m="faithful" class="${st.out !== 'clean' ? 'on' : ''}"><b>🖼️ Copia fedele</b><small>uguale all’originale</small></button></div>
       ${st.out === 'clean' ? `<div class="an-opts an-cl"><button data-an="copt" data-k="orig" class="${st.orig ? 'on' : ''}">${st.orig ? '✓ ' : ''}Testi originali</button><button data-an="copt" data-k="logos" class="${st.logos ? 'on' : ''}">${st.logos ? '✓ ' : ''}Spazi logo</button></div>` : ''}
@@ -18387,8 +18419,9 @@ SV.openAnalyzer = async function (file) {
       L.st = Object.assign({}, L.st, { font: f, weight: 700, bold: true, size: c ? (gH / nl) / c.glyphH : (gH / nl) * (f === 'Reem Kufi' ? 1.05 : 0.8) }); delete L.st.lsFit; L.mode = 'text'; L.calli = true; render(); return; }
     if (a === 'metal') { if (L.st.grad) { L._grad = L.st.grad; delete L.st.grad; } else L.st.grad = L._grad || 'gold'; render(); return; }
     if (a === 'ar2t') { SV.busy(true, 'Leggo la scritta araba…'); try { await graphicToArabic(L); } finally { SV.busy(false); } render(); return; }
-    if (a === 't3') { const k = b.dataset.k === 'auto' ? t3Pick(L) : b.dataset.k; if (!String(L.text || '').trim()) { SV.toast('Scrivi prima il testo del titolo'); return; } SV.busy(true, 'Creo il Testo 3D…'); try { await titleTo3D(L, R, k, L.text); } finally { SV.busy(false); } render(); draw && draw(); return; }
-    if (a === 't3off') { t3Undo(L); render(); draw && draw(); return; }
+    if (a === 't3') { const k = b.dataset.k === 'auto' ? t3Pick(L) : b.dataset.k; if (!String(L.text || '').trim()) { SV.toast('Scrivi prima il testo del titolo'); return; } SV.busy(true, 'Creo il Testo 3D…'); try { L.text = normBig(L.text); await titleTo3D(L, R, k, L.text); } finally { SV.busy(false); } st.view = 'compare'; render(); draw && draw(); return; }
+    if (a === 't3all') { SV.busy(true, 'Creo il Testo 3D…'); try { for (const T of R.layers.filter(T => T.kind === 'text' && !T.t3 && isBigTitle(T, R) && String(T.text || '').trim())) { T.text = normBig(T.text); await titleTo3D(T, R, t3Pick(T), T.text); } } finally { SV.busy(false); } st.view = 'compare'; render(); draw && draw(); return; }
+    if (a === 't3off') { t3Undo(L, R); render(); draw && draw(); return; }
     if (a === 't3ask') { L._t3ask = true; L._t3txt = L._t3txt || await t3ReadGraphic(L); render(); const i = document.getElementById('t3in-' + L.id); if (i) i.focus(); return; }
     if (a === 't3go') { const i = document.getElementById('t3in-' + L.id), t = ((i && i.value) || '').trim(); if (!t) { SV.toast('Scrivi il testo del titolo'); return; } L._t3txt = t; SV.busy(true, 'Creo il Testo 3D…'); try { await titleTo3D(L, R, t3Pick(L), t); } finally { SV.busy(false); } render(); draw && draw(); return; }
     if (a === 'pf') { L.asFrame = [false, true, 'keep'][+b.dataset.m]; render(); return; }
