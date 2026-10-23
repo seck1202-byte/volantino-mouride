@@ -1,4 +1,4 @@
-const CACHE = 'volantino-studio-202610231643';
+const CACHE = 'volantino-studio-202610231645';
 const ASSETS = [
   './',
   './index.html',

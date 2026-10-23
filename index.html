@@ -11199,10 +11199,10 @@ SV.textLayout = function (el) {
   const raw = textTransform(String(el.text == null ? '' : el.text), st);
   const ls = st.ls ? st.ls / 100 * sz : 0;
   const maxW = Math.max(sz * 0.6, el.w - pad * 2);
-  const lines = [];
+  const lines = []; const ends = new Set();
   raw.split('\n').forEach(par => {
     const p = (st.list ? '• ' : '') + par;
-    if (!p) { lines.push(''); return; }
+    if (!p) { ends.add(lines.length); lines.push(''); return; }
     const words = p.split(/(\s+)/);
     let cur = '';
     for (const w of words) {
@@ -11210,7 +11210,7 @@ SV.textLayout = function (el) {
       if (cur && measureRun(_mc, t.trimEnd(), ls) > maxW && w.trim()) { lines.push(cur.trimEnd()); cur = w.trimStart(); }
       else cur = t;
     }
-    lines.push(cur.trimEnd());
+    ends.add(lines.length); lines.push(cur.trimEnd());
   });
   const lh = (st.lh || 1.2) * sz;
   let maxLine = 0;
@@ -11218,7 +11218,7 @@ SV.textLayout = function (el) {
   let extra = 0;
   if (st.curve) extra = Math.abs(st.curve) / 100 * Math.min(maxLine, el.w) * 0.45;
   const h = pad * 2 + sz * 1.08 + (lines.length - 1) * lh + extra;
-  return { fi, lines, lh, pad, h, maxLine, extra };
+  return { fi, lines, lh, pad, h, maxLine, extra, ends, maxW, ls };
 };
 SV.fitTextH = function (el) { if (el.type === 'text') el.h = SV.textLayout(el).h; };
 function drawText(c, el, w, h) {
@@ -11233,6 +11233,18 @@ function drawText(c, el, w, h) {
   if (st.curve > 0) y0 += L.extra;
   const fill = st.color || '#ffffff';
   L.lines.forEach((ln, i) => {
+    if (al === 'justify' && !L.ends.has(i) && /\S\s+\S/.test(ln) && !st.curve) {
+      _mc.font = L.fi.css;
+      const ws = ln.split(/\s+/).filter(Boolean), wl = ws.map(x => measureRun(_mc, x, L.ls));
+      const gap = (L.maxW - wl.reduce((a, b) => a + b, 0)) / (ws.length - 1);
+      if (gap > 0 && gap < L.fi.size * 2.2) {
+        let x = -w / 2 + L.pad;
+        const order = ar ? ws.map((_, k) => k).reverse() : ws.map((_, k) => k);
+        order.forEach(k => { paintStyledLine(c, ws[k], x, y0 + i * L.lh, { st, fi: L.fi, fill, align: 'left', baseline: 'alphabetic', direction: ar ? 'rtl' : 'ltr' }); x += wl[k] + gap; });
+        return;
+      }
+    }
+    if (al === 'justify') { paintStyledLine(c, ln, -w / 2 + L.pad + (ar ? L.maxW : 0), y0 + i * L.lh, { st, fi: L.fi, fill, align: ar ? 'right' : 'left', baseline: 'alphabetic', direction: ar ? 'rtl' : 'ltr' }); return; }
     paintStyledLine(c, ln, ax, y0 + i * L.lh, { st, fi: L.fi, fill, align: al, baseline: 'alphabetic', direction: ar ? 'rtl' : 'ltr' });
   });
 }
@@ -12674,6 +12686,7 @@ SV.showHome = async function () {
   <div class="sv-wrap">
     <div class="sv-h2">🕘 Progetti recenti <span style="font-size:12px;color:var(--mut);font-weight:600">${list.length ? list.length + (list.length === 1 ? ' design' : ' design · ordinati per ultima modifica') : ''}</span></div>
     <div class="sv-grid sv-recent" id="svProjects">${list.length ? list.map(projCard).join('') : '<div class="sv-empty" style="grid-column:1/-1">📂 Nessun progetto ancora.<br><small>I tuoi design si salvano da soli e compariranno qui. Scegli una misura o un modello per iniziare.</small></div>'}</div>
+    ${list.length ? '<div class="sv-mytools" style="margin:6px 0 4px"><button class="sv-chip" data-a="backupAll">💾 Backup di tutti i progetti</button><button class="sv-chip" data-a="restoreAll">📥 Ripristina backup</button></div>' : '<div class="sv-mytools" style="margin:6px 0 4px"><button class="sv-chip" data-a="restoreAll">📥 Ripristina backup</button></div>'}
     <div class="sv-h2">Crea un design</div>
     <div class="sv-sizes">
       ${SV.SIZES.map(s => `<button class="sv-size" data-a="newSize" data-id="${s.id}"><div class="ic">${sizeIcon(s)}</div><b>${esc(s.n)}</b><small>${esc(s.d)}</small></button>`).join('')}
@@ -14073,7 +14086,7 @@ P.effetti = function () {
 P.spaziatura = function () {
   const el = one(); if (!el || el.type !== 'text') return '';
   return slider('Spaziatura lettere', 'tLs', el.st.ls || 0, -10, 80) + slider('Interlinea', 'tLh', Math.round((el.st.lh || 1.2) * 100), 60, 250, 5, '%') +
-    `<div class="sv-lbl">Allineamento</div>${seg('talignSet', el.st.align || 'center', [['left', '⇤ Sinistra'], ['center', '≡ Centro'], ['right', '⇥ Destra']])}` +
+    `<div class="sv-lbl">Allineamento</div>${seg('talignSet', el.st.align || 'center', [['left', '⇤ Sinistra'], ['center', '≡ Centro'], ['right', '⇥ Destra'], ['justify', '☰ Giustifica']])}` +
     `<div class="sv-lbl">Maiuscole</div>${seg('tcaseSet', el.st.upper === true ? 'up' : el.st.upper === 'lower' ? 'low' : 'none', [['none', 'Come scritto'], ['up', 'MAIUSCOLO'], ['low', 'minuscolo']])}` +
     `<label class="sv-check"><input type="checkbox" data-in="tStrike" ${el.st.strike ? 'checked' : ''}> Barrato</label>`;
 };
@@ -14983,6 +14996,45 @@ SV.catalog = function () {
     if (V && V.k) { const w = (SV.U.proj.w) * V.k; h.style.left = Math.max(8, V.ox + w / 2 - 130) + 'px'; h.style.top = (V.oy + SV.U.proj.h * V.k * .33) + 'px'; }
   }
   const r0 = SV.render; SV.render = function () { const r = r0.apply(this, arguments); setTimeout(hint, 30); return r; };
+})();
+
+/* ---------- backup / restore of all projects ---------- */
+(function () {
+  'use strict';
+  const SV = window.SV; if (!SV) return;
+  const b64 = buf => { let s = ''; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+  const unb64 = s => { const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; };
+  const pick = accept => new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.style.display = 'none'; document.body.appendChild(i); i.onchange = () => { res([...i.files]); i.remove(); }; i.click(); });
+  SV.backupAll = async function () {
+    const projs = await SV.dbAll('projects'); if (!projs.length) return SV.toast('Nessun progetto da salvare');
+    SV.busy(true, 'Preparo il backup…');
+    try {
+      const pj = JSON.stringify(projs.map(p => { const c = Object.assign({}, p); delete c.thumb; return c; }));
+      const assets = {};
+      for (const r of await SV.dbAll('assets')) { if (!pj.includes(r.id)) continue; const buf = r.buf || (r.blob && await r.blob.arrayBuffer()); if (buf) assets[r.id] = { type: r.type || 'image/png', w: r.w, h: r.h, kind: r.kind, name: r.name, data: b64(buf) }; }
+      const kit = await SV.kvGet('kit').catch(() => null);
+      const json = JSON.stringify({ format: 'volantino-mouride-backup', v: 1, exported: new Date().toISOString(), projects: JSON.parse(pj), assets, kit });
+      const d = new Date(), name = 'volantino-backup-' + d.toISOString().slice(0, 10) + '.json';
+      const f = new File([json], name, { type: 'application/json' }); SV.busy(false);
+      if (navigator.canShare && navigator.share && navigator.canShare({ files: [f] })) { try { await navigator.share({ files: [f], title: 'Backup Volantino' }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+      const u = URL.createObjectURL(f), a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 30000);
+      SV.toast('Backup salvato: ' + name + ' (' + projs.length + ' progetti) ✓');
+    } catch (e) { SV.busy(false); console.error(e); SV.toast('Errore: ' + e.message); }
+  };
+  SV.restoreFile = async function (file) {
+    let d; try { d = JSON.parse(await file.text()); } catch (e) { throw new Error('File non valido'); }
+    if (!d || d.format !== 'volantino-mouride-backup' || !Array.isArray(d.projects)) throw new Error('Non è un backup di Volantino');
+    for (const [id, a] of Object.entries(d.assets || {})) { if (await SV.dbGet('assets', id)) continue; const u = unb64(a.data); await SV.dbPut('assets', { id, buf: u.buffer, type: a.type, w: a.w, h: a.h, kind: a.kind || 'upload', name: a.name || '', created: Date.now() }); }
+    let n = 0; for (const p of d.projects) { if (!p || !p.id || !Array.isArray(p.pages)) continue; const ex = await SV.dbGet('projects', p.id); if (ex) { if ((ex.updated || 0) >= (p.updated || 0)) continue; } p.updated = p.updated || Date.now(); await SV.dbPut('projects', p); n++; }
+    return n;
+  };
+  const a0 = SV.act;
+  SV.act = async function (a, d, b, ev) {
+    if (a === 'backupAll') return SV.backupAll();
+    if (a === 'restoreAll') { const fs = await pick('.json,application/json'); if (!fs[0]) return; SV.busy(true, 'Ripristino…'); try { const n = await SV.restoreFile(fs[0]); SV.busy(false); SV.toast(n + ' progetti ripristinati ✓'); SV.showHome(); } catch (e) { SV.busy(false); SV.toast(e.message); } return; }
+    return a0.apply(this, arguments);
+  };
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
 })();
 
 /* ===== Motivi arabi: ~45 vector motifs + 9 seamless tile patterns ===== */
