@@ -892,6 +892,8 @@ textarea.sv-in{height:auto;padding:8px 10px;min-height:70px}
 @media (max-width:520px){#svAnalyze .an-more .an-sty{grid-template-columns:1fr}}
 @media(min-width:700px){.sv-chips{flex-wrap:wrap;overflow-x:visible}.sv-chip{flex-shrink:0}}
 
+.sv-t3d{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}.sv-t3d button{border:1px solid #e3e5e8;background:#14361f;border-radius:10px;padding:10px 4px 6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;color:#fff}.sv-t3d button.on{outline:2px solid #7d2ae8}.sv-t3d b{font-size:26px;letter-spacing:1px;line-height:1.1}.sv-t3d span{font-size:11px;opacity:.85}.sv-t3c{display:flex;align-items:center;gap:6px;font-size:12px;flex:1}.sv-t3c input{width:34px;height:28px;border:0;padding:0;background:none}
+
 </style>
 </head>
 <body>
@@ -6900,6 +6902,8 @@ const TEXT_GRADIENTS = {
   emerald: ['#04331a', '#4fd18b', '#0d7a43', '#a6f0c6', '#063d22'],
   sunset: ['#ff5f6d', '#ffc371'],
 };
+function _mixHex(a, b, t) { const p = h => { h = String(h).replace('#', ''); if (h.length === 3) h = h.replace(/./g, x => x + x); const n = parseInt(h.slice(0, 6), 16) || 0; return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+  const A = p(a), B = p(b); return 'rgb(' + A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',') + ')'; }
 function makeGradient(c, key, x0, y0, x1, y1) {
   const stops = TEXT_GRADIENTS[key];
   if (!stops) return null;
@@ -7019,7 +7023,8 @@ function paintStyledLine(c, text, x, y, o) {
   const top = base - sz * 0.82, h = sz * 1.08;
   // fill style
   let fill = o.fill;
-  if (st.grad) fill = makeGradient(c, st.grad, 0, top, 0, top + h) || fill;
+  if (st.gc && st.gc.length > 1) { const g = c.createLinearGradient(0, top, 0, top + h); st.gc.forEach((s, i) => g.addColorStop(i / (st.gc.length - 1), s)); fill = g; }
+  else if (st.grad) fill = makeGradient(c, st.grad, 0, top, 0, top + h) || fill;
   else if (st.color) fill = st.color;
   const hollow = fill === 'transparent';
 
@@ -7036,8 +7041,11 @@ function paintStyledLine(c, text, x, y, o) {
   if (st.extrude && st.extrude.d) {
     const d = Math.max(1, Math.round(st.extrude.d / 100 * sz * 0.3));
     c.save();
-    c.fillStyle = st.extrude.c || '#000';
-    for (let i = d; i >= 1; i--) { c.save(); c.translate(i * 0.7, i); drawGlyphs(FT); c.restore(); }
+    const ex = st.extrude, ang = ex.a != null ? ex.a * Math.PI / 180 : null, ux = ang == null ? 0.7 : Math.cos(ang) * 1.15, uy = ang == null ? 1 : Math.sin(ang) * 1.15;
+    if (ex.o && ex.o.w) { c.lineJoin = 'round'; c.miterLimit = 2; c.strokeStyle = ex.o.c || '#000'; c.lineWidth = Math.max(1, ex.o.w / 100 * sz) * 2;
+      for (let i = d; i >= 0; i--) { c.save(); c.translate(i * ux, i * uy); drawGlyphs(ST); c.restore(); } }
+    c.fillStyle = ex.c || '#000';
+    for (let i = d; i >= 1; i--) { if (ex.c2) c.fillStyle = _mixHex(ex.c || '#000000', ex.c2, i / d); c.save(); c.translate(i * ux, i * uy); drawGlyphs(FT); c.restore(); }
     c.restore();
   }
   // glow
@@ -7089,6 +7097,8 @@ function paintStyledLine(c, text, x, y, o) {
     c.save(); c.strokeStyle = o.strokeStyle || fill; c.lineWidth = o.lineWidth || 1;
     drawGlyphs(ST); c.restore();
   } else if (!hollow && !haloDone) {
+    if (st.bevel) { const b = Math.max(1, sz * 0.02); c.save(); c.fillStyle = st.bevel.hi || 'rgba(255,250,220,0.9)'; c.translate(-b * 0.6, -b); drawGlyphs(FT); c.restore();
+      c.save(); c.fillStyle = st.bevel.lo || 'rgba(0,0,0,0.45)'; c.translate(b * 0.6, b); drawGlyphs(FT); c.restore(); }
     c.save(); c.fillStyle = fill; drawGlyphs(FT); c.restore();
   }
   // underline / strikethrough
@@ -7163,7 +7173,7 @@ function capturedTextBox(args, tpl, id, noText) {
 /* ---------- Grouped template text (drawSafeText / drawMetallicText) ----------
    The template helper is replayed; each fillText/strokeText it issues is routed through the styled
    text engine. A dry run records the call sequence (for bounds + de-duplicating multi-pass looks). */
-const GROUP_PAINT_KEYS = ['color', 'grad', 'stroke', 'shadow', 'glow', 'extrude', 'hl', 'underline', 'strike'];
+const GROUP_PAINT_KEYS = ['color', 'grad', 'gc', 'bevel', 'stroke', 'shadow', 'glow', 'extrude', 'hl', 'underline', 'strike'];
 function _groupRecord(drawFn, text) {
   const c = _measureCtx();
   const calls = [];
@@ -7948,7 +7958,7 @@ async function edDuplicate() {
 }
 
 /* ---------- Copy / paste style (paint roller) ---------- */
-const TEXT_STYLE_KEYS = ['font', 'size', 'color', 'grad', 'bold', 'italic', 'underline', 'strike', 'upper', 'align', 'list', 'ls', 'lh', 'stroke', 'shadow', 'glow', 'curve', 'hl', 'extrude', 'opacity'];
+const TEXT_STYLE_KEYS = ['font', 'size', 'color', 'grad', 'bold', 'italic', 'underline', 'strike', 'upper', 'align', 'list', 'ls', 'lh', 'stroke', 'shadow', 'glow', 'curve', 'hl', 'extrude', 'gc', 'bevel', 'opacity'];
 const IMG_STYLE_KEYS = ['opacity', 'blend', 'fade', 'filter', 'bri', 'con', 'sat', 'blur', 'vig', 'flipH', 'flipV', 'shape', 'frame', 'tint', 'duo', 'dshadow'];
 function edCopyStyle() {
   const s = edNeedSel(); if (!s) return;
@@ -13568,11 +13578,11 @@ const kk = () => Math.min(W(), H()) / 1080;
 SV.h = { page, els, sel, one, W, H, kk };
 
 const TABS = [
-  ['modelli', '▦', 'Modelli'], ['elementi', '◆', 'Elementi'], ['testo', 'T', 'Testo'], ['caricamenti', '☁︎', 'Foto'],
+  ['modelli', '▦', 'Modelli'], ['elementi', '◆', 'Elementi'], ['testo', 'T', 'Testo'], ['testo3d', '🅃', 'Testo 3D'], ['caricamenti', '☁︎', 'Foto'],
   ['sfondo', '🎨', 'Sfondo'], ['livelli', '☰', 'Livelli'], ['pagine', '❐', 'Pagine'], ['combo', '🌈', 'Colori'], ['kit', '★', 'Kit'],
 ];
 const TITLES = {
-  modelli: 'Modelli', elementi: 'Elementi', testo: 'Testo', caricamenti: 'Caricamenti', sfondo: 'Sfondo', livelli: 'Livelli', pagine: 'Pagine', kit: 'Kit del marchio', combo: 'Combinazioni colori',
+  modelli: 'Modelli', elementi: 'Elementi', testo: 'Testo', testo3d: 'Testo 3D', caricamenti: 'Caricamenti', sfondo: 'Sfondo', livelli: 'Livelli', pagine: 'Pagine', kit: 'Kit del marchio', combo: 'Combinazioni colori',
   font: 'Carattere', colore: 'Colore', effetti: 'Effetti testo', spaziatura: 'Spaziatura', foto: 'Modifica foto', posizione: 'Posizione', trasparenza: 'Trasparenza', qr: 'Codice QR', forma: 'Forma e bordo', linea: 'Linea',
 };
 SV.buildRail = function () {
@@ -13655,11 +13665,11 @@ function renderCtx() {
         `<button class="sv-tb" data-a="panel" data-p="colore" data-arg="text" title="Colore testo"><span class="ic"><span class="tA" style="border-color:${st.grad ? '#d4af37' : (st.color === 'transparent' ? '#999' : st.color)}">A</span></span><span class="lb">Colore</span></button>` +
         tb('tbold', '<b>B</b>', 'Grassetto', '', st.bold) + tb('titalic', '<i>I</i>', 'Corsivo', '', st.italic) + tb('tunder', '<u>U</u>', 'Sottolineato', '', st.underline) +
         tb('tcase', 'aA', 'Maiuscolo', '', st.upper === true) + tb('talign', st.align === 'left' ? '⇤' : st.align === 'right' ? '⇥' : '≡', 'Allinea') +
-        tb('tlist', '•≡', 'Elenco', '', st.list) + tb('panel', '↕', 'Spaziatura', 'data-p="spaziatura"', U.panel === 'spaziatura') + tb('panel', '✨', 'Effetti', 'data-p="effetti"', U.panel === 'effetti') + common(el);
+        tb('tlist', '•≡', 'Elenco', '', st.list) + tb('panel', '↕', 'Spaziatura', 'data-p="spaziatura"', U.panel === 'spaziatura') + tb('panel', '✨', 'Effetti', 'data-p="effetti"', U.panel === 'effetti') + tb('panel', '🅃', '3D', 'data-p="testo3d"', U.panel === 'testo3d') + common(el);
     } else if (el.type === 'image') {
       if (!el.asset) h = tb('pickFrame', '📷', 'Aggiungi foto', 'style="color:#7d2ae8"') + tb('panel', '⬭', 'Forma', 'data-p="foto" data-arg="forma"');
       else h = tb('panel', '🪄', 'Modifica foto', 'data-p="foto"', U.panel === 'foto') + tb('crop', '✂️', 'Ritaglia') + tb('panel', '🌗', 'Sfuma', 'data-p="foto" data-arg="sfuma"') +
-        tb('flipX', '⇋', 'Capovolgi') + tb('flipY', '⇅', 'Capovolgi V') + tb('replace', '🔁', 'Sostituisci') + tb('bgremove', '👤', 'Rimuovi sfondo') + tb('eraser', '🧽', 'Gomma') + tb('setBg', '🖼️', 'Imposta sfondo');
+        tb('flipX', '⇋', 'Capovolgi') + tb('flipY', '⇅', 'Capovolgi V') + tb('replace', '🔁', 'Sostituisci') + tb('bgremove', '👤', 'Rimuovi sfondo') + tb('eraser', '🧽', 'Gomma') + tb('setBg', '🖼️', 'Imposta sfondo') + tb('t3over', '🅃', 'Testo 3D sopra') + tb('layerVis', '🙈', 'Nascondi originale', `data-id="${el.id}"`);
       h += common(el);
     } else if (el.type === 'shape' || el.type === 'orn' || el.type === 'icon') {
       h = `<button class="sv-tb" data-a="panel" data-p="colore" data-arg="fill">${colorDot(el.fill || '#d4af37', el.g)}<span class="lb">Colore</span></button>` +
@@ -13802,6 +13812,37 @@ P.elementi = function () {
   return h;
 };
 const ADD_KINDS = [['title', 'Aggiungi un titolo', 'font-size:22px;font-weight:800'], ['sub', 'Aggiungi un sottotitolo', 'font-size:16px;font-weight:700'], ['body', 'Aggiungi del corpo del testo', 'font-size:13px']];
+/* ---- Testo 3D: editable text with 3D / metallic presets ---- */
+const T3D = SV.T3D = [
+  ['oro', 'Oro 3D', { font: 'Abril Fatface', grad: 'gold', extrude: { d: 40, c: '#7a5410', c2: '#2a1a03', a: 60, o: { c: '#1a0f02', w: 2.5 } }, stroke: { c: '#2a1803', w: 2.5 }, bevel: {}, shadow: { c: 'rgba(0,0,0,0.55)', b: 18, x: 4, y: 12 } }],
+  ['argento', 'Argento 3D', { font: 'Anton', grad: 'silver', extrude: { d: 40, c: '#4a4a4a', c2: '#111111', a: 60, o: { c: '#0a0a0a', w: 2.5 } }, stroke: { c: '#1a1a1a', w: 2.5 }, bevel: {}, shadow: { c: 'rgba(0,0,0,0.55)', b: 18, x: 4, y: 12 } }],
+  ['verdeoro', 'Verde/Oro', { font: 'Alfa Slab One', gc: ['#0a4a22', '#3fcf7a', '#0b5d2a'], extrude: { d: 35, c: '#d4af37', c2: '#6b4a0a', a: 60, o: { c: '#2a1a03', w: 2 } }, stroke: { c: '#f0d060', w: 3 }, bevel: {}, shadow: { c: 'rgba(0,0,0,0.5)', b: 16, x: 3, y: 10 } }],
+  ['bianco', 'Bianco 3D', { font: 'Anton', color: '#ffffff', extrude: { d: 45, c: '#0d7a43', c2: '#04331a', a: 60, o: { c: '#04331a', w: 2 } }, stroke: { c: '#04331a', w: 1.5 }, bevel: { hi: 'rgba(255,255,255,0.9)', lo: 'rgba(0,60,30,0.35)' }, shadow: { c: 'rgba(0,0,0,0.45)', b: 16, x: 3, y: 10 } }],
+  ['rossooro', 'Rosso/Oro', { font: 'Playfair Display', bold: true, gc: ['#7a0a0a', '#ff5040', '#9a0e0e'], extrude: { d: 35, c: '#d4af37', c2: '#6b4a0a', a: 60, o: { c: '#2a1003', w: 2 } }, stroke: { c: '#f0d060', w: 3 }, bevel: {}, shadow: { c: 'rgba(0,0,0,0.5)', b: 16, x: 3, y: 10 } }],
+];
+SV.T3D_FONTS = ['Abril Fatface', 'Playfair Display', 'Anton', 'Alfa Slab One', 'Archivo Black', 'Bebas Neue', 'Oswald', 'Cinzel', 'Montserrat', 'Lalezar'];
+const t3stops = st => st.gc || (st.grad && typeof TEXT_GRADIENTS !== 'undefined' && TEXT_GRADIENTS[st.grad] ? [TEXT_GRADIENTS[st.grad][0], TEXT_GRADIENTS[st.grad][1], TEXT_GRADIENTS[st.grad][TEXT_GRADIENTS[st.grad].length - 1]] : [st.color || '#ffffff', st.color || '#ffffff']);
+function t3Css(st) { const g = t3stops(st), e = st.extrude || {};
+  return `font-family:'${st.font}';font-weight:${st.bold ? 800 : 400};background:linear-gradient(180deg,${g.join(',')});-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:1px ${(st.stroke || {}).c || '#000'};filter:drop-shadow(1.5px 2px 0 ${e.c || '#000'}) drop-shadow(1px 1.5px 0 ${e.c2 || e.c || '#000'})`; }
+const hex6 = c => /^#[0-9a-f]{6}$/i.test(c || '') ? c : '#000000';
+const colIn = (lbl, key, val) => `<label class="sv-t3c"><span>${lbl}</span><input type="color" data-in="${key}" value="${hex6(val)}"></label>`;
+P.testo3d = function () {
+  const el = one(), t3 = el && el.type === 'text';
+  let h = `<button class="sv-btn" data-a="add3d" data-k="oro" style="margin:4px 0 10px">🅃&nbsp; Aggiungi un Testo 3D</button>`;
+  h += `<div class="sv-lbl">${t3 ? 'Stile 3D del testo selezionato' : 'Stili 3D (tocca per aggiungere)'}</div><div class="sv-t3d">` +
+    T3D.map(([k, l, st]) => `<button data-a="${t3 ? 'set3d' : 'add3d'}" data-k="${k}" class="${t3 && el.st.t3d === k ? 'on' : ''}"><b style="${t3Css(st)}">MAGAL</b><span>${l}</span></button>`).join('') + '</div>';
+  if (!t3) return h + `<p class="sv-empty" style="text-align:left">Seleziona un Testo 3D per modificarne profondità, direzione, contorno, colori e carattere. Doppio tocco per cambiare le parole, Invio = Fatto.</p>`;
+  const st = el.st, e = st.extrude || {}, g = t3stops(st);
+  h += `<div class="sv-lbl">Carattere</div><select class="sv-in" data-ch="t3F">${[...new Set([st.font].concat(SV.T3D_FONTS))].map(f => `<option ${f === st.font ? 'selected' : ''} style="font-family:'${f}'">${esc(f)}</option>`).join('')}</select>`;
+  h += `<div class="sv-lbl">Estrusione 3D</div>` + slider('Profondità', 't3D', e.d || 0, 0, 100) + slider('Direzione', 't3A', e.a != null ? e.a : 55, -180, 180, 5, '°') +
+    `<div class="sv-row">${colIn('Fronte 3D', 't3E1', e.c || '#6b4a0a')}${colIn('Fondo 3D', 't3E2', e.c2 || e.c || '#2a1a03')}</div>`;
+  h += `<div class="sv-lbl">Contorno</div>` + slider('Spessore', 't3W', (st.stroke && st.stroke.w) || 0, 0, 12, 0.5) + `<div class="sv-row">${colIn('Colore', 't3Sc', (st.stroke && st.stroke.c) || '#000000')}</div>`;
+  h += `<div class="sv-lbl">Sfumatura lettere</div><div class="sv-row">${colIn('Alto', 't3G0', g[0])}${colIn('Centro', 't3G1', g[Math.floor(g.length / 2)])}${colIn('Basso', 't3G2', g[g.length - 1])}</div>`;
+  h += `<label class="sv-check"><input type="checkbox" data-in="t3Bv" ${st.bevel ? 'checked' : ''}> Smusso (luce sui bordi)</label><label class="sv-check"><input type="checkbox" data-in="t3Sh" ${st.shadow ? 'checked' : ''}> Ombra</label>`;
+  const ov = el.over && SV.byId(el.over);
+  if (ov) h += `<label class="sv-check"><input type="checkbox" data-in="t3Hide" ${ov.hidden ? 'checked' : ''}> Nascondi originale sotto (immagine)</label>`;
+  return h;
+};
 P.testo = function () {
   const kf = U.kit.fonts;
   let h = `<button class="sv-btn" data-a="addText" data-k="box" style="margin:4px 0 12px">T&nbsp; Aggiungi una casella di testo</button>`;
@@ -13939,7 +13980,7 @@ const FX = SV.FX = [
   ['3d', '3D', { extrude: { d: 55, c: '#6b4a0a' } }], ['neon', 'Neon', { glow: { c: '#2cff88', b: 45 }, color: '#eafff2' }], ['glow', 'Bagliore', { glow: { c: '#f0d060', b: 35 } }],
   ['hl', 'Sfondo', { hl: { c: '#0d5c2e', pad: 0.35, r: 0.25 } }], ['gold', 'Oro', { grad: 'gold', stroke: { c: '#3d2a06', w: 2 }, shadow: { c: 'rgba(0,0,0,0.5)', b: 16, x: 3, y: 6 } }], ['silver', 'Argento', { grad: 'silver', shadow: { c: 'rgba(0,0,0,0.5)', b: 16, x: 3, y: 6 } }],
 ];
-SV.FX_KEYS = ['shadow', 'stroke', 'glow', 'extrude', 'hl', 'grad'];
+SV.FX_KEYS = ['shadow', 'stroke', 'glow', 'extrude', 'hl', 'grad', 'gc', 'bevel'];
 function activeFx(st) {
   if (st.color === 'transparent' && st.stroke) return 'hollow';
   if (st.grad === 'gold') return 'gold'; if (st.grad === 'silver') return 'silver';
@@ -14078,6 +14119,17 @@ function addText(kind) {
   SV.addEls([el]);
   if (!SV.isMobile() || kind === 'box') setTimeout(() => SV.startTextEdit(el), 30);
 }
+SV.t3font = f => loadFontFamily(f).then(() => document.fonts.load('700 40px "' + f + '"')).then(() => { SV.fontReady[f] = true; sel().forEach(e => e.type === 'text' && SV.fitTextH(e)); SV.render(); }).catch(() => 0);
+SV.add3d = function (k, over) {
+  const p = SV.T3D.find(t => t[0] === k) || SV.T3D[0];
+  const txt = over ? String(over.atext || 'TITOLO').toUpperCase() : 'MAGAL';
+  const el = SV.newText(txt, Object.assign(SV.clone(p[2]), { size: 150, t3d: p[0], color: p[2].color || '#ffffff' }), W(), H(), { name: 'Testo 3D' });
+  if (over) { const f = Math.min(over.w / el.w, over.h / el.h) * 0.95; el.st.size = Math.max(10, el.st.size * f); el.w = Math.max(over.w, el.w * f); SV.fitTextH(el); el.x = over.x + over.w / 2 - el.w / 2; el.y = over.y + over.h / 2 - el.h / 2; el.rot = over.rot || 0; el.over = over.id; }
+  SV.addEls([el]); SV.t3font(p[2].font);
+  SV.openPanel('testo3d');
+  if (!SV.isMobile()) setTimeout(() => SV.startTextEdit(el), 30);
+  return el;
+};
 function addPreset(i) {
   const p = TEXT_PRESETS[i];
   const parts = p.combo || [{ t: p.s, st: p.st, dy: 0 }];
@@ -14150,7 +14202,7 @@ function applyColor(t, c, live) {
     if (t === 'bg') { const bg = page().bg = Object.assign({}, page().bg); bg.color = c; delete bg.g; return; }
     sel().forEach(el => {
       if (t === 'text' || t === 'fill') {
-        if (el.type === 'text') { el.st.color = c === 'none' ? 'transparent' : c; delete el.st.grad; }
+        if (el.type === 'text') { el.st.color = c === 'none' ? 'transparent' : c; delete el.st.grad; delete el.st.gc; }
         else if (el.type === 'line') el.stroke = c; else if (el.type === 'qr') el.fg = c;
         else { el.fill = c; delete el.g; delete el.grad; }
       }
@@ -14234,6 +14286,9 @@ SV.act = async function (a, d, b, ev) {
     case 'tplCat': U.tplCat = d.id; SV.refreshPanel(true); break;
     case 'applyTpl': return applyTemplate(d.id);
     case 'addText': addText(d.k); break;
+    case 'add3d': SV.add3d(d.k); break;
+    case 't3over': { const im = one(); if (im) SV.add3d('oro', im); break; }
+    case 'set3d': { const p = SV.T3D.find(t => t[0] === d.k); if (!p) break; each(e => { if (e.type !== 'text') return; SV.FX_KEYS.forEach(k => delete e.st[k]); delete e.st.color; Object.assign(e.st, SV.clone(p[2]), { t3d: d.k }); if (!e.st.color) e.st.color = '#ffffff'; SV.fitTextH(e); }); SV.t3font(p[2].font); SV.refreshPanel && SV.refreshPanel(true); break; }
     case 'addPreset': addPreset(+d.i); break;
     case 'upload': SV.pickImages('uploads'); break;
     case 'useAsset': { if (ev && ev.target.closest('.del')) return; const rec = await SV.dbGet('assets', d.id); if (!rec) return; const s = one(); if (s && s.type === 'image' && (s.frame || !s.asset)) SV.fillSelected(rec); else SV.addImage(rec); if (SV.isMobile()) SV.closePanel(); break; }
@@ -14282,7 +14337,7 @@ SV.act = async function (a, d, b, ev) {
     case 'textCurveOn': each(e => { if (e.st) { if (+d.v) e.st.curve = 40; else delete e.st.curve; SV.fitTextH(e); } }); break;
     case 'setColor': applyColor(d.t, d.c); break;
     case 'setGrad': { const g = Object.assign({}, SV.GRADS[+d.i]); if (d.t === 'bg') SV.change(() => { page().bg = Object.assign({}, page().bg, { g }); }); else each(e => { if (e.type === 'shape') { e.g = SV.clone(g); delete e.grad; } }); break; }
-    case 'setMetal': each(e => { if (e.type === 'text') e.st.grad = d.k; else { e.grad = d.k; delete e.g; } }); break;
+    case 'setMetal': each(e => { if (e.type === 'text') { e.st.grad = d.k; delete e.st.gc; } else { e.grad = d.k; delete e.g; } }); break;
     case 'eyedrop': if (window.EyeDropper) { try { const r = await new EyeDropper().open(); applyColor(d.t, r.sRGBHex); } catch (e) {} } else SV.toast('Contagocce non disponibile su questo browser'); break;
     case 'crop': if (el) SV.startCrop(el); break;
     case 'endCrop': SV.endCrop(); break;
@@ -14354,6 +14409,18 @@ SV.inp = function (k, v, d, t, committed) {
     case 'fxShB': each(e => { if (e.st && e.st.shadow) e.st.shadow.b = +v; }); break;
     case 'fxStW': each(e => { if (e.st && e.st.stroke) e.st.stroke.w = +v; }); break;
     case 'fxGlB': each(e => { if (e.st && e.st.glow) e.st.glow.b = +v; }); break;
+    case 't3D': each(e => { if (e.st) e.st.extrude = Object.assign({ c: '#6b4a0a', a: 55 }, e.st.extrude, { d: +v }); }); break;
+    case 't3A': each(e => { if (e.st && e.st.extrude) e.st.extrude.a = +v; }); break;
+    case 't3E1': each(e => { if (e.st) e.st.extrude = Object.assign({ d: 35, a: 55 }, e.st.extrude, { c: v }); }); break;
+    case 't3E2': each(e => { if (e.st) { e.st.extrude = Object.assign({ d: 35, a: 55, c: v }, e.st.extrude, { c2: v }); e.st.extrude.o = Object.assign({ w: 2 }, e.st.extrude.o, { c: v }); } }); break;
+    case 't3W': each(e => { if (e.st) e.st.stroke = Object.assign({ c: '#000000' }, e.st.stroke, { w: +v }); if (e.st && e.st.extrude && e.st.extrude.o) e.st.extrude.o.w = +v; }); break;
+    case 't3Sc': each(e => { if (e.st) e.st.stroke = Object.assign({ w: 2 }, e.st.stroke, { c: v }); }); break;
+    case 't3G0': case 't3G1': case 't3G2': each(e => { if (!e.st) return; const s = e.st.gc ? e.st.gc.slice() : (() => { const T = typeof TEXT_GRADIENTS !== 'undefined' && TEXT_GRADIENTS[e.st.grad]; return T ? [T[0], T[1], T[T.length - 1]] : [e.st.color || '#ffffff', e.st.color || '#ffffff', e.st.color || '#ffffff']; })();
+      while (s.length < 3) s.splice(1, 0, s[0]); const i = { t3G0: 0, t3G1: Math.floor(s.length / 2), t3G2: s.length - 1 }[k]; s[i] = v; e.st.gc = s; delete e.st.grad; }); break;
+    case 't3Bv': SV.change(() => sel().forEach(e => { if (e.st) { if (v) e.st.bevel = {}; else delete e.st.bevel; } })); break;
+    case 't3Sh': SV.change(() => sel().forEach(e => { if (e.st) { if (v) e.st.shadow = { c: 'rgba(0,0,0,0.5)', b: 16, x: 3, y: 10 }; else delete e.st.shadow; } })); break;
+    case 't3Hide': SV.change(() => sel().forEach(e => { const o = e.over && SV.byId(e.over); if (o) o.hidden = !!v; })); break;
+    case 't3F': SV.change(() => sel().forEach(e => { if (e.st) { e.st.font = v; delete e.st.weight; SV.fitTextH(e); } })); SV.t3font(v); break;
     case 'fxExD': each(e => { if (e.st && e.st.extrude) e.st.extrude.d = +v; }); break;
     case 'fxHlP': each(e => { if (e.st && e.st.hl) e.st.hl.pad = v / 100; }); break;
     case 'fxHlR': each(e => { if (e.st && e.st.hl) e.st.hl.r = v / 100; }); break;
@@ -16154,7 +16221,7 @@ SV.composeAnalyzed = async function (R, opt) {
   }
   for (const L of on.filter(L => L.kind === 'graphic')) { const r = await reg(L.cv, L.name); pg.els.push(Object.assign({ id: SV.uid(), src: L.id, type: 'image', name: L.name, asset: r.id, rot: 0, op: 1, fit: 'contain' }, box(L.bbox))); }
   for (const L of on.filter(L => L.kind === 'text')) {
-    if (L.mode === 'image') { const r = await reg(L.cv, L.name); const pad = 3; pg.els.push(Object.assign({ id: SV.uid(), src: L.id, type: 'image', name: L.name + ' (immagine)', asset: r.id, rot: 0, op: 1, fit: 'contain' }, box({ x0: Math.max(0, L.bbox.x0 - pad), y0: Math.max(0, L.bbox.y0 - pad), x1: Math.min(w - 1, L.bbox.x1 + pad), y1: Math.min(h - 1, L.bbox.y1 + pad) }))); continue; }
+    if (L.mode === 'image') { const r = await reg(L.cv, L.name); const pad = 3; pg.els.push(Object.assign({ id: SV.uid(), src: L.id, type: 'image', name: L.name + ' (immagine)', atext: L.text, asset: r.id, rot: 0, op: 1, fit: 'contain' }, box({ x0: Math.max(0, L.bbox.x0 - pad), y0: Math.max(0, L.bbox.y0 - pad), x1: Math.min(w - 1, L.bbox.x1 + pad), y1: Math.min(h - 1, L.bbox.y1 + pad) }))); continue; }
     await ensureFont(L.st.font);
     const st = Object.assign({}, L.st); const lsFit = st.lsFit; delete st.lsFit; delete st.weight;
     st.weight = L.st.weight; st.size = Math.max(8, st.size * sy); st.align = 'center';
