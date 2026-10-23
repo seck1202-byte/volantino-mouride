@@ -16134,6 +16134,59 @@ const _act = SV.act;
 SV.act = function (a, d, b, ev) { const h = CM[a]; return h ? h(d || {}, b, ev) : _act.apply(this, arguments); };
 })();
 
+/* Auto decoration pass: adds Arabic motifs (corners / frame / medallion / dividers) to each autogen proposal,
+   coloured from the real page colours, placed only where there is no text, photo or panel. */
+(function () {
+  'use strict';
+  const SV = window.SV; if (!SV) return;
+  const RM = id => (SV.MOTIFS || []).find(m => m.id === id);
+  const CORN = ['c_arab2', 'c_filigree', 'c_andalus', 'c_floral', 'c_vine', 'c_lotus', 'c_fleuron', 'c_arab'];
+  const FRM = ['f_ornate', 'f_filigree', 'f_double', 'f_arches', 'f_stars', 'f_zellige'];
+  const MED = ['mandala16', 'rosette24', 'medal_rays', 'shamsa', 'mandala_geo', 'medstar'];
+  const DIV = ['d_arab', 'd_filigree', 'd_vine', 'd_stars', 'd_medal', 'd_arcade'];
+  const GOLD = { c1: '#d4af37', mg: { c1: '#ffe9a8', c2: '#bf8a22', ang: 135 } }, GOLD2 = { c1: '#f3d27a', mg: { c1: '#fff3c4', c2: '#d9a441', ang: 135 } };
+  const DARKC = [GOLD, GOLD2, { c1: '#ffffff', mg: null }], LIGHTC = [{ c1: '#0d5c2e', mg: null }, { c1: '#6b4423', mg: null }, { c1: '#b8891f', mg: { c1: '#e2b94d', c2: '#8d6212', ang: 135 } }];
+  SV.AUTODECO = [['angoli', '◸ Angoli'], ['cornice', '▣ Cornice'], ['medaglione', '🏵️ Medaglione'], ['bordi', '➖ Bordi']];
+  const hex = (r, g, b) => '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+  function inter(a, b) { const x = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)), y = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y)); return x * y; }
+  function occupied(pg, W, H) {
+    const o = [];
+    pg.els.forEach(e => { if (e.hidden || e.role === 'deco' || e.type === 'orn' && e.name && /^Decoro/.test(e.name)) return;
+      const full = e.w >= W * .9 && e.h >= H * .9;
+      if (e.type === 'text') { const t = String(e.text || '').trim(); if (t) { const sz = (e.st && e.st.size) || 40, ln = t.split('\n'), lw = Math.max(...ln.map(l => l.length)) * sz * ((e.st && (e.st.weight >= 700 || e.st.bold)) ? .62 : .54), w = Math.min(e.w, lw + sz * .6), al = (e.st && e.st.align) || 'center', x = al === 'left' ? e.x : al === 'right' ? e.x + e.w - w : e.x + (e.w - w) / 2; o.push({ x, y: e.y, w, h: Math.min(e.h, ln.length * sz * 1.25 + sz * .3) }); } }
+      else if (e.role === 'hero' || (e.type === 'image' && !full)) { const k = e.role === 'hero' ? .24 : .05; o.push({ x: e.x + e.w * k, y: e.y + e.h * .03, w: e.w * (1 - 2 * k), h: e.h * .94 }); }
+      else if (e.type === 'shape' && !full && e.w * e.h > W * H * .025 && (e.op == null || e.op > .5)) o.push({ x: e.x, y: e.y, w: e.w, h: e.h }); });
+    return o;
+  }
+  const busy = (box, occ) => { let s = 0; occ.forEach(r => { s += inter(box, r); }); return s / Math.max(1, box.w * box.h); };
+  async function sample(pg, W, H) { // avg colour/luminance of the 4 corners and the middle band
+    try { await SV.ensureAssets([pg]); const k = 80 / W, c = SV.renderToCanvas(pg, W, H, k, { res: k }), g = c.getContext('2d'), w = c.width, h = c.height, pw = Math.round(w * .22), ph = Math.round(w * .22);
+      const rd = (x, y) => { const d = g.getImageData(x, y, pw, ph).data; let r = 0, gg = 0, b = 0, n = 0; for (let i = 0; i < d.length; i += 4) { r += d[i]; gg += d[i + 1]; b += d[i + 2]; n++; } return [r / n, gg / n, b / n]; };
+      const cs = [rd(0, 0), rd(w - pw, 0), rd(0, h - ph), rd(w - pw, h - ph)], m = [0, 1, 2].map(i => cs.reduce((s, v) => s + v[i], 0) / 4), mid = rd(Math.round(w * .39), Math.round(h * .45));
+      return { L: (.299 * m[0] + .587 * m[1] + .114 * m[2]) / 255, col: hex(m[0], m[1], m[2]), Lmid: (.299 * mid[0] + .587 * mid[1] + .114 * mid[2]) / 255 };
+    } catch (e) { return { L: .3, col: '#0d5c2e', Lmid: .3 }; }
+  }
+  SV.autoDeco = async function (pg, deco, W, H) {
+    if (!deco || deco.v == null || deco.v < 0 || !SV.MOTIFS) return pg;
+    const sd = deco.s || 1, pick = (a, o) => a[(sd + (o || 0)) % a.length], smp = await sample(pg, W, H), dark = smp.L < .5;
+    const pal = pick(dark ? DARKC : LIGHTC, deco.v + (deco.c || 0)); const occ = occupied(pg, W, H), gid = SV.uid('g'), els = [];
+    const add = (id, x, y, w, h, o) => { const e = SV.newEl('orn', Object.assign({ kind: 'm_' + id, w, h, role: 'deco', gid, name: 'Decoro · ' + (RM(id) || {}).l, fill: pal.c1, stroke: smp.col, mg: pal.mg || undefined, mgFill: pal.mg ? pal.c1 : undefined }, o || {}), W, H); e.x = x; e.y = y; e.w = w; e.h = h; els.push(e); return e; };
+    const fit = (id, mw, mh) => { const r = RM(id).r; let w = mw, h = w / r; if (h > mh) { h = mh; w = h * r; } return [w, h]; };
+    const corners = (id, sz, mg, thr) => { let n = 0; [[0, 0, 0], [1, 0, 90], [1, 1, 180], [0, 1, 270]].forEach(([cx, cy, rot]) => { for (let t = 0, s = sz; t < 4; t++, s *= .74) { const x = cx ? W - mg - s : mg, y = cy ? H - mg - s : mg; if (s >= W * .09 && busy({ x, y, w: s, h: s }, occ) <= thr + .03) { add(id, x, y, s, s, { rot, msw: 1.5 }); n++; break; } } }); return n; };
+    if (deco.v === 0) { corners(pick(CORN), Math.min(W * .27, H * .17), W * .028, .05); }
+    else if (deco.v === 1) { const band = W * .045; const edge = [{ x: 0, y: 0, w: W, h: band }, { x: 0, y: H - band, w: W, h: band }, { x: 0, y: 0, w: band, h: H }, { x: W - band, y: 0, w: band, h: H }];
+      if (edge.every(b => busy(b, occ) < .02)) add(pick(FRM), W * .022, W * .022, W * .956, H - W * .044, { op: .92 }); else corners(pick(CORN, 1), Math.min(W * .22, H * .14), W * .03, .05); }
+    else if (deco.v === 2) { const hero = pg.els.find(e => e.role === 'hero'), id = pick(MED), cx = hero ? hero.x + hero.w / 2 : W / 2, cy = hero ? hero.y + hero.h * .42 : H * .4, s = Math.min(W * 1.25, (hero ? hero.h : W) * 1.2);
+      add(id, cx - s / 2, cy - s / 2, s, s, { op: dark ? .2 : .16 }); corners(pick(CORN, 3), Math.min(W * .17, H * .11), W * .03, .04); }
+    else { const id = pick(DIV), r = RM(id).r, w = W * .74, h = w / r, mg = H * .016; [[W * .13, mg, 0], [W * .13, H - mg - h, 180]].forEach(([x, y, rot]) => { if (busy({ x, y, w, h }, occ) < .04) add(id, x, y, w, h, { rot }); }); corners(pick(CORN, 5), Math.min(W * .15, H * .1), W * .028, .04); }
+    if (!els.length) { corners(pick(CORN, 2), Math.min(W * .2, H * .13), W * .03, .12); }
+    if (!els.length) { const id = pick(CORN, 4); [[0, 0, 0], [1, 0, 90], [1, 1, 180], [0, 1, 270]].forEach(([cx, cy, rot]) => { const s = W * .13; add(id, cx ? W - W * .02 - s : W * .02, cy ? H - W * .02 - s : W * .02, s, s, { rot, msw: 1.5 }); }); }
+    if (!els.length) return pg;
+    let at = pg.els.findIndex(e => e.type === 'text' || e.role === 'hero' || (e.type === 'image' && !(e.w >= W * .9 && e.h >= H * .9))); if (at < 0) at = pg.els.length;
+    pg.els.splice(at, 0, ...els); return pg;
+  };
+})();
+
 /* Gomma: erase/restore refine panel (non-destructive alpha mask) */
 (function () {
 const SV = window.SV, U = SV.U, $ = id => document.getElementById(id);
@@ -19031,9 +19084,9 @@ async function fontsReady() {
   try { await Promise.all(['900 40px Cinzel', 'italic 400 40px "Playfair Display"', '900 40px Montserrat', '800 40px Montserrat', '400 40px Anton'].map(f => document.fonts.load(f))); } catch (e) {}
 }
 async function buildAny0(it, A, T) { if (it.kind === 'tpl') return buildTplItem(it, A, T); if (it.kind === 'mine') return buildMineItem(it, A, T); return build(it, A, T); }
-async function buildAny(it, A, T) { const pg = await buildAny0(it, A, T); if (!SV._autoLegacy) { try { await SV.ensureFonts([pg]); } catch (e) {} try { await SV.ensureLegible(pg, 1080, A.format === 'post' ? 1350 : 1920); } catch (e) { console.warn('legibility', e); } } return pg; }
+async function buildAny(it, A, T) { const pg = await buildAny0(it, A, T); if (!SV._autoLegacy) { if (it.deco && SV.autoDeco) { try { await SV.autoDeco(pg, it.deco, 1080, A.format === 'post' ? 1350 : 1920); } catch (e) { console.warn('deco', e); } } try { await SV.ensureFonts([pg]); } catch (e) {} try { await SV.ensureLegible(pg, 1080, A.format === 'post' ? 1350 : 1920); } catch (e) { console.warn('legibility', e); } } return pg; }
 SV._autoT = { buildAny, placeHero };
-async function makeItem(A, c, batch) { const it = Object.assign({ id: uid('ap'), kind: 'recipe', seed: Math.round(Math.random() * 1e6), batch }, c); delete it.pri; it.name = itemName(it); it.layout = layoutOf(it);
+async function makeItem(A, c, batch) { const it = Object.assign({ id: uid('ap'), kind: 'recipe', seed: Math.round(Math.random() * 1e6), batch }, c); delete it.pri; it.name = itemName(it); it.layout = layoutOf(it); if (!c.deco) it.deco = { v: (A._dv = ((A._dv == null ? A.items.length : A._dv) + 1) % 4), s: Math.floor(Math.random() * 97) };
   try { it.pages = [await buildAny(it, A)]; } catch (e) { console.warn('auto item', e); return null; }
   try { await SV.ensureFonts(it.pages); } catch (e) {}
   return it; }
@@ -19167,6 +19220,7 @@ SV.autoGallery = async function () {
     ${act ? `<h3>Ritocchi rapidi · proposta ${A.active + 1}</h3>
     <div class="note">Sfondo</div><div class="tb">${STYLES.map(s => `<button data-x="style" data-v="${s.id}" class="${act.style === s.id ? 'on' : ''}">${s.ic} ${esc(s.n)}</button>`).join('')}${(act.kind || 'recipe') === 'recipe' ? `<button data-x="mosque" class="${act.mosque ? 'on' : ''}">🕌 Moschea di Touba</button>` : ''}</div>
     ${(act.kind || 'recipe') === 'recipe' ? '' : `<div class="note">Questa proposta usa ${act.kind === 'mine' ? 'un tuo modello' : 'un modello dell’app'} con i suoi colori. Scegli uno sfondo sopra per trasformarla in stile automatico.</div>`}
+    <div class="note">Decorazioni arabe</div><div class="tb"><button data-x="deco" data-v="-1" class="${!act.deco || act.deco.v < 0 ? 'on' : ''}">🚫 Nessuna</button>${(SV.AUTODECO || []).map(([k, n], i) => `<button data-x="deco" data-v="${i}" class="${act.deco && act.deco.v === i ? 'on' : ''}">${n}</button>`).join('')}<button data-x="decoNew">🎲 Altro stile</button></div>
     <div class="note" ${(act.kind || 'recipe') === 'recipe' ? '' : 'hidden'}>Colori</div><div class="tb" ${(act.kind || 'recipe') === 'recipe' ? '' : 'hidden'}>${Object.keys(PAL).filter(k => act.style && compat(act.style, k)).map(k => `<button data-x="pal" data-v="${k}" class="${act.pal === k ? 'on' : ''}">${esc(PAL[k].n)}</button>`).join('')}</div>
     <div class="note">Foto e formato</div><div class="tb"><label class="bt" style="display:inline-flex;cursor:pointer">📷 Cambia foto<input type="file" accept="image/*" id="agPhoto" hidden></label><button data-x="feet" class="${A.hideFeet ? 'on' : ''}">🦶 Nascondi piedi</button><button data-x="fmt" data-v="storia" class="${A.format !== 'post' ? 'on' : ''}">📱 Storia</button><button data-x="fmt" data-v="post" class="${A.format === 'post' ? 'on' : ''}">🖼️ Post 4:5</button></div>
     <div class="note">Condividi</div><div class="tb"><button data-x="png">⬇️ Scarica PNG</button><button data-x="share">📤 File modificabile</button></div>
@@ -19182,6 +19236,8 @@ SV.autoGallery = async function () {
     if (x === 'pick') { const i = +b.dataset.i; if (i !== A.active) { syncActive(p); A.active = i; applyToEditor(p, A.items[i]); await SV.saveNow(); } closeOverlay(); SV.toast('Proposta ' + (i + 1) + ' aperta'); return; }
     if (x === 'more') { SV.busy(true, 'Creo altre proposte…'); try { await fontsReady(); const bn = Math.max(0, ...A.items.map(i => i.batch || 1)) + 1; for (const c of await pickBatch(A, 3, 2)) { const it = await makeItem(A, c, bn); if (it) A.items.push(it); } await SV.saveNow(); } finally { SV.busy(false); } render(); return; }
     if (x === 'style') return adjust(it => { it.kind = 'recipe'; delete it.tpl; delete it.mine; it.mosque = it.mosque !== false; if (!it.pal) it.pal = STYLES.find(s => s.id === b.dataset.v).pal; it.style = b.dataset.v; if (!compat(it.style, it.pal)) it.pal = STYLES.find(s => s.id === it.style).light ? (palsFor(A.data.ev).find(k => !PAL[k].dark) || 'avorio') : (palsFor(A.data.ev).find(k => PAL[k].dark) || 'nero'); });
+    if (x === 'deco') return adjust(it => { it.deco = +b.dataset.v < 0 ? null : { v: +b.dataset.v, s: (it.deco && it.deco.s) || 1 + Math.floor(Math.random() * 90), c: (it.deco && it.deco.c) || 0 }; });
+    if (x === 'decoNew') return adjust(it => { const d = it.deco || { v: 0 }; it.deco = { v: d.v, s: Math.floor(Math.random() * 97), c: Math.floor(Math.random() * 3) }; });
     if (x === 'mosque') return adjust(it => { it.mosque = !it.mosque; });
     if (x === 'pal') return adjust(it => { it.pal = b.dataset.v; });
     if (x === 'feet') return adjust(() => { A.hideFeet = !A.hideFeet; }, true);
