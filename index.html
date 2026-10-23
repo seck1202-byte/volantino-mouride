@@ -16487,17 +16487,56 @@ SV.act = function (a, d, b, ev) { const h = CM[a]; return h ? h(d || {}, b, ev) 
   SV.bgGenSpec = (id, pal, cp, seed, dark) => { const d = byId[id]; const P = cp || PALS[pal || d.pal]; return { gen: Object.assign({ id, pal: pal || d.pal, seed: seed || 7, dark: dark || 0, base: P.m }, cp ? { cp } : {}), color: P.m }; };
   /* autogen: give a recipe page a generated background tinted with its own colour */
   const LIGHTD = new Set(['tx_carta', 'tx_marmo', 'tx_lino', 'tx_stucco', 'tx_pergamena', 'ar_crema']);
+  const ALLC = ['nuv', 'sfu', 'ara', 'not', 'mos', 'cie', 'nat', 'tex', 'uni'], LIGHTC = ['ara', 'tex', 'uni', 'sfu'], NATC = ['mos', 'cie', 'nat'];
   SV.autoBg = function (pg, o) {
-    const bg = pg.bg || {}; if (bg.img) return false;
-    const base = (bg.g && bg.g.c2) || bg.color || '#0d5c2e'; if (!/^#[0-9a-f]{6}$/i.test(base)) return false;
-    const light = lum(base) > .62, cats = light ? ['ara', 'tex', 'uni', 'sfu'] : ['nuv', 'sfu', 'ara', 'not', 'mos', 'cie', 'nat', 'tex', 'uni'];
-    const cat = o.cat && cats.includes(o.cat) ? o.cat : cats[(o.s || 1) % cats.length];
-    let list = D.filter(d => d.cat === cat && (light ? true : !LIGHTD.has(d.id)));
-    if (!list.length) return false; const d = list[((o.s || 1) * 7 + (o.n || 0)) % list.length];
-    const natural = !light && ['mos', 'cie', 'nat'].includes(cat);
-    const cp = natural ? null : light ? { n: 'x', d: mix(base, '#000000', .45), m: base, l: mix(base, '#ffffff', .55), a: mix(base, '#000000', .3), p: '#ffffff', lt: 1 } : { n: 'x', d: mix(base, '#000000', .55), m: base, l: mix(base, '#ffffff', .32), a: '#e6c458', p: mix(base, '#ffffff', .85) };
-    const sp = SV.bgGenSpec(d.id, d.pal, cp, 5 + (o.s || 1) % 97, natural ? 18 : (cat === 'nuv' ? 22 : 0));
-    const nb = Object.assign({}, bg, { gen: sp.gen, color: sp.color }); delete nb.g; delete nb.pat; pg.bg = nb; return d.l;
+    const bg = pg.bg || {}; if (bg.img && !o.base) return false;
+    const base = o.base || (bg.g && bg.g.c2) || bg.color || '#0d5c2e'; if (!/^#[0-9a-f]{6}$/i.test(base)) return false;
+    const baseLight = lum(base) > .62; let d, cat, light, natural, cp = null, dark = 0;
+    if (o.id && byId[o.id]) { d = byId[o.id]; cat = d.cat; natural = true; }
+    else {
+      const cats = baseLight && !o.force ? LIGHTC : ALLC;
+      cat = o.cat && cats.includes(o.cat) ? o.cat : cats[(o.s || 1) % cats.length];
+      light = baseLight && LIGHTC.includes(cat);
+      const list = D.filter(x => x.cat === cat && (light ? true : !LIGHTD.has(x.id)));
+      if (!list.length) return false; d = list[((o.s || 1) * 7 + (o.n || 0)) % list.length];
+      natural = !light && (NATC.includes(cat) || baseLight);
+      cp = natural ? null : light ? { n: 'x', d: mix(base, '#000000', .45), m: base, l: mix(base, '#ffffff', .55), a: mix(base, '#000000', .3), p: '#ffffff', lt: 1 } : { n: 'x', d: mix(base, '#000000', .55), m: base, l: mix(base, '#ffffff', .32), a: '#e6c458', p: mix(base, '#ffffff', .85) };
+      dark = natural ? 18 : (cat === 'nuv' ? 22 : 0);
+    }
+    const sp = SV.bgGenSpec(d.id, o.pal || d.pal, cp, 5 + (o.s || 1) % 97, dark);
+    const nb = Object.assign({}, bg, { gen: sp.gen, color: sp.color });
+    ['g', 'pat', 'img', 'crop', 'fx', 'blur', 'dark', 'tint', 'fit', 'op'].forEach(k => { delete nb[k]; }); pg.bg = nb; return d.l;
+  };
+  /* ---- swap the background of ANY page (template, own template, plain), keep shapes/text/photos ---- */
+  const DECO_RE = /^(motivo|luci|nuvole|cielo|alone|fondo|sfondo|pattern|texture|trama|raggi|bokeh|sfumatura|overlay|vignett|texture)/i;
+  const FADE_RE = /^(sfumatura|velo|dissolvenza|fade|dissolve)/i;
+  function bgLayers(pg, W, H) {
+    const full = e => e.w * e.h >= .8 * W * H && e.x <= W * .08 && e.y <= H * .08 && e.x + e.w >= W * .92 && e.y + e.h >= H * .92;
+    return pg.els.filter(e => (e.type === 'shape' || e.type === 'orn') && !e.hidden && e.role !== 'photoSlot' && e.name !== 'Alone contrasto' && (full(e) || (DECO_RE.test(e.name || '') && e.w * e.h >= .3 * W * H) || (FADE_RE.test(e.name || '') && e.w >= .9 * W)));
+  }
+  async function sampleBase(pg, els, W, H) {
+    try { await SV.ensureAssets([pg]); } catch (e) {}
+    const k = .04, cv = SV.renderToCanvas(Object.assign({}, pg, { els }), W, H, k, { res: k }), d = cv.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, cv.width, cv.height).data;
+    let r = 0, g = 0, b = 0, n = 0; for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+    return '#' + [r, g, b].map(v => Math.round(v / n).toString(16).padStart(2, '0')).join('');
+  }
+  function revertBg(pg) {
+    const s = pg.bgSwap; if (!s) return false; pg.bg = s.bg;
+    s.removed.slice().sort((a, b) => a.i - b.i).forEach(r => { pg.els.splice(Math.min(r.i, pg.els.length), 0, r.el); });
+    pg.els.forEach(e => { if (e.type === 'text' && s.st[e.id] != null) { e.st = JSON.parse(s.st[e.id]); delete e.legAid; } });
+    delete pg.bgSwap; return true;
+  }
+  SV.revertBgSwap = revertBg;
+  SV.swapBg = async function (pg, o, W, H) {
+    revertBg(pg);
+    const layers = bgLayers(pg, W, H), origBg = JSON.parse(JSON.stringify(pg.bg || {}));
+    const base = await sampleBase(pg, layers.filter(e => e.type === 'shape'), W, H);
+    const sw = { bg: origBg, removed: layers.map(e => ({ i: pg.els.indexOf(e), el: e })), st: {} };
+    pg.els.forEach(e => { if (e.type === 'text' && e.st) { sw.st[e.id] = JSON.stringify(e.st); delete e.legAid; } });
+    pg.els = pg.els.filter(e => !layers.includes(e));
+    const l = SV.autoBg(pg, Object.assign({ s: 1 + Math.floor(Math.random() * 90) }, o, { base, force: true }));
+    if (!l) { pg.bgSwap = sw; revertBg(pg); return false; }
+    pg.bgSwap = sw; return l;
   };
   SV.applyBgGen = function (id, pal) {
     const s = SV.bgGenSpec(id, pal); SV.change(() => { const pg = SV.page(); const bg = Object.assign({}, pg.bg, { gen: s.gen, color: s.color }); delete bg.g; delete bg.img; delete bg.pat; pg.bg = bg; });
@@ -16522,7 +16561,9 @@ SV.act = function (a, d, b, ev) { const h = CM[a]; return h ? h(d || {}, b, ev) 
     const chips = [['all', '✨ Tutti']].concat(CATS).map(([k, l]) => `<button class="sv-chip ${cat === k ? 'on' : ''}" data-a="bgCat" data-id="${k}">${l}</button>`).join('');
     const list = D.filter(d => (cat === 'all' || d.cat === cat) && (!q || (d.l + ' ' + (CATS.find(x => x[0] === d.cat) || [])[1]).toLowerCase().includes(q)));
     const palOn = g ? (g.pal || byId[g.id].pal) : null;
-    let h = `<div class="sv-lbl">✨ Sfondi pronti <small style="font-weight:500;color:var(--mut)">(${D.length}) tocca per applicare alla pagina</small></div><div class="sv-chips">${chips}</div>`;
+    const pgx = SV.page(), swp = !!pgx.bgSwap;
+    let h = `<div class="sv-lbl">🪄 Cambia sfondo <small style="font-weight:500;color:var(--mut)">tieni testi, forme e foto</small></div><div class="sv-chips" style="flex-wrap:wrap;overflow:visible">${[['nuv', '☁️ Nuvole'], ['sfu', '🌈 Sfumato'], ['mos', '🕌 Moschea'], ['ara', '❖ Arabo'], ['tex', '📜 Texture'], ['cie', '🌅 Cielo'], ['nat', '🌴 Natura'], ['not', '🌙 Notte']].map(([k, n]) => `<button class="sv-chip" data-a="bgSwap" data-cat="${k}">${n}</button>`).join('')}<button class="sv-chip" data-a="bgSwap" data-cat="">🎲 Altro</button>${swp ? '<button class="sv-chip" data-a="bgSwapBack">↩ Originale</button>' : ''}</div><div style="font-size:12px;line-height:1.35;color:var(--mut);margin:2px 0 16px;position:static">Un tocco: sfondo nuovo con i colori del modello, testi resi leggibili.</div>`;
+    h += `<div class="sv-lbl">✨ Sfondi pronti <small style="font-weight:500;color:var(--mut)">(${D.length}) tocca per applicare alla pagina</small></div><div class="sv-chips">${chips}</div>`;
     h += `<div class="bg-grid">${list.map(d => `<button class="bg-it ${g && g.id === d.id ? 'on' : ''}" data-a="bgGen" data-id="${d.id}" title="${esc(d.l)}"><img src="${thumb(d.id, palOn && g && g.id !== d.id ? null : (g && g.id === d.id ? palOn : null))}" alt=""><span>${esc(d.l)}</span></button>`).join('') || '<div class="sv-empty" style="grid-column:1/-1">Nessuno sfondo</div>'}</div>`;
     if (g) {
       h += `<div class="sv-lbl">🎨 Colori dello sfondo</div><div class="sv-sw">${Object.entries(PALS).map(([k, p]) => `<button data-a="bgPal" data-id="${k}" class="${palOn === k ? 'on' : ''}" title="${p.n}" style="background:linear-gradient(135deg,${p.d},${p.m} 55%,${p.l})"></button>`).join('')}</div>`;
@@ -16531,10 +16572,23 @@ SV.act = function (a, d, b, ev) { const h = CM[a]; return h ? h(d || {}, b, ev) 
     }
     return h + `<div class="sv-lbl" style="margin-top:14px">Colore, sfumatura e foto</div>` + ps.apply(this, arguments);
   };
+  let _busy = false;
+  async function edSwap(o) {
+    if (_busy) return; _busy = true; const pg = SV.page(), W = U.proj.w, H = U.proj.h; SV.toast('Cambio sfondo…');
+    SV.beginOp();
+    try {
+      const l = await SV.swapBg(pg, o, W, H);
+      if (l) { try { await SV.ensureFonts([pg]); } catch (e) {} if (SV.ensureLegible) { try { await SV.ensureLegible(pg, W, H, { flip: true }); } catch (e) { console.warn('leg', e); } } }
+      SV.endOp(); SV.dirty(); SV.refresh(); SV.render(); SV.refreshPanel(true); SV.toast(l ? 'Sfondo cambiato ✓' : 'Sfondo non applicabile');
+    } catch (e) { console.warn('edSwap', e); SV.endOp(); SV.toast('Sfondo non applicato'); } finally { _busy = false; }
+  }
+  SV.editorSwapBg = edSwap;
   const pa = SV.P.sfondo_after;
   const BA = {
     bgCat: d => { U.bgCat = d.id; SV.refreshPanel(true); },
-    bgGen: d => { const g = cur(); SV.applyBgGen(d.id, g && g.id !== d.id ? g.pal : null); SV.refreshPanel(true); SV.toast('Sfondo applicato ✓'); },
+    bgGen: d => { const g = cur(); edSwap({ id: d.id, pal: g && g.id !== d.id ? g.pal : null }); },
+    bgSwap: d => { edSwap({ cat: d.cat || null, s: 1 + Math.floor(Math.random() * 90), n: 0 }); },
+    bgSwapBack: () => { const pg = SV.page(); SV.change(() => { revertBg(pg); }); SV.refreshPanel(true); SV.toast('Sfondo originale ripristinato'); },
     bgPal: d => { SV.change(() => { const bg = SV.page().bg; bg.gen = Object.assign({}, bg.gen, { pal: d.id, base: PALS[d.id].m }); bg.color = PALS[d.id].m; }); SV.refreshPanel(true); },
     bgGenShuffle: () => { SV.change(() => { const bg = SV.page().bg; bg.gen = Object.assign({}, bg.gen, { seed: ((bg.gen.seed || 7) * 31 + 11) % 9973 }); }); },
     bgGenOff: () => { SV.change(() => { const bg = Object.assign({}, SV.page().bg); delete bg.gen; SV.page().bg = bg; }); SV.refreshPanel(true); },
@@ -19369,7 +19423,7 @@ function textL(st) {
   if (st.grad) { const g = typeof st.grad === 'string' && typeof TEXT_GRADIENTS !== 'undefined' ? TEXT_GRADIENTS[st.grad] : (st.grad && st.grad.stops) || null; if (Array.isArray(g) && g.length) { const ls = g.map(c => cssL(typeof c === 'string' ? c : c.c)).filter(v => v != null); if (ls.length) return ls.reduce((x, y) => x + y, 0) / ls.length; } }
   const l = cssL(st.color || '#ffffff'); return l == null ? 1 : l;
 }
-SV.ensureLegible = async function (page, W, H) {
+SV.ensureLegible = async function (page, W, H, opt) {
   const texts = page.els.filter(e => e.type === 'text' && String(e.text || '').trim() && !e.hidden && (e.op == null || e.op > 0.3) && !e.rot);
   const out = []; if (!texts.length) return out;
   try { await SV.ensureAssets([page]); } catch (e) {}
@@ -19383,8 +19437,8 @@ SV.ensureLegible = async function (page, W, H) {
     const gy = e.y + L.pad, gh = Math.min(sz * 1.08 + (L.lines.length - 1) * L.lh, Math.max(e.h, sz));
     const x0 = Math.max(0, Math.floor(gx * k)), x1 = Math.min(cw, Math.ceil((gx + gw) * k)), y0 = Math.max(0, Math.floor(gy * k)), y1 = Math.min(chh, Math.ceil((gy + gh) * k));
     if (x1 <= x0 || y1 <= y0) continue;
-    const tL = textL(st); let n = 0, bad = 0, s = 0, s2 = 0;
-    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const i = (y * cw + x) * 4, l = relL(D[i], D[i + 1], D[i + 2]); n++; s += l; s2 += l * l; if (CR(tL, l) < 2.3) bad++; }
+    const tL = textL(st), thr = opt && opt.flip ? (sz >= 60 ? 5.5 : 6.5) : 2.3; let n = 0, bad = 0, s = 0, s2 = 0;
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const i = (y * cw + x) * 4, l = relL(D[i], D[i + 1], D[i + 2]); n++; s += l; s2 += l * l; if (CR(tL, l) < thr) bad++; }
     if (!n) continue;
     const mean = s / n, sd = Math.sqrt(Math.max(0, s2 / n - mean * mean)), bf = bad / n;
     const sL = st.stroke && st.stroke.c ? cssL(st.stroke.c) : null;
@@ -19392,6 +19446,11 @@ SV.ensureLegible = async function (page, W, H) {
     const backed = st.hl && st.hl.c && (cssL(st.hl.c) != null) && CR(tL, cssL(st.hl.c)) >= 3;
     const info = { id: e.id, text: String(e.text).slice(0, 24), cr: +CR(tL, mean).toFixed(2), bf: +bf.toFixed(2), sd: +sd.toFixed(3), aid: '' };
     out.push(info);
+    if (opt && opt.flip && bf >= 0.3 && !outlined && !backed && !st.grad && rgbOf(st.color || '#ffffff')) { // background was swapped: flip the text colour to the readable side
+      const c0 = rgbOf(st.color || '#ffffff'), to = mean > 0.3 ? [0, 0, 0] : [255, 255, 255]; let col = null;
+      for (let t = 0.1; t <= 1.001; t += 0.05) { const c = c0.map((v, j) => Math.round(v + (to[j] - v) * t)); if (CR(relL(c[0], c[1], c[2]), mean) >= (sz >= 60 ? 5.5 : 6.5)) { col = c; break; } }
+      col = Math.max(...c0) - Math.min(...c0) < 40 ? (mean > 0.3 ? [26, 20, 12] : [255, 255, 255]) : (col || to); st.color = '#' + col.map(v => v.toString(16).padStart(2, '0')).join(''); info.aid = 'flip ' + st.color; if (st.extrude) { st.extrude = Object.assign({}, st.extrude); } continue;
+    }
     if (bf < 0.1 || outlined || backed) continue;
     const lightText = tL > 0.35, aidC = a => lightText ? `rgba(0,0,0,${a})` : `rgba(255,255,255,${a})`;
     const sw = Math.max(3, Math.min(8, 240 / sz));
@@ -19526,7 +19585,7 @@ async function fontsReady() {
   try { await Promise.all(['900 40px Cinzel', 'italic 400 40px "Playfair Display"', '900 40px Montserrat', '800 40px Montserrat', '400 40px Anton'].map(f => document.fonts.load(f))); } catch (e) {}
 }
 async function buildAny0(it, A, T) { if (it.kind === 'tpl') return buildTplItem(it, A, T); if (it.kind === 'mine') return buildMineItem(it, A, T); return build(it, A, T); }
-async function buildAny(it, A, T) { const pg = await buildAny0(it, A, T); if (!SV._autoLegacy) { if (it.bgx && (it.kind || 'recipe') === 'recipe' && SV.autoBg) { try { SV.autoBg(pg, it.bgx); } catch (e) { console.warn('bgx', e); } } if (it.deco && SV.autoDeco) { try { await SV.autoDeco(pg, it.deco, 1080, A.format === 'post' ? 1350 : 1920); } catch (e) { console.warn('deco', e); } } try { await SV.ensureFonts([pg]); } catch (e) {} try { await SV.ensureLegible(pg, 1080, A.format === 'post' ? 1350 : 1920); } catch (e) { console.warn('legibility', e); } } return pg; }
+async function buildAny(it, A, T) { const pg = await buildAny0(it, A, T); if (!SV._autoLegacy) { let swapped = false; if (it.bgx && SV.autoBg) { try { if ((it.kind || 'recipe') === 'recipe') SV.autoBg(pg, it.bgx); else swapped = !!(await SV.swapBg(pg, it.bgx, 1080, A.format === 'post' ? 1350 : 1920)); } catch (e) { console.warn('bgx', e); } } if (it.deco && SV.autoDeco) { try { await SV.autoDeco(pg, it.deco, 1080, A.format === 'post' ? 1350 : 1920); } catch (e) { console.warn('deco', e); } } try { await SV.ensureFonts([pg]); } catch (e) {} try { await SV.ensureLegible(pg, 1080, A.format === 'post' ? 1350 : 1920, swapped ? { flip: true } : null); } catch (e) { console.warn('legibility', e); } } return pg; }
 SV._autoT = { buildAny, placeHero };
 async function makeItem(A, c, batch) { const it = Object.assign({ id: uid('ap'), kind: 'recipe', seed: Math.round(Math.random() * 1e6), batch }, c); delete it.pri; it.name = itemName(it); it.layout = layoutOf(it); if (!c.deco) it.deco = { v: (A._dv = ((A._dv == null ? A.items.length : A._dv) + 1) % 4), s: Math.floor(Math.random() * 97) };
   try { it.pages = [await buildAny(it, A)]; } catch (e) { console.warn('auto item', e); return null; }
@@ -19662,7 +19721,7 @@ SV.autoGallery = async function () {
     ${act ? `<h3>Ritocchi rapidi · proposta ${A.active + 1}</h3>
     <div class="note">Sfondo</div><div class="tb">${STYLES.map(s => `<button data-x="style" data-v="${s.id}" class="${act.style === s.id ? 'on' : ''}">${s.ic} ${esc(s.n)}</button>`).join('')}${(act.kind || 'recipe') === 'recipe' ? `<button data-x="mosque" class="${act.mosque ? 'on' : ''}">🕌 Moschea di Touba</button>` : ''}</div>
     ${(act.kind || 'recipe') === 'recipe' ? '' : `<div class="note">Questa proposta usa ${act.kind === 'mine' ? 'un tuo modello' : 'un modello dell’app'} con i suoi colori. Scegli uno sfondo sopra per trasformarla in stile automatico.</div>`}
-    ${(act.kind || 'recipe') === 'recipe' ? `<div class="note">Sfondo pronto</div><div class="tb"><button data-x="bgx" data-v="" class="${!act.bgx ? 'on' : ''}">🚫 Originale</button>${[['nuv', '☁️ Nuvole'], ['sfu', '🌈 Sfumato'], ['mos', '🕌 Moschea'], ['ara', '❖ Arabo'], ['tex', '📜 Texture'], ['cie', '🌅 Cielo'], ['not', '🌙 Notte']].map(([k, n]) => `<button data-x="bgx" data-v="${k}" class="${act.bgx && act.bgx.cat === k ? 'on' : ''}">${n}</button>`).join('')}<button data-x="bgxNew">🎲 Altro sfondo</button></div>` : ''}
+    ${true ? `<div class="note">Sfondo pronto</div><div class="tb"><button data-x="bgx" data-v="" class="${!act.bgx ? 'on' : ''}">🚫 Originale</button>${[['nuv', '☁️ Nuvole'], ['sfu', '🌈 Sfumato'], ['mos', '🕌 Moschea'], ['ara', '❖ Arabo'], ['tex', '📜 Texture'], ['cie', '🌅 Cielo'], ['not', '🌙 Notte']].map(([k, n]) => `<button data-x="bgx" data-v="${k}" class="${act.bgx && act.bgx.cat === k ? 'on' : ''}">${n}</button>`).join('')}<button data-x="bgxNew">🎲 Altro sfondo</button></div>` : ''}
     <div class="note">Decorazioni arabe</div><div class="tb"><button data-x="deco" data-v="-1" class="${!act.deco || act.deco.v < 0 ? 'on' : ''}">🚫 Nessuna</button>${(SV.AUTODECO || []).map(([k, n], i) => `<button data-x="deco" data-v="${i}" class="${act.deco && act.deco.v === i ? 'on' : ''}">${n}</button>`).join('')}<button data-x="decoNew">🎲 Altro stile</button></div>
     <div class="note" ${(act.kind || 'recipe') === 'recipe' ? '' : 'hidden'}>Colori</div><div class="tb" ${(act.kind || 'recipe') === 'recipe' ? '' : 'hidden'}>${Object.keys(PAL).filter(k => act.style && compat(act.style, k)).map(k => `<button data-x="pal" data-v="${k}" class="${act.pal === k ? 'on' : ''}">${esc(PAL[k].n)}</button>`).join('')}</div>
     <div class="note">Foto e formato</div><div class="tb"><label class="bt" style="display:inline-flex;cursor:pointer">📷 Cambia foto<input type="file" accept="image/*" id="agPhoto" hidden></label><button data-x="feet" class="${A.hideFeet ? 'on' : ''}">🦶 Nascondi piedi</button><button data-x="fmt" data-v="storia" class="${A.format !== 'post' ? 'on' : ''}">📱 Storia</button><button data-x="fmt" data-v="post" class="${A.format === 'post' ? 'on' : ''}">🖼️ Post 4:5</button></div>
