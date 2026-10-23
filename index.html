@@ -893,6 +893,10 @@ textarea.sv-in{height:auto;padding:8px 10px;min-height:70px}
 @media(min-width:700px){.sv-chips{flex-wrap:wrap;overflow-x:visible}.sv-chip{flex-shrink:0}}
 
 .sv-t3d{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}.sv-t3d button{border:1px solid #e3e5e8;background:#14361f;border-radius:10px;padding:10px 4px 6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;color:#fff}.sv-t3d button.on{outline:2px solid #7d2ae8}.sv-t3d b{font-size:26px;letter-spacing:1px;line-height:1.1}.sv-t3d span{font-size:11px;opacity:.85}.sv-t3c{display:flex;align-items:center;gap:6px;font-size:12px;flex:1}.sv-t3c input{width:34px;height:28px;border:0;padding:0;background:none}
+.sv-cm{position:fixed;z-index:60;background:#fff;border-radius:10px;box-shadow:0 10px 36px rgba(0,0,0,.28);padding:5px;min-width:200px;display:flex;flex-direction:column}
+.sv-cm button{border:0;background:none;text-align:left;padding:7px 10px;border-radius:6px;font:inherit;font-size:13px;cursor:pointer;color:#1d2125}
+.sv-cm button:hover{background:#f0f1f4}.sv-cm hr{border:0;border-top:1px solid #e6e8eb;margin:4px 2px}
+.sv-kb{width:100%;border-collapse:collapse;margin:8px 0;font-size:13px}.sv-kb td{padding:5px 4px;border-bottom:1px solid #eef0f2}.sv-kb kbd{background:#f0f1f4;border-radius:5px;padding:2px 6px;font-size:12px;white-space:nowrap}
 
 </style>
 </head>
@@ -14654,6 +14658,93 @@ async function doExport(share) {
     SV.closeModal();
   } catch (e) { SV.busy(false); console.error(e); SV.toast('Errore esportazione: ' + e.message); }
 }
+})();
+
+/* Extras (Canva-gap batch): custom fonts, right-click menu, keyboard shortcuts + help */
+(function () {
+const SV = window.SV, U = SV.U, P = SV.P, $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const X = {};
+const _act = SV.act;
+SV.act = function (a, d, b, ev) { const h = X[a]; return h ? h(d || {}, b, ev) : _act.apply(this, arguments); };
+
+/* ---------- custom fonts (IndexedDB kv 'myfonts') ---------- */
+SV.myFonts = [];
+async function regFont(f) {
+  try { const ff = new FontFace(f.name, f.buf); await ff.load(); document.fonts.add(ff); if (typeof _fontState !== 'undefined') _fontState[f.name] = 'ok'; SV.fontReady && (SV.fontReady[f.name] = true);
+    if (typeof FONT_LIST !== 'undefined' && !FONT_LIST.some(x => x[0] === f.name)) FONT_LIST.push([f.name, '', 'Miei']); return true; } catch (e) { return false; }
+}
+SV.loadMyFonts = async function () { if (SV._mfDone) return; SV._mfDone = true; try { const l = (await SV.kvGet('myfonts')) || []; for (const f of l) if (await regFont(f)) SV.myFonts.push(f); } catch (e) {} };
+const _open = SV.open; SV.open = async function () { const r = await _open.apply(this, arguments); SV.loadMyFonts().then(() => SV.render && SV.render()); return r; };
+const _pf = P.font;
+P.font = function () {
+  let h = _pf.apply(this, arguments); if (!h) return h; const el = SV.h.one();
+  h += `<div class="sv-lbl">I miei font</div><div class="sv-fonts">` + SV.myFonts.map(f => `<button data-a="setFont" data-f="${esc(f.name)}" class="${el && el.st && el.st.font === f.name ? 'on' : ''}" style="font-family:'${esc(f.name)}'">${esc(f.name)}<small>Miei</small></button><button class="sv-chip" data-a="fontDel" data-f="${esc(f.name)}" title="Elimina font">🗑</button>`).join('') + `</div>` +
+    `<button class="sv-btn sec" data-a="fontUp" style="margin-top:8px">⬆️ Carica un tuo font (.ttf .otf .woff2)</button><p style="font-size:11px;color:#8a8f96;margin:6px 0 0">Il font resta su questo dispositivo: se condividi il progetto, gli altri vedranno un font sostitutivo.</p>`;
+  return h;
+};
+X.fontUp = () => { const i = document.createElement('input'); i.type = 'file'; i.accept = '.ttf,.otf,.woff,.woff2,font/*'; i.multiple = true;
+  i.onchange = async () => { SV.busy(true, 'Carico il font…'); let n = 0; try { for (const f of i.files) { const name = f.name.replace(/\.[^.]+$/, '').replace(/[^\w\- ]+/g, ' ').trim().slice(0, 40) || 'Font'; const rec = { name, buf: await f.arrayBuffer() }; if (await regFont({ name, buf: rec.buf.slice(0) })) { SV.myFonts = SV.myFonts.filter(x => x.name !== name).concat(rec); n++; } else SV.toast('Font non valido: ' + f.name); }
+      await SV.kvSet('myfonts', SV.myFonts); } finally { SV.busy(false); } if (n) { SV.toast(n + ' font caricato/i ✓'); SV.refreshPanel && SV.refreshPanel(true); } };
+  i.click(); };
+X.fontDel = async d => { SV.myFonts = SV.myFonts.filter(f => f.name !== d.f); await SV.kvSet('myfonts', SV.myFonts); SV.toast('Font rimosso (resta fino al riavvio)'); SV.refreshPanel && SV.refreshPanel(true); };
+
+/* ---------- cut ---------- */
+X.cut = () => { if (!U.sel.length) return; _act.call(SV, 'copy', {}); _act.call(SV, 'del', {}); };
+
+/* ---------- right-click menu ---------- */
+function closeCtx() { const m = $('svCtxMenu'); if (m) m.remove(); }
+function openCtx(e) {
+  if (!U.proj || U.mode === 'text') return; closeCtx();
+  const st = $('svStage'), r = st.getBoundingClientRect(), d = SV.toDesign(e.clientX - r.left, e.clientY - r.top), hit = SV.hitEl(d.x, d.y);
+  if (hit && !U.sel.includes(hit.id)) SV.select(hit.id);
+  if (!hit) SV.select([]);
+  const els = SV.selEls(), one = els.length === 1 ? els[0] : null, grp = els.some(x => x.gid), locked = els.length && els.every(x => x.locked);
+  const it = (a, l, k, extra) => `<button data-a="${a}" ${k ? `data-k="${k}"` : ''} ${extra || ''}>${l}</button>`;
+  let h = '';
+  if (els.length) {
+    if (one && one.type === 'text') h += it('editText', '✏️ Modifica testo');
+    if (one && one.type === 'image' && one.asset) h += it('crop', '✂️ Ritaglia') + it('bgremove', '👤 Rimuovi sfondo');
+    h += it('copy', '📄 Copia') + it('cut', '✂ Taglia') + it('paste', '📋 Incolla') + it('dup', '⧉ Duplica') + '<hr>';
+    h += (els.length > 1 && !grp ? it('group', '🔗 Raggruppa') : '') + (grp ? it('ungroup', '⛓️‍💥 Separa') : '') + it('lock', locked ? '🔓 Sblocca' : '🔒 Blocca') + '<hr>';
+    h += it('order', '⤒ Porta in primo piano', 'front') + it('order', '↑ Porta avanti', 'fwd') + it('order', '↓ Manda indietro', 'bwd') + it('order', '⤓ Manda in fondo', 'back') + '<hr>';
+    h += it('alignPage', '◎ Centra sulla pagina') + it('del', '🗑 Elimina');
+  } else h += it('paste', '📋 Incolla') + it('selAll', '☑ Seleziona tutto') + it('addText', '𝗧 Aggiungi testo', 'box');
+  h += '<hr>' + it('kbHelp', '⌨️ Scorciatoie da tastiera');
+  const m = document.createElement('div'); m.id = 'svCtxMenu'; m.className = 'sv-cm'; m.innerHTML = h; $('sv').appendChild(m);
+  const W = innerWidth, H = innerHeight, mw = m.offsetWidth, mh = m.offsetHeight; m.style.left = Math.max(4, Math.min(e.clientX, W - mw - 4)) + 'px'; m.style.top = Math.max(4, Math.min(e.clientY, H - mh - 4)) + 'px';
+  m.addEventListener('click', () => setTimeout(closeCtx, 0));
+  e.preventDefault();
+}
+document.addEventListener('contextmenu', e => { if ($('svStage') && $('svStage').contains(e.target) && !$('sv').hidden) openCtx(e); });
+document.addEventListener('pointerdown', e => { const m = $('svCtxMenu'); if (m && !m.contains(e.target)) closeCtx(); }, true);
+window.addEventListener('blur', closeCtx); window.addEventListener('resize', closeCtx);
+$('svStage') && 0;
+
+/* ---------- keyboard shortcuts ---------- */
+const KB = [['Ctrl+Z / Ctrl+Shift+Z', 'Annulla / Ripeti'], ['Ctrl+C / X / V', 'Copia / Taglia / Incolla'], ['Ctrl+D', 'Duplica'], ['Ctrl+A', 'Seleziona tutto'], ['Ctrl+G / Ctrl+Shift+G', 'Raggruppa / Separa'], ['Ctrl+]  /  Ctrl+[', 'Porta avanti / indietro'], ['Ctrl+Shift+]  /  [', 'In primo piano / in fondo'], ['Freccette (+Maiusc)', 'Sposta di 1 / 10 px'], ['Canc', 'Elimina'], ['T', 'Aggiungi testo'], ['R / C / L', 'Rettangolo / Cerchio / Linea'], ['Ctrl+0', 'Adatta alla finestra'], ['Ctrl + / Ctrl −', 'Zoom'], ['Spazio + trascina', 'Sposta la vista'], ['Alt + trascina', 'Senza magnete'], ['Ctrl+S', 'Salva'], ['?', 'Questa guida']];
+X.kbHelp = () => SV.modal(`<h3>Scorciatoie da tastiera</h3><table class="sv-kb">${KB.map(([k, v]) => `<tr><td><kbd>${esc(k)}</kbd></td><td>${esc(v)}</td></tr>`).join('')}</table><p style="font-size:12px;color:#8a8f96">Tasto destro su un elemento: menu rapido.</p><button class="sv-btn" data-a="closeModal">Chiudi</button>`);
+function addShape(k) { const n = (SV.SHAPES.find(s => s[0] === k) || [k, k])[1], m = Math.min(SV.h.W(), SV.h.H()); SV.addEls([SV.newEl('shape', { shape: k, fill: '#d4af37', name: n, w: m * 0.3, h: m * 0.3 }, SV.h.W(), SV.h.H())]); }
+window.addEventListener('keydown', e => {
+  if (!U.proj || $('sv').hidden || $('svEditor').hidden || !$('svModal').hidden || U.mode === 'text' || e.isComposing) return;
+  const tag = (e.target && e.target.tagName) || ''; if (/INPUT|TEXTAREA|SELECT/.test(tag)) return;
+  const mod = e.ctrlKey || e.metaKey, k = e.key;
+  if (k === 'Escape') closeCtx();
+  if (mod && k.toLowerCase() === 'x') { e.preventDefault(); X.cut(); return; }
+  if (mod && k.toLowerCase() === 's') { e.preventDefault(); SV.saveNow && SV.saveNow(); SV.toast('Salvato ✓'); return; }
+  if (mod && (k === ']' || k === '[')) { e.preventDefault(); if (U.sel.length) SV.act('order', { k: k === ']' ? (e.shiftKey ? 'front' : 'fwd') : (e.shiftKey ? 'back' : 'bwd') }); return; }
+  if (mod && k === '}' ) { e.preventDefault(); SV.act('order', { k: 'front' }); return; } if (mod && k === '{') { e.preventDefault(); SV.act('order', { k: 'back' }); return; }
+  if (mod && k === '0') { e.preventDefault(); SV.act('zoomFit', {}); return; }
+  if (mod && (k === '=' || k === '+')) { e.preventDefault(); SV.act('zoom', { d: 1 }); return; }
+  if (mod && (k === '-' || k === '_')) { e.preventDefault(); SV.act('zoom', { d: -1 }); return; }
+  if (mod || e.altKey) return;
+  const l = k.toLowerCase();
+  if (k === '?' || (k === '/' && e.shiftKey)) { X.kbHelp(); return; }
+  if (l === 't') { e.preventDefault(); SV.act('addText', { k: 'box' }); }
+  else if (l === 'r') { e.preventDefault(); addShape('rect'); }
+  else if (l === 'c') { e.preventDefault(); addShape('circle'); }
+  else if (l === 'l') { e.preventDefault(); SV.addEls([SV.newEl('line', { stroke: '#d4af37', sw: 8 * SV.h.kk(), name: 'Linea', h: 30 * SV.h.kk(), w: SV.h.W() * 0.5 }, SV.h.W(), SV.h.H())]); }
+});
 })();
 
 /* Gomma: erase/restore refine panel (non-destructive alpha mask) */
